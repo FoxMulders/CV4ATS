@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ATS Resume Builder
 
-## Getting Started
+Tailor your resume to any job description. Paste a job description and your resume (text or file upload), then get:
 
-First, run the development server:
+- An ATS-formatted tailored resume (PDF + DOCX)
+- A keyword match report with suggestions
+- A tailored cover letter (PDF + DOCX)
+
+No accounts. Your resume is processed in memory and never stored.
+
+## Prerequisites
+
+- Node.js 20+
+- An AI provider key: `AI_GATEWAY_API_KEY` (recommended on Vercel) or `OPENAI_API_KEY`
+
+## Setup
 
 ```bash
+npm install
+cp .env.local.example .env.local
+# Add your API key to .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Purpose |
+|----------|---------|
+| `AI_GATEWAY_API_KEY` | Vercel AI Gateway key (recommended) |
+| `OPENAI_API_KEY` | Direct OpenAI fallback if not using Gateway |
+| `AI_MODEL` | Optional model override (default: `gpt-4o-mini` / `openai/gpt-4o-mini`) |
 
-## Learn More
+## Deploy to Vercel
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx vercel
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Set `AI_GATEWAY_API_KEY` (or `OPENAI_API_KEY`) in the Vercel project environment variables.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API routes
 
-## Deploy on Vercel
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/generate` | POST | Multipart form: `jobDescription`, `resumeText` or `file` |
+| `/api/export/pdf` | POST | JSON `TailoredResume` → PDF download |
+| `/api/export/docx` | POST | JSON `TailoredResume` → DOCX download |
+| `/api/export/cover-letter/pdf` | POST | JSON `{ coverLetter }` → PDF |
+| `/api/jobs/search` | GET/POST | Search Edmonton PM jobs (`?query=project manager&location=Edmonton`) |
+| `/api/jobs/tailor` | POST | Multipart: `job` (JSON), `resumeText` or `file` → tailored application |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Pages
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| URL | Purpose |
+|-----|---------|
+| `/` | Manual job description + resume tailoring |
+| `/jobs` | Edmonton project management job search with per-job tailoring, scores, and apply links |
