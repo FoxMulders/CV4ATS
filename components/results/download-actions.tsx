@@ -4,6 +4,7 @@ import { Download, FileText, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { Button } from '@/components/ui/button'
 import type { TailoredResume } from '@/lib/ai/schemas'
 
@@ -20,8 +21,7 @@ async function downloadFile(url: string, body: unknown, filename: string) {
   })
 
   if (!response.ok) {
-    const data = (await response.json().catch(() => null)) as { error?: string } | null
-    throw new Error(data?.error ?? 'Download failed')
+    throw new Error(await parseApiErrorResponse(response, 'Download failed'))
   }
 
   const blob = await response.blob()

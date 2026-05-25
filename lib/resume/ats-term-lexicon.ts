@@ -1,0 +1,70 @@
+/** Recognized ATS skill, methodology, tool, or domain terms — not general English vocabulary. */
+export const INDUSTRY_SKILL_TERMS = new Set([
+  'agile',
+  'api',
+  'apis',
+  'architecture',
+  'automation',
+  'aws',
+  'azure',
+  'bi',
+  'cicd',
+  'ci/cd',
+  'cloud',
+  'confluence',
+  'crm',
+  'delivery',
+  'devops',
+  'erp',
+  'etl',
+  'governance',
+  'integration',
+  'itil',
+  'jira',
+  'kanban',
+  'kubernetes',
+  'methodology',
+  'methodologies',
+  'microservices',
+  'ml',
+  'pmo',
+  'pmp',
+  'product',
+  'program',
+  'project',
+  'python',
+  'roadmap',
+  'safe',
+  'saas',
+  'scope',
+  'scrum',
+  'sdlc',
+  'sharepoint',
+  'software',
+  'sql',
+  'stakeholder',
+  'stakeholders',
+  'terraform',
+  'typescript',
+  'waterfall',
+  'workflow',
+  'workflows',
+  'strategy',
+  'roadmap',
+  'backlog',
+  'ownership',
+  'agent',
+  'agents',
+  'custom',
+])
+
+const TECH_ACRONYM_PATTERN = /^[a-z0-9+#./-]{2,}$/i
+
+export function isRecognizedAtsTerm(token: string): boolean {
+  const lower = token.toLowerCase()
+  if (INDUSTRY_SKILL_TERMS.has(lower)) return true
+  if (lower.length <= 4 && TECH_ACRONYM_PATTERN.test(lower)) {
+    return /[0-9+#./]/.test(lower) || ['ai', 'ml', 'bi', 'ui', 'ux', 'api', 'erp', 'crm', 'etl', 'sql', 'saas', 'paas', 'iaas', 'gpu', 'llm', 'llms', 'pmo', 'pmp', 'sdlc', 'itil', 'cicd', 'devops', 'safe'].includes(lower)
+  }
+  return false
+}

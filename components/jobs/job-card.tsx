@@ -9,32 +9,58 @@ import {
   MapPin,
   Sparkles,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+
+import { parseApiErrorResponse } from '@/lib/api/client-fetch'
+import { formatScorePassLine } from '@/lib/api/generation-config'
+import { consumeGenerationStream, coalesceStreamingResume, type ScorePassEvent } from '@/lib/api/progress-stream'
 
 import { CoverLetterPreview } from '@/components/results/cover-letter-preview'
 import { DownloadActions } from '@/components/results/download-actions'
+import { AtsComplianceComparison } from '@/components/results/ats-compliance-comparison'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
-import { ResumePreview } from '@/components/results/resume-preview'
+import {
+  SelectableMissingKeywords,
+  type SkillSnippetSelection,
+} from '@/components/results/editable-skill-snippet-picker'
+import { EditableResumePreview } from '@/components/results/editable-resume-preview'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { GenerationResult } from '@/lib/ai/schemas'
+import type { GenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import type { JobListing } from '@/lib/jobs/types'
+import { getEmployerDisplayName } from '@/lib/jobs/edmonton-employers'
+import {
+  getResumeTextForSubmit,
+  isResumeInputReady,
+  type ResumeFileParseState,
+} from '@/components/wizard/resume-input-step'
+import { GenerationProgress } from '@/components/wizard/generation-progress'
+import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
+import { serializeTailoredResume } from '@/lib/resume/ats-score'
+import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
 
 export interface JobTailorResult extends GenerationResult {
   jobId: string
   job: JobListing
+  refinementPasses?: number
+  targetScoreMet?: boolean
+  preScan?: PreScanResult
+  incorporatedKeywords?: string[]
+  passHistory?: ScorePassEvent[]
 }
 
 interface JobCardProps {
   job: JobListing
   resumeText: string
   resumeFile: File | null
+  fileParse: ResumeFileParseState
   tailorResult?: JobTailorResult
   onTailorComplete: (result: JobTailorResult) => void
+  manuallyShared?: boolean
 }
 
 function scoreVariant(score: number): 'default' | 'secondary' | 'outline' | 'destructive' {
@@ -48,28 +74,78 @@ export function JobCard({
   job,
   resumeText,
   resumeFile,
+  fileParse,
   tailorResult,
   onTailorComplete,
+  manuallyShared = false,
 }: JobCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [isTailoring, setIsTailoring] = useState(false)
+  const [tailorStep, setTailorStep] = useState(0)
+  const [tailorLabel, setTailorLabel] = useState<string | null>(null)
+  const [scorePassLines, setScorePassLines] = useState<string[]>([])
+  const [streamingResume, setStreamingResume] = useState<TailoredResume | null>(null)
   const [coverLetter, setCoverLetter] = useState(tailorResult?.coverLetter ?? '')
+  const [editedResume, setEditedResume] = useState<TailoredResume | null>(null)
 
-  async function handleTailor() {
-    if (!resumeText.trim() && !resumeFile) {
+  useEffect(() => {
+    if (tailorResult?.coverLetter) {
+      setCoverLetter(tailorResult.coverLetter)
+    }
+  }, [tailorResult?.jobId, tailorResult?.coverLetter])
+
+  useEffect(() => {
+    if (tailorResult?.tailoredResume) {
+      setEditedResume(tailorResult.tailoredResume)
+    }
+  }, [tailorResult?.jobId, tailorResult?.tailoredResume])
+
+  async function handleTailor(options: {
+    selections?: SkillSnippetSelection[]
+    resumeOverride?: string
+  } = {}) {
+    if (!options.resumeOverride && !isResumeInputReady(resumeText, resumeFile, fileParse)) {
+      if (fileParse.status === 'parsing') {
+        toast.error('Wait for resume extraction to finish.')
+        return
+      }
+      if (fileParse.status === 'error') {
+        toast.error(fileParse.error ?? 'Fix resume upload errors before tailoring.')
+        return
+      }
       toast.error('Add your resume before tailoring applications.')
       return
     }
 
     setIsTailoring(true)
+    setTailorStep(0)
+    setTailorLabel(null)
+    setScorePassLines([])
+    setStreamingResume(null)
     try {
       const formData = new FormData()
       formData.append('job', JSON.stringify(job))
 
-      if (resumeFile) {
-        formData.append('file', resumeFile)
+      if (options.resumeOverride) {
+        formData.append('resumeText', options.resumeOverride)
       } else {
-        formData.append('resumeText', resumeText.trim())
+        const resumePayload = getResumeTextForSubmit(resumeText, resumeFile, fileParse)
+        if (resumePayload.resumeText) {
+          formData.append('resumeText', resumePayload.resumeText)
+        } else if (resumePayload.file) {
+          formData.append('file', resumePayload.file)
+        }
+      }
+
+      if (options.selections?.length) {
+        formData.append(
+          'selectedKeywords',
+          JSON.stringify(options.selections.map((item) => item.keyword))
+        )
+        formData.append(
+          'customSnippets',
+          JSON.stringify(options.selections.map((item) => item.snippet))
+        )
       }
 
       const response = await fetch('/api/jobs/tailor', {
@@ -77,17 +153,42 @@ export function JobCard({
         body: formData,
       })
 
-      const data = (await response.json()) as JobTailorResult | { error?: string }
-
       if (!response.ok) {
-        throw new Error('error' in data ? data.error : 'Tailoring failed')
+        throw new Error(await parseApiErrorResponse(response, 'Tailoring failed'))
       }
 
-      const result = data as JobTailorResult
+      const result = await consumeGenerationStream<JobTailorResult>(response, {
+        onProgress: (step, label) => {
+          setTailorStep(step)
+          setTailorLabel(label)
+        },
+        onScorePass: (event) => {
+          setScorePassLines((current) => [...current, formatScorePassLine(event)])
+        },
+        onPartial: (preview) => {
+          const resumeSnapshot = coalesceStreamingResume(preview)
+          if (resumeSnapshot) {
+            setStreamingResume(resumeSnapshot)
+            setEditedResume(resumeSnapshot)
+          }
+        },
+      })
       setCoverLetter(result.coverLetter)
       onTailorComplete(result)
       setExpanded(true)
-      toast.success(`Application tailored for ${job.title}`)
+
+      if (options.selections?.length) {
+        toast.success(
+          `Re-tailored with ${options.selections.length} addition${options.selections.length === 1 ? '' : 's'} incorporated`
+        )
+      } else {
+        const injected = result.incorporatedKeywords?.length ?? 0
+        toast.success(
+          injected > 0
+            ? `Application tailored for ${job.title} — ${injected} keywords woven in`
+            : `Application tailored for ${job.title}`
+        )
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Tailoring failed')
     } finally {
@@ -95,26 +196,61 @@ export function JobCard({
     }
   }
 
-  const score = tailorResult?.keywordReport.matchScore
+  async function handleIncorporateKeywords(selections: SkillSnippetSelection[]) {
+    const resumeOverride =
+      editedResume != null
+        ? serializeTailoredResume(editedResume)
+        : tailorResult
+          ? serializeTailoredResume(tailorResult.tailoredResume)
+          : undefined
+
+    if (!resumeOverride) {
+      toast.error('Tailor this application before incorporating keywords.')
+      return
+    }
+
+    await handleTailor({ selections, resumeOverride })
+  }
+
+  const afterScore = tailorResult?.keywordReport.matchScore
+  const beforeScore = tailorResult?.baselineKeywordReport.matchScore
+  const priorityEmployerName = job.targetEmployerId
+    ? getEmployerDisplayName(job.targetEmployerId)
+    : undefined
 
   return (
-    <Card>
+    <Card className="border-border/80 shadow-sm transition-shadow hover:shadow-md">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-lg">{job.title}</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-lg">{job.title}</CardTitle>
+              {manuallyShared ? <Badge variant="secondary">Manually shared</Badge> : null}
+              {priorityEmployerName ? (
+                <Badge variant="outline" className="border-brand-gold/60 text-brand-gold">
+                  {priorityEmployerName}
+                </Badge>
+              ) : null}
+            </div>
             <CardDescription className="flex flex-wrap items-center gap-2">
               <Briefcase className="size-3.5" />
               {job.company}
               <span className="text-muted-foreground">•</span>
               <MapPin className="size-3.5" />
               {job.location}
+              <span className="text-muted-foreground">•</span>
+              {job.source}
             </CardDescription>
           </div>
-          {score !== undefined ? (
-            <Badge variant={scoreVariant(score)} className="text-sm">
-              Match: {score}%
-            </Badge>
+          {afterScore !== undefined ? (
+            <div className="flex flex-col items-end gap-1">
+              {beforeScore !== undefined ? (
+                <span className="text-xs text-muted-foreground">ATS: {beforeScore}% → {afterScore}%</span>
+              ) : null}
+              <Badge variant={scoreVariant(afterScore)} className="text-sm">
+                After: {afterScore}%
+              </Badge>
+            </div>
           ) : null}
         </div>
       </CardHeader>
@@ -146,7 +282,10 @@ export function JobCard({
         <p className="text-sm text-muted-foreground line-clamp-3">{job.description}</p>
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={handleTailor} disabled={isTailoring}>
+          <Button
+            onClick={() => handleTailor()}
+            disabled={isTailoring || fileParse.status === 'parsing'}
+          >
             {isTailoring ? (
               <>
                 <Loader2 className="animate-spin" />
@@ -159,6 +298,18 @@ export function JobCard({
               </>
             )}
           </Button>
+
+          {isTailoring ? (
+            <div className="w-full basis-full space-y-3">
+              <GenerationProgress
+                loadingStep={tailorStep}
+                activeLabel={tailorLabel}
+                scorePassLines={scorePassLines}
+                compact
+              />
+              {streamingResume ? <StreamingResumePreview resume={streamingResume} /> : null}
+            </div>
+          ) : null}
 
           <a
             href={job.applyUrl}
@@ -187,19 +338,12 @@ export function JobCard({
 
             {tailorResult ? (
               <>
-                <div className="space-y-3">
-                  <h4 className="font-semibold">Your match score</h4>
-                  <div className="flex items-end gap-3">
-                    <span className="text-3xl font-bold">
-                      {tailorResult.keywordReport.matchScore}%
-                    </span>
-                    <Progress value={tailorResult.keywordReport.matchScore} className="flex-1" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    To increase your score, address the missing keywords and suggestions below
-                    before applying.
-                  </p>
-                </div>
+                <AtsComplianceComparison
+                  before={tailorResult.baselineKeywordReport}
+                  after={tailorResult.keywordReport}
+                  refinementPasses={tailorResult.refinementPasses}
+                  targetScoreMet={tailorResult.targetScoreMet}
+                />
 
                 <Tabs defaultValue="improvements">
                   <TabsList>
@@ -218,19 +362,11 @@ export function JobCard({
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        {tailorResult.keywordReport.missingKeywords.length ? (
-                          <div className="flex flex-wrap gap-2">
-                            {tailorResult.keywordReport.missingKeywords.map((keyword) => (
-                              <Badge key={keyword} variant="outline">
-                                {keyword}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            No major keyword gaps identified.
-                          </p>
-                        )}
+                        <SelectableMissingKeywords
+                          keywords={sanitizeKeywordList(tailorResult.keywordReport.missingKeywords)}
+                          onIncorporate={handleIncorporateKeywords}
+                          isLoading={isTailoring}
+                        />
                       </CardContent>
                     </Card>
 
@@ -249,20 +385,33 @@ export function JobCard({
                   </TabsContent>
 
                   <TabsContent value="resume" className="mt-4">
-                    <ResumePreview resume={tailorResult.tailoredResume} />
+                    {editedResume ? (
+                      <EditableResumePreview
+                        resume={editedResume}
+                        onResumeChange={setEditedResume}
+                      />
+                    ) : null}
                   </TabsContent>
 
                   <TabsContent value="cover" className="mt-4">
-                    <CoverLetterPreview value={coverLetter} onChange={setCoverLetter} />
+                    <CoverLetterPreview
+                      fieldId={`cover-letter-${job.id}`}
+                      value={coverLetter}
+                      onChange={setCoverLetter}
+                    />
                   </TabsContent>
 
                   <TabsContent value="keywords" className="mt-4">
-                    <KeywordReportPanel report={tailorResult.keywordReport} />
+                    <KeywordReportPanel
+                      report={tailorResult.keywordReport}
+                      onIncorporateKeywords={handleIncorporateKeywords}
+                      isRerunning={isTailoring}
+                    />
                   </TabsContent>
                 </Tabs>
 
                 <DownloadActions
-                  resume={tailorResult.tailoredResume}
+                  resume={editedResume ?? tailorResult.tailoredResume}
                   coverLetter={coverLetter}
                 />
 

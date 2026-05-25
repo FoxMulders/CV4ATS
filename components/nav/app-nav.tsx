@@ -8,14 +8,14 @@ interface AppNavProps {
 
 export function AppNav({ current }: AppNavProps) {
   return (
-    <nav className="flex gap-1 rounded-lg border bg-muted/50 p-1">
+    <nav className="flex gap-1 rounded-lg border border-border/80 bg-background/80 p-1 shadow-sm">
       <Link
         href="/"
         className={cn(
           'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
           current === 'tailor'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         )}
       >
         Tailor resume
@@ -25,11 +25,11 @@ export function AppNav({ current }: AppNavProps) {
         className={cn(
           'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
           current === 'jobs'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         )}
       >
-        Edmonton job search
+        Job search
       </Link>
     </nav>
   )

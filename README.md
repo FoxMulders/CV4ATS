@@ -1,4 +1,4 @@
-# ATS Resume Builder
+# ATS4CV
 
 Tailor your resume to any job description. Paste a job description and your resume (text or file upload), then get:
 
@@ -11,7 +11,7 @@ No accounts. Your resume is processed in memory and never stored.
 ## Prerequisites
 
 - Node.js 20+
-- An AI provider key: `AI_GATEWAY_API_KEY` (recommended on Vercel) or `OPENAI_API_KEY`
+- A free AI provider key: `GEMINI_API_KEY` (recommended) or `GROQ_API_KEY`
 
 ## Setup
 
@@ -28,9 +28,10 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Purpose |
 |----------|---------|
-| `AI_GATEWAY_API_KEY` | Vercel AI Gateway key (recommended) |
-| `OPENAI_API_KEY` | Direct OpenAI fallback if not using Gateway |
-| `AI_MODEL` | Optional model override (default: `gpt-4o-mini` / `openai/gpt-4o-mini`) |
+| `GEMINI_API_KEY` | Google Gemini API key ([AI Studio](https://aistudio.google.com/apikey)) |
+| `GEMINI_MODEL` | Optional Gemini model (default: `gemini-1.5-flash`) |
+| `GROQ_API_KEY` | Groq API key (used if `GEMINI_API_KEY` is unset) |
+| `GROQ_MODEL` | Optional Groq model (default: `llama-3.1-70b-versatile`) |
 
 ## Deploy to Vercel
 
@@ -38,7 +39,7 @@ Open [http://localhost:3000](http://localhost:3000).
 npx vercel
 ```
 
-Set `AI_GATEWAY_API_KEY` (or `OPENAI_API_KEY`) in the Vercel project environment variables.
+Set `GEMINI_API_KEY` (or `GROQ_API_KEY`) in the Vercel project environment variables.
 
 ## API routes
 

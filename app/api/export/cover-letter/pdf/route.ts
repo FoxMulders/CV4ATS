@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { buildCoverLetterPdf } from '@/lib/resume/export-pdf'
 
 const coverLetterSchema = z.object({
@@ -8,6 +10,13 @@ const coverLetterSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const rateLimit = await checkRateLimit('export', ip)
+
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(rateLimit.retryAfterSeconds)
+  }
+
   try {
     const body = await request.json()
     const parsed = coverLetterSchema.safeParse(body)

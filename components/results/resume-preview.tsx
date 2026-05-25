@@ -13,30 +13,30 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
   ].filter(Boolean)
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 rounded-lg border bg-white p-8 font-sans text-sm leading-relaxed text-neutral-900 shadow-sm">
-      <header className="border-b pb-4">
-        <h2 className="text-2xl font-bold">{resume.contact.name}</h2>
+    <div className="mx-auto max-w-2xl space-y-5 rounded-lg border border-border/80 bg-card p-8 font-sans text-sm leading-relaxed text-foreground shadow-md">
+      <header className="border-b border-primary/20 pb-4">
+        <h2 className="font-heading text-2xl font-semibold">{resume.contact.name}</h2>
         {contactParts.length > 0 ? (
-          <p className="mt-1 text-neutral-600">{contactParts.join(' | ')}</p>
+          <p className="mt-1 text-muted-foreground">{contactParts.join(' | ')}</p>
         ) : null}
       </header>
 
       <section>
-        <h3 className="mb-2 border-b border-neutral-900 pb-1 text-xs font-bold uppercase tracking-wide">
+        <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
           Professional Summary
         </h3>
         <p>{resume.summary}</p>
       </section>
 
       <section>
-        <h3 className="mb-2 border-b border-neutral-900 pb-1 text-xs font-bold uppercase tracking-wide">
+        <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
           Skills
         </h3>
         <p>{resume.skills.join(' • ')}</p>
       </section>
 
       <section>
-        <h3 className="mb-2 border-b border-neutral-900 pb-1 text-xs font-bold uppercase tracking-wide">
+        <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
           Work Experience
         </h3>
         <div className="space-y-4">
@@ -46,7 +46,7 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
                 {job.title} — {job.company}
                 {job.location ? ` | ${job.location}` : ''}
               </p>
-              <p className="text-neutral-600">
+              <p className="text-muted-foreground">
                 {job.startDate} – {job.endDate}
               </p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -60,7 +60,7 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
       </section>
 
       <section>
-        <h3 className="mb-2 border-b border-neutral-900 pb-1 text-xs font-bold uppercase tracking-wide">
+        <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
           Education
         </h3>
         <div className="space-y-3">
@@ -70,7 +70,7 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
                 {edu.degree}, {edu.school}
                 {edu.graduationDate ? ` — ${edu.graduationDate}` : ''}
               </p>
-              {edu.details ? <p className="text-neutral-700">{edu.details}</p> : null}
+              {edu.details ? <p className="text-muted-foreground">{edu.details}</p> : null}
             </div>
           ))}
         </div>
@@ -78,7 +78,7 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
 
       {resume.certifications?.length ? (
         <section>
-          <h3 className="mb-2 border-b border-neutral-900 pb-1 text-xs font-bold uppercase tracking-wide">
+          <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
             Certifications
           </h3>
           <ul className="list-disc space-y-1 pl-5">

@@ -6,14 +6,15 @@ import { Textarea } from '@/components/ui/textarea'
 interface CoverLetterPreviewProps {
   value: string
   onChange: (value: string) => void
+  fieldId?: string
 }
 
-export function CoverLetterPreview({ value, onChange }: CoverLetterPreviewProps) {
+export function CoverLetterPreview({ value, onChange, fieldId = 'cover-letter' }: CoverLetterPreviewProps) {
   return (
     <div className="space-y-2">
-      <Label htmlFor="cover-letter">Cover letter</Label>
+      <Label htmlFor={fieldId}>Cover letter</Label>
       <Textarea
-        id="cover-letter"
+        id={fieldId}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={18}

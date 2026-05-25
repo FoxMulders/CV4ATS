@@ -1,21 +1,50 @@
 'use client'
 
-import { Shield } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { AppNav } from '@/components/nav/app-nav'
-
+import { PageHero } from '@/components/layout/page-hero'
+import { SiteFooter } from '@/components/layout/site-footer'
+import { SiteHeader } from '@/components/layout/site-header'
+import { StepCard } from '@/components/layout/step-card'
+import { TrustBanner } from '@/components/layout/trust-banner'
+import { TargetSkillsPanel } from '@/components/resume/target-skills-panel'
+import { AtsComplianceComparison } from '@/components/results/ats-compliance-comparison'
 import { CoverLetterPreview } from '@/components/results/cover-letter-preview'
 import { DownloadActions } from '@/components/results/download-actions'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
-import { ResumePreview } from '@/components/results/resume-preview'
+import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
+import { EditableResumePreview } from '@/components/results/editable-resume-preview'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { GenerateStep, LOADING_STEPS } from '@/components/wizard/generate-step'
+import { GenerateStep } from '@/components/wizard/generate-step'
+import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 import { JobDescriptionStep } from '@/components/wizard/job-description-step'
-import { ResumeInputStep } from '@/components/wizard/resume-input-step'
-import type { GenerationResult } from '@/lib/ai/schemas'
+import {
+  ResumeInputStep,
+  getResumeTextForSubmit,
+  isResumeInputReady,
+  type ResumeFileParseState,
+} from '@/components/wizard/resume-input-step'
+import { formatScorePassLine } from '@/lib/api/generation-config'
+import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
+import { parseApiErrorResponse } from '@/lib/api/client-fetch'
+import type { GenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
+import { serializeTailoredResume } from '@/lib/resume/ats-score'
+
+type GenerationResultWithMeta = GenerationResult & {
+  refinementPasses?: number
+  targetScoreMet?: boolean
+  preScan?: PreScanResult
+  incorporatedKeywords?: string[]
+}
+
+type GenerateOptions = {
+  selectedKeywords?: string[]
+  customSnippets?: string[]
+  resumeOverride?: string
+}
 
 export default function HomePage() {
   const [jobDescription, setJobDescription] = useState('')
@@ -23,37 +52,115 @@ export default function HomePage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState(0)
-  const [result, setResult] = useState<GenerationResult | null>(null)
+  const [loadingLabel, setLoadingLabel] = useState<string | null>(null)
+  const [scorePassLines, setScorePassLines] = useState<string[]>([])
+  const [streamingResume, setStreamingResume] = useState<TailoredResume | null>(null)
+  const [streamingCoverLetter, setStreamingCoverLetter] = useState('')
+  const [result, setResult] = useState<GenerationResultWithMeta | null>(null)
+  const [editedResume, setEditedResume] = useState<TailoredResume | null>(null)
   const [coverLetter, setCoverLetter] = useState('')
+  const [fileParse, setFileParse] = useState<ResumeFileParseState>({
+    status: 'idle',
+    parsedText: '',
+    error: null,
+  })
+  const [preScanPreview, setPreScanPreview] = useState<PreScanResult | null>(null)
+  const [preScanLoading, setPreScanLoading] = useState(false)
 
-  const canGenerate =
-    jobDescription.trim().length > 0 && (resumeText.trim().length > 0 || resumeFile !== null)
+  const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
+    setFileParse(state)
+  }, [])
+
+  const activeResumeText =
+    resumeText.trim() ||
+    (fileParse.status === 'ready' ? fileParse.parsedText.trim() : '')
 
   useEffect(() => {
-    if (!isLoading) return
+    const jobText = jobDescription.trim()
+    if (!jobText || !activeResumeText) {
+      setPreScanPreview(null)
+      return
+    }
 
-    const interval = window.setInterval(() => {
-      setLoadingStep((current) => Math.min(current + 1, LOADING_STEPS.length - 1))
-    }, 3500)
+    const timer = window.setTimeout(async () => {
+      setPreScanLoading(true)
+      try {
+        const response = await fetch('/api/pre-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobDescription: jobText,
+            resumeText: activeResumeText,
+            autoInject: false,
+          }),
+        })
 
-    return () => window.clearInterval(interval)
-  }, [isLoading])
+        if (!response.ok) return
+        const data = (await response.json()) as PreScanResult
+        setPreScanPreview(data)
+      } catch {
+        setPreScanPreview(null)
+      } finally {
+        setPreScanLoading(false)
+      }
+    }, 600)
 
-  async function handleGenerate() {
-    if (!canGenerate) return
+    return () => window.clearTimeout(timer)
+  }, [jobDescription, activeResumeText])
+
+  function handleInsertSkillSelections(selections: SkillSnippetSelection[]) {
+    setResumeFile(null)
+    setResumeText((current) => {
+      const base = current.trim() || activeResumeText
+      return selections
+        .map((item) => item.snippet.trim())
+        .filter(Boolean)
+        .reduce((text, snippet) => `${text.trim()}\n\n${snippet}`, base)
+    })
+    toast.success(
+      `Inserted ${selections.length} sentence${selections.length === 1 ? '' : 's'} into resume`
+    )
+  }
+
+  const canGenerate =
+    jobDescription.trim().length > 0 &&
+    isResumeInputReady(resumeText, resumeFile, fileParse) &&
+    fileParse.status !== 'parsing'
+
+  async function handleGenerate(options: GenerateOptions = {}) {
+    if (!canGenerate && !options.resumeOverride) return
 
     setIsLoading(true)
     setLoadingStep(0)
-    setResult(null)
+    setLoadingLabel(null)
+    setScorePassLines([])
+    setStreamingResume(null)
+    setStreamingCoverLetter('')
+    if (!options.selectedKeywords?.length && !options.customSnippets?.length) {
+      setResult(null)
+      setEditedResume(null)
+    }
 
     try {
       const formData = new FormData()
       formData.append('jobDescription', jobDescription.trim())
 
-      if (resumeFile) {
-        formData.append('file', resumeFile)
+      if (options.resumeOverride) {
+        formData.append('resumeText', options.resumeOverride)
       } else {
-        formData.append('resumeText', resumeText.trim())
+        const resumePayload = getResumeTextForSubmit(resumeText, resumeFile, fileParse)
+        if (resumePayload.resumeText) {
+          formData.append('resumeText', resumePayload.resumeText)
+        } else if (resumePayload.file) {
+          formData.append('file', resumePayload.file)
+        }
+      }
+
+      if (options.selectedKeywords?.length) {
+        formData.append('selectedKeywords', JSON.stringify(options.selectedKeywords))
+      }
+      if (options.customSnippets?.length) {
+        formData.append('customSnippets', JSON.stringify(options.customSnippets))
       }
 
       const response = await fetch('/api/generate', {
@@ -61,15 +168,46 @@ export default function HomePage() {
         body: formData,
       })
 
-      const data = (await response.json()) as GenerationResult | { error?: string }
-
       if (!response.ok) {
-        throw new Error('error' in data ? data.error : 'Generation failed')
+        throw new Error(await parseApiErrorResponse(response, 'Generation failed'))
       }
 
-      setResult(data as GenerationResult)
-      setCoverLetter((data as GenerationResult).coverLetter)
-      toast.success('Your tailored resume is ready')
+      const data = await consumeGenerationStream<GenerationResultWithMeta>(response, {
+        onProgress: (step, label) => {
+          setLoadingStep(step)
+          setLoadingLabel(label)
+        },
+        onScorePass: (event) => {
+          setScorePassLines((current) => [...current, formatScorePassLine(event)])
+        },
+        onPartial: (preview) => {
+          const resumeSnapshot = coalesceStreamingResume(preview)
+          if (resumeSnapshot) {
+            setStreamingResume(resumeSnapshot)
+          }
+          if (preview.coverLetter?.trim()) {
+            setStreamingCoverLetter(preview.coverLetter)
+          }
+        },
+      })
+
+      setResult(data)
+      setEditedResume(data.tailoredResume)
+      setCoverLetter(data.coverLetter)
+
+      if (options.customSnippets?.length || options.selectedKeywords?.length) {
+        const count = options.customSnippets?.length ?? options.selectedKeywords?.length ?? 0
+        toast.success(
+          `Re-tailored with ${count} addition${count === 1 ? '' : 's'} incorporated`
+        )
+      } else {
+        const injected = data.incorporatedKeywords?.length ?? 0
+        toast.success(
+          injected > 0
+            ? `Your tailored resume is ready — ${injected} keyword${injected === 1 ? '' : 's'} woven in automatically`
+            : 'Your tailored resume is ready'
+        )
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Generation failed')
     } finally {
@@ -77,78 +215,110 @@ export default function HomePage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">ATS Resume Builder</h1>
-            <p className="text-sm text-muted-foreground">
-              Tailor your resume to any job description in seconds
-            </p>
-          </div>
-          <AppNav current="tailor" />
-        </div>
-      </header>
+  async function handleIncorporateKeywords(selections: SkillSnippetSelection[]) {
+    const resumeOverride =
+      editedResume != null ? serializeTailoredResume(editedResume) : activeResumeText || undefined
 
-      <main className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
-        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-          <Shield className="mt-0.5 size-4 shrink-0 text-primary" />
-          <p>Your resume is processed in memory and never stored.</p>
-        </div>
+    if (!resumeOverride) {
+      toast.error('Add a resume before re-tailoring.')
+      return
+    }
+
+    await handleGenerate({
+      selectedKeywords: selections.map((item) => item.keyword),
+      customSnippets: selections.map((item) => item.snippet),
+      resumeOverride,
+    })
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-muted/30">
+      <SiteHeader current="tailor" />
+
+      <PageHero
+        eyebrow="Professional resume services"
+        title="Tailor your resume to beat the ATS"
+        description="Paste a job description and your resume. Receive a keyword-optimized resume, cover letter, and before/after ATS compliance score — the same deliverables a professional resume service provides."
+      />
+
+      <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10 sm:px-6">
+        <TrustBanner message="Your resume is processed in memory and never stored. No account required." />
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>1. Job description</CardTitle>
-              <CardDescription>Paste the role you are applying for</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <JobDescriptionStep value={jobDescription} onChange={setJobDescription} />
-            </CardContent>
-          </Card>
+          <StepCard
+            step={1}
+            title="Job description"
+            description="Paste the role you are applying for"
+          >
+            <JobDescriptionStep value={jobDescription} onChange={setJobDescription} />
+          </StepCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>2. Your resume</CardTitle>
-              <CardDescription>Paste text or upload a file</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResumeInputStep
-                resumeText={resumeText}
-                onResumeTextChange={setResumeText}
-                resumeFile={resumeFile}
-                onResumeFileChange={setResumeFile}
-              />
-            </CardContent>
-          </Card>
+          <StepCard
+            step={2}
+            title="Your resume"
+            description="Paste text or upload a PDF, DOCX, or TXT file"
+          >
+            <ResumeInputStep
+              resumeText={resumeText}
+              onResumeTextChange={setResumeText}
+              resumeFile={resumeFile}
+              onResumeFileChange={setResumeFile}
+              onFileParseChange={handleFileParseChange}
+            />
+          </StepCard>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>3. Generate</CardTitle>
-            <CardDescription>
-              Create an ATS-formatted resume, keyword report, and cover letter
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <StepCard
+          step={3}
+          id="generate-step"
+          title="Generate tailored materials"
+          description="Create an ATS-formatted resume, keyword report, and cover letter"
+        >
+          {(preScanPreview || preScanLoading) && canGenerate ? (
+            <div className="mb-4">
+              <TargetSkillsPanel
+                preScan={preScanPreview}
+                isLoading={preScanLoading}
+                onInsertSelections={handleInsertSkillSelections}
+              />
+            </div>
+          ) : null}
             <GenerateStep
-              onGenerate={handleGenerate}
+              onGenerate={() => handleGenerate()}
               isLoading={isLoading}
               loadingStep={loadingStep}
+              loadingLabel={loadingLabel}
+              scorePassLines={scorePassLines}
+              streamingResume={streamingResume}
+              streamingCoverLetter={streamingCoverLetter}
               disabled={!canGenerate}
             />
-          </CardContent>
-        </Card>
+        </StepCard>
 
         {result ? (
-          <Card>
+          <Card className="border-brand-gold/30 shadow-md">
             <CardHeader>
-              <CardTitle>Results</CardTitle>
-              <CardDescription>Review, edit, and download your tailored materials</CardDescription>
+              <CardTitle className="font-heading text-2xl">Your tailored application</CardTitle>
+              <CardDescription>
+                Review, edit, and download your professional resume package
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <DownloadActions resume={result.tailoredResume} coverLetter={coverLetter} />
+              {result.preScan ? (
+                <TargetSkillsPanel preScan={result.preScan} />
+              ) : null}
+
+              <AtsComplianceComparison
+                before={result.baselineKeywordReport}
+                after={result.keywordReport}
+                refinementPasses={result.refinementPasses}
+                targetScoreMet={result.targetScoreMet}
+              />
+
+              <DownloadActions
+                resume={editedResume ?? result.tailoredResume}
+                coverLetter={coverLetter}
+              />
 
               <Tabs defaultValue="resume">
                 <TabsList>
@@ -158,21 +328,36 @@ export default function HomePage() {
                 </TabsList>
 
                 <TabsContent value="resume" className="mt-4">
-                  <ResumePreview resume={result.tailoredResume} />
+                  {editedResume ? (
+                    <EditableResumePreview
+                      resume={editedResume}
+                      onResumeChange={setEditedResume}
+                    />
+                  ) : null}
                 </TabsContent>
 
                 <TabsContent value="keywords" className="mt-4">
-                  <KeywordReportPanel report={result.keywordReport} />
+                  <KeywordReportPanel
+                    report={result.keywordReport}
+                    onIncorporateKeywords={handleIncorporateKeywords}
+                    isRerunning={isLoading}
+                  />
                 </TabsContent>
 
                 <TabsContent value="cover" className="mt-4">
-                  <CoverLetterPreview value={coverLetter} onChange={setCoverLetter} />
+                  <CoverLetterPreview
+                    fieldId="home-cover-letter"
+                    value={coverLetter}
+                    onChange={setCoverLetter}
+                  />
                 </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
         ) : null}
       </main>
+
+      <SiteFooter />
     </div>
   )
 }

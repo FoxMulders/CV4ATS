@@ -12,16 +12,27 @@ export const jobListingSchema = z.object({
   employmentType: z.string().optional(),
   applyUrl: z.string().url(),
   source: z.string(),
+  targetEmployerId: z.string().optional(),
 })
 
 export type JobListing = z.infer<typeof jobListingSchema>
 
 export const jobSearchResultSchema = z.object({
   jobs: z.array(jobListingSchema),
-  source: z.enum(['adzuna', 'curated']),
+  source: z.enum(['adzuna', 'curated', 'manual']),
   query: z.string(),
   location: z.string(),
+  employerTargetsQueried: z.number().optional(),
+  employerMatches: z.number().optional(),
 })
+
+export const jobIngestResultSchema = z.object({
+  job: jobListingSchema,
+  bypassFilters: z.literal(true),
+  status: z.enum(['parsed']),
+})
+
+export type JobIngestResult = z.infer<typeof jobIngestResultSchema>
 
 export type JobSearchResult = z.infer<typeof jobSearchResultSchema>
 

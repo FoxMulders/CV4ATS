@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { generateTailoredResume } from '@/lib/ai/generate'
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_RESUME_TEXT_LENGTH,
 } from '@/lib/ai/schemas'
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { parseCustomSnippets, parseSelectedKeywords } from '@/lib/api/parse-selected-keywords'
+import { createNdjsonStream, ndjsonStreamResponse } from '@/lib/api/progress-stream'
+import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
+import { runStreamedGeneration } from '@/lib/api/run-streamed-generation'
+import { safeErrorMessage } from '@/lib/api/safe-error'
 import { formatJobDescriptionForAi, jobListingSchema } from '@/lib/jobs/types'
-import { parseResumeFile, ResumeParseError } from '@/lib/resume/parse-file'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
-export const maxDuration = 60
+export const runtime = 'edge'
 
 const tailorRequestSchema = z.object({
   job: jobListingSchema,
@@ -20,16 +23,10 @@ const tailorRequestSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rateLimit = checkRateLimit(ip)
+  const rateLimit = await checkRateLimit('tailor', ip)
 
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded. Try again later.' },
-      {
-        status: 429,
-        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds ?? 3600) },
-      }
-    )
+    return rateLimitExceededResponse(rateLimit.retryAfterSeconds)
   }
 
   try {
@@ -37,18 +34,29 @@ export async function POST(request: Request) {
 
     let job: z.infer<typeof jobListingSchema>
     let resumeText = ''
+    let selectedKeywords: string[] = []
+    let customSnippets: string[] = []
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
       const jobRaw = formData.get('job')
       resumeText = String(formData.get('resumeText') ?? '').trim()
+      selectedKeywords = parseSelectedKeywords(formData.get('selectedKeywords'))
+      customSnippets = parseCustomSnippets(formData.get('customSnippets'))
       const file = formData.get('file')
 
       if (typeof jobRaw !== 'string') {
         return NextResponse.json({ error: 'Job listing is required.' }, { status: 400 })
       }
 
-      const parsedJob = jobListingSchema.safeParse(JSON.parse(jobRaw))
+      let parsedJobRaw: unknown
+      try {
+        parsedJobRaw = JSON.parse(jobRaw)
+      } catch {
+        return NextResponse.json({ error: 'Invalid job listing.' }, { status: 400 })
+      }
+
+      const parsedJob = jobListingSchema.safeParse(parsedJobRaw)
       if (!parsedJob.success) {
         return NextResponse.json({ error: 'Invalid job listing.' }, { status: 400 })
       }
@@ -58,7 +66,16 @@ export async function POST(request: Request) {
         if (file.size > MAX_FILE_SIZE_BYTES) {
           return NextResponse.json({ error: 'File must be 5 MB or smaller.' }, { status: 400 })
         }
-        resumeText = await parseResumeFile(file)
+
+        if (!resumeText) {
+          return NextResponse.json(
+            {
+              error:
+                'Resume file is still parsing. Wait for extraction to finish, or paste your resume text.',
+            },
+            { status: 400 }
+          )
+        }
       }
     } else {
       const body = await request.json()
@@ -86,22 +103,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Job description is too long.' }, { status: 400 })
     }
 
-    const result = await generateTailoredResume(jobDescription, resumeText)
+    const stream = createNdjsonStream((emit) =>
+      runStreamedGeneration(emit, jobDescription, resumeText, {
+        selectedKeywords,
+        customSnippets,
+      }, (result) => ({
+        ...result,
+        jobId: job.id,
+        job,
+      }))
+    )
 
-    return NextResponse.json({
-      jobId: job.id,
-      job,
-      ...result,
-    })
+    return ndjsonStreamResponse(stream)
   } catch (error) {
-    if (error instanceof ResumeParseError) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
     console.error('Job tailor error:', error)
-    const message =
-      error instanceof Error ? error.message : 'Failed to tailor application for this job.'
-
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json(
+      { error: safeErrorMessage(error, 'Failed to tailor application for this job.') },
+      { status: 500 }
+    )
   }
 }

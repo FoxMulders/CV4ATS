@@ -1,28 +1,25 @@
 import { NextResponse } from 'next/server'
 
-import { generateTailoredResume } from '@/lib/ai/generate'
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_RESUME_TEXT_LENGTH,
 } from '@/lib/ai/schemas'
+import { parseCustomSnippets, parseSelectedKeywords } from '@/lib/api/parse-selected-keywords'
+import { createNdjsonStream, ndjsonStreamResponse } from '@/lib/api/progress-stream'
+import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
+import { runStreamedGeneration } from '@/lib/api/run-streamed-generation'
+import { safeErrorMessage } from '@/lib/api/safe-error'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { parseResumeFile, ResumeParseError } from '@/lib/resume/parse-file'
 
-export const maxDuration = 60
+export const runtime = 'edge'
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rateLimit = checkRateLimit(ip)
+  const rateLimit = await checkRateLimit('generate', ip)
 
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded. Try again later.' },
-      {
-        status: 429,
-        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds ?? 3600) },
-      }
-    )
+    return rateLimitExceededResponse(rateLimit.retryAfterSeconds)
   }
 
   try {
@@ -49,7 +46,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'File must be 5 MB or smaller.' }, { status: 400 })
       }
 
-      resumeText = await parseResumeFile(file)
+      if (!resumeText) {
+        return NextResponse.json(
+          {
+            error:
+              'Resume file is still parsing. Wait for extraction to finish, or paste your resume text.',
+          },
+          { status: 400 }
+        )
+      }
     }
 
     if (!resumeText) {
@@ -66,17 +71,22 @@ export async function POST(request: Request) {
       )
     }
 
-    const result = await generateTailoredResume(jobDescription, resumeText)
-    return NextResponse.json(result)
+    const selectedKeywords = parseSelectedKeywords(formData.get('selectedKeywords'))
+    const customSnippets = parseCustomSnippets(formData.get('customSnippets'))
+
+    const stream = createNdjsonStream((emit) =>
+      runStreamedGeneration(emit, jobDescription, resumeText, {
+        selectedKeywords,
+        customSnippets,
+      })
+    )
+
+    return ndjsonStreamResponse(stream)
   } catch (error) {
-    if (error instanceof ResumeParseError) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
     console.error('Generate error:', error)
-    const message =
-      error instanceof Error ? error.message : 'Failed to generate tailored resume.'
-
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json(
+      { error: safeErrorMessage(error, 'Failed to generate tailored resume.') },
+      { status: 500 }
+    )
   }
 }

@@ -1,23 +1,22 @@
 import mammoth from 'mammoth'
 import { extractText, getDocumentProxy } from 'unpdf'
 
-const MIN_TEXT_LENGTH = 50
+import {
+  getExtension,
+  MIN_TEXT_LENGTH,
+  validateResumeFileBytes,
+} from '@/lib/resume/file-signature'
+import { ResumeParseError } from '@/lib/resume/parse-errors'
 
-const SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.txt'] as const
-type SupportedExtension = (typeof SUPPORTED_EXTENSIONS)[number]
-
-export class ResumeParseError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ResumeParseError'
-  }
-}
-
-function getExtension(filename: string): SupportedExtension | null {
-  const lower = filename.toLowerCase()
-  const ext = SUPPORTED_EXTENSIONS.find((candidate) => lower.endsWith(candidate))
-  return ext ?? null
-}
+export { ResumeParseError } from '@/lib/resume/parse-errors'
+export {
+  detectFileSignature,
+  getExtension,
+  isSupportedResumeFile,
+  validateFileSignature,
+  validateResumeFileBytes,
+} from '@/lib/resume/file-signature'
+export type { SupportedExtension } from '@/lib/resume/file-signature'
 
 function normalizeText(text: string): string {
   return text.replace(/\r\n/g, '\n').replace(/\s+\n/g, '\n').trim()
@@ -42,16 +41,18 @@ export async function parseResumeFile(
   file: File | { name: string; buffer: Buffer }
 ): Promise<string> {
   const filename = file.name
-  const extension = getExtension(filename)
+  const buffer =
+    'buffer' in file ? file.buffer : Buffer.from(await (file as File).arrayBuffer())
 
-  if (!extension) {
-    throw new ResumeParseError('Unsupported file type. Upload a PDF, DOCX, or TXT file.')
+  try {
+    await validateResumeFileBytes(buffer, filename)
+  } catch (error) {
+    throw new ResumeParseError(
+      error instanceof Error ? error.message : 'Invalid resume file.'
+    )
   }
 
-  const buffer =
-    'buffer' in file
-      ? file.buffer
-      : Buffer.from(await (file as File).arrayBuffer())
+  const extension = getExtension(filename)!
 
   let text: string
 
@@ -74,8 +75,4 @@ export async function parseResumeFile(
   }
 
   return text
-}
-
-export function isSupportedResumeFile(filename: string): boolean {
-  return getExtension(filename) !== null
 }

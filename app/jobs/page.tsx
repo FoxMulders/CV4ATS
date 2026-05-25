@@ -1,34 +1,27 @@
-import { Shield } from 'lucide-react'
-
 import { JobSearchPanel } from '@/components/jobs/job-search-panel'
-import { AppNav } from '@/components/nav/app-nav'
+import { PageHero } from '@/components/layout/page-hero'
+import { SiteFooter } from '@/components/layout/site-footer'
+import { SiteHeader } from '@/components/layout/site-header'
+import { TrustBanner } from '@/components/layout/trust-banner'
 
 export default function JobsPage() {
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Edmonton Job Search</h1>
-            <p className="text-sm text-muted-foreground">
-              Project management roles in the Edmonton area — tailored resume, score, and apply
-            </p>
-          </div>
-          <AppNav current="jobs" />
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col bg-muted/30">
+      <SiteHeader current="jobs" />
 
-      <main className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
-        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-          <Shield className="mt-0.5 size-4 shrink-0 text-primary" />
-          <p>
-            Your resume is processed in memory and never stored. Apply links open the employer&apos;s
-            official application portal.
-          </p>
-        </div>
+      <PageHero
+        eyebrow="Edmonton job search"
+        title="SDLC & IT application PM roles"
+        description="Software delivery, application development, and technical IT operations project management — with one-click tailoring for every listing."
+      />
+
+      <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10 sm:px-6">
+        <TrustBanner message="Your resume is processed in memory and never stored. Apply links open the employer's official application portal." />
 
         <JobSearchPanel />
       </main>
+
+      <SiteFooter />
     </div>
   )
 }

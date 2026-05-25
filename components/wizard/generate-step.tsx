@@ -2,19 +2,19 @@
 
 import { Loader2, Sparkles } from 'lucide-react'
 
+import type { TailoredResume } from '@/lib/ai/schemas'
 import { Button } from '@/components/ui/button'
-
-const LOADING_STEPS = [
-  'Analyzing job description…',
-  'Tailoring resume…',
-  'Building keyword report…',
-  'Drafting cover letter…',
-]
+import { GenerationProgress } from '@/components/wizard/generation-progress'
+import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 
 interface GenerateStepProps {
   onGenerate: () => void
   isLoading: boolean
   loadingStep: number
+  loadingLabel?: string | null
+  scorePassLines?: string[]
+  streamingResume?: TailoredResume | null
+  streamingCoverLetter?: string
   disabled: boolean
 }
 
@@ -22,6 +22,10 @@ export function GenerateStep({
   onGenerate,
   isLoading,
   loadingStep,
+  loadingLabel,
+  scorePassLines,
+  streamingResume,
+  streamingCoverLetter,
   disabled,
 }: GenerateStepProps) {
   return (
@@ -29,7 +33,7 @@ export function GenerateStep({
       <Button
         type="button"
         size="lg"
-        className="w-full sm:w-auto"
+        className="w-full bg-primary shadow-sm sm:w-auto"
         onClick={onGenerate}
         disabled={disabled || isLoading}
       >
@@ -47,23 +51,20 @@ export function GenerateStep({
       </Button>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {LOADING_STEPS.map((step, index) => (
-            <p
-              key={step}
-              className={
-                index <= loadingStep
-                  ? 'text-sm text-foreground'
-                  : 'text-sm text-muted-foreground'
-              }
-            >
-              {index < loadingStep ? '✓' : index === loadingStep ? '→' : '○'} {step}
+        <div className="space-y-4">
+          <GenerationProgress
+            loadingStep={loadingStep}
+            activeLabel={loadingLabel}
+            scorePassLines={scorePassLines}
+          />
+          {streamingResume ? <StreamingResumePreview resume={streamingResume} /> : null}
+          {streamingCoverLetter ? (
+            <p className="text-xs text-muted-foreground">
+              Cover letter streaming… ({streamingCoverLetter.length.toLocaleString()} characters)
             </p>
-          ))}
+          ) : null}
         </div>
       ) : null}
     </div>
   )
 }
-
-export { LOADING_STEPS }

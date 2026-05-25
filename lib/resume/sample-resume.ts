@@ -6,6 +6,7 @@ export const sampleResume: TailoredResume = {
     email: 'jane.doe@email.com',
     phone: '(555) 123-4567',
     location: 'Austin, TX',
+    linkedin: '',
   },
   summary:
     'Results-driven software engineer with 5+ years building web applications using React, TypeScript, and Node.js.',
@@ -26,6 +27,7 @@ export const sampleResume: TailoredResume = {
     {
       title: 'Software Engineer',
       company: 'Startup Inc',
+      location: '',
       startDate: 'Jun 2018',
       endDate: 'Dec 2020',
       bullets: [
@@ -39,6 +41,8 @@ export const sampleResume: TailoredResume = {
       degree: 'B.S. Computer Science',
       school: 'University of Texas',
       graduationDate: '2018',
+      details: '',
     },
   ],
+  certifications: [],
 }

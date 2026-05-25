@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
 
+import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { tailoredResumeSchema } from '@/lib/ai/schemas'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { buildResumePdf } from '@/lib/resume/export-pdf'
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const rateLimit = await checkRateLimit('export', ip)
+
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(rateLimit.retryAfterSeconds)
+  }
+
   try {
     const body = await request.json()
     const parsed = tailoredResumeSchema.safeParse(body)

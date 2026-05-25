@@ -1,20 +1,37 @@
 'use client'
 
-import { Upload } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { Loader2, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
+import { AddExperiencePanel } from '@/components/resume/add-experience-panel'
+import { ResumeSourcePreview } from '@/components/resume/resume-source-preview'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { MAX_RESUME_TEXT_LENGTH } from '@/lib/ai/schemas'
-import { isSupportedResumeFile } from '@/lib/resume/parse-file'
+import type { Experience } from '@/lib/ai/schemas'
+import { prependExperienceToResumeText } from '@/lib/resume/experience-utils'
+import { getExtension, validateResumeFileBytes } from '@/lib/resume/file-signature'
+import { handlePasteScrollToBottom } from '@/components/wizard/paste-scroll'
 import { cn } from '@/lib/utils'
+
+export type ResumeFileParseStatus = 'idle' | 'parsing' | 'ready' | 'error'
+
+export interface ResumeFileParseState {
+  status: ResumeFileParseStatus
+  parsedText: string
+  error: string | null
+}
 
 interface ResumeInputStepProps {
   resumeText: string
   onResumeTextChange: (value: string) => void
   resumeFile: File | null
   onResumeFileChange: (file: File | null) => void
+  onFileParseChange?: (state: ResumeFileParseState) => void
+  pasteScrollTargetId?: string
 }
 
 export function ResumeInputStep({
@@ -22,20 +39,98 @@ export function ResumeInputStep({
   onResumeTextChange,
   resumeFile,
   onResumeFileChange,
+  onFileParseChange,
+  pasteScrollTargetId = 'generate-step',
 }: ResumeInputStepProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [isParsing, setIsParsing] = useState(false)
+  const [uploadedPreviewText, setUploadedPreviewText] = useState('')
 
-  function handleFile(file: File | null) {
-    setFileError(null)
-    if (!file) {
-      onResumeFileChange(null)
+  useEffect(() => {
+    if (!resumeFile) {
+      setUploadedPreviewText('')
+      onFileParseChange?.({ status: 'idle', parsedText: '', error: null })
       return
     }
 
-    if (!isSupportedResumeFile(file.name)) {
-      setFileError('Unsupported file type. Upload a PDF, DOCX, or TXT file.')
+    let cancelled = false
+
+    async function parseUploadedFile() {
+      setIsParsing(true)
+      setFileError(null)
+      onFileParseChange?.({ status: 'parsing', parsedText: '', error: null })
+
+      try {
+        const formData = new FormData()
+        formData.append('file', resumeFile!)
+
+        const response = await fetch('/api/parse-resume', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error(await parseApiErrorResponse(response, 'Failed to parse resume file'))
+        }
+
+        const data = (await response.json()) as { text?: string }
+
+        if (!cancelled) {
+          const text = data.text ?? ''
+          setUploadedPreviewText(text)
+          onFileParseChange?.({ status: 'ready', parsedText: text, error: null })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Failed to parse resume file'
+          setFileError(message)
+          setUploadedPreviewText('')
+          onFileParseChange?.({ status: 'error', parsedText: '', error: message })
+          toast.error(message)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsParsing(false)
+        }
+      }
+    }
+
+    void parseUploadedFile()
+
+    return () => {
+      cancelled = true
+    }
+  }, [resumeFile, onFileParseChange])
+
+  async function handleFile(file: File | null) {
+    setFileError(null)
+    if (!file) {
+      onResumeFileChange(null)
+      setUploadedPreviewText('')
+      onFileParseChange?.({ status: 'idle', parsedText: '', error: null })
+      return
+    }
+
+    if (!getExtension(file.name)) {
+      const message = 'Unsupported file type. Upload a PDF, DOCX, or TXT file.'
+      setFileError(message)
+      onFileParseChange?.({ status: 'error', parsedText: '', error: message })
+      return
+    }
+
+    try {
+      const header = await file.slice(0, 8192).arrayBuffer()
+      validateResumeFileBytes(new Uint8Array(header), file.name)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'File content does not match its extension.'
+      setFileError(message)
+      onFileParseChange?.({ status: 'error', parsedText: '', error: message })
+      toast.error(message)
       return
     }
 
@@ -43,14 +138,32 @@ export function ResumeInputStep({
     onResumeTextChange('')
   }
 
-  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault()
     setDragOver(false)
-    handleFile(event.dataTransfer.files[0] ?? null)
+    await handleFile(event.dataTransfer.files[0] ?? null)
+  }
+
+  const previewText = resumeFile ? uploadedPreviewText : resumeText.trim()
+  const previewSource = resumeFile ? `From file: ${resumeFile.name}` : undefined
+
+  function handleAddExperience(experience: Experience) {
+    const baseText = resumeText.trim() || uploadedPreviewText.trim()
+    const combined = prependExperienceToResumeText(baseText, experience)
+
+    if (combined.length > MAX_RESUME_TEXT_LENGTH) {
+      toast.error(
+        `Adding this role would exceed the ${MAX_RESUME_TEXT_LENGTH.toLocaleString()} character limit.`
+      )
+      return
+    }
+
+    onResumeFileChange(null)
+    onResumeTextChange(combined)
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <Label>Your resume</Label>
       <Tabs defaultValue="paste">
         <TabsList>
@@ -63,17 +176,28 @@ export function ResumeInputStep({
             placeholder="Paste your resume text here..."
             value={resumeText}
             onChange={(event) => {
-              onResumeTextChange(event.target.value)
+              onResumeTextChange(
+                event.target.value.slice(0, MAX_RESUME_TEXT_LENGTH)
+              )
               if (event.target.value.trim()) {
                 onResumeFileChange(null)
               }
             }}
+            onPaste={(event) => handlePasteScrollToBottom(event, pasteScrollTargetId)}
             rows={14}
             className="min-h-[220px] resize-y font-mono text-sm"
           />
-          <p className="text-xs text-muted-foreground">
+          <p
+            className={cn(
+              'text-xs',
+              resumeText.length >= MAX_RESUME_TEXT_LENGTH
+                ? 'font-medium text-destructive'
+                : 'text-muted-foreground'
+            )}
+          >
             {resumeText.length.toLocaleString()} / {MAX_RESUME_TEXT_LENGTH.toLocaleString()}{' '}
             characters
+            {resumeText.length >= MAX_RESUME_TEXT_LENGTH ? ' · Character limit reached' : ''}
           </p>
         </TabsContent>
 
@@ -83,7 +207,7 @@ export function ResumeInputStep({
             type="file"
             accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
             className="sr-only"
-            onChange={(event) => handleFile(event.target.files?.[0] ?? null)}
+            onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
           />
           <div
             role="button"
@@ -114,9 +238,51 @@ export function ResumeInputStep({
           {resumeFile ? (
             <p className="text-sm text-muted-foreground">Selected: {resumeFile.name}</p>
           ) : null}
+          {isParsing ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Extracting resume text…
+            </div>
+          ) : null}
           {fileError ? <p className="text-sm text-destructive">{fileError}</p> : null}
         </TabsContent>
       </Tabs>
+
+      {previewText ? (
+        <ResumeSourcePreview text={previewText} sourceLabel={previewSource} />
+      ) : null}
+
+      <AddExperiencePanel variant="inline" onAdd={handleAddExperience} />
     </div>
   )
+}
+
+export function isResumeInputReady(
+  resumeText: string,
+  resumeFile: File | null,
+  fileParse: ResumeFileParseState
+): boolean {
+  if (resumeText.trim().length > 0) return true
+  if (!resumeFile) return false
+  return fileParse.status === 'ready' && fileParse.parsedText.trim().length > 0
+}
+
+export function getResumeTextForSubmit(
+  resumeText: string,
+  resumeFile: File | null,
+  fileParse: ResumeFileParseState
+): { resumeText?: string; file?: File } {
+  if (resumeText.trim().length > 0) {
+    return { resumeText: resumeText.trim() }
+  }
+
+  if (resumeFile && fileParse.status === 'ready' && fileParse.parsedText.trim()) {
+    return { resumeText: fileParse.parsedText.trim() }
+  }
+
+  if (resumeFile) {
+    return { file: resumeFile }
+  }
+
+  return {}
 }
