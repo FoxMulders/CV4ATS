@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useAppliedJobs } from '@/hooks/use-applied-jobs'
+import { useSavedResume } from '@/hooks/use-saved-resume'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { SDLC_FILTER_LABEL } from '@/lib/jobs/filters'
 import {
@@ -54,6 +55,8 @@ export function JobSearchPanel() {
     unmarkApplied,
     getAppliedRecord,
   } = useAppliedJobs()
+
+  useSavedResume(resumeText, setResumeText, fileParse)
 
   const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
     setFileParse(state)

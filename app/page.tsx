@@ -15,6 +15,7 @@ import { DownloadActions } from '@/components/results/download-actions'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
 import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
 import { EditableResumePreview } from '@/components/results/editable-resume-preview'
+import { ResumeDiffView } from '@/components/results/resume-diff-view'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenerateStep } from '@/components/wizard/generate-step'
@@ -27,6 +28,7 @@ import {
   type ResumeFileParseState,
 } from '@/components/wizard/resume-input-step'
 import { formatScorePassLine } from '@/lib/api/generation-config'
+import { useSavedResume } from '@/hooks/use-saved-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import type { GenerationResult, TailoredResume } from '@/lib/ai/schemas'
@@ -66,6 +68,9 @@ export default function HomePage() {
   })
   const [preScanPreview, setPreScanPreview] = useState<PreScanResult | null>(null)
   const [preScanLoading, setPreScanLoading] = useState(false)
+  const [originalResumeText, setOriginalResumeText] = useState<string | null>(null)
+
+  useSavedResume(resumeText, setResumeText, fileParse)
 
   const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
     setFileParse(state)
@@ -136,6 +141,15 @@ export default function HomePage() {
     setScorePassLines([])
     setStreamingResume(null)
     setStreamingCoverLetter('')
+
+    const capturedResumeText =
+      options.resumeOverride ??
+      getResumeTextForSubmit(resumeText, resumeFile, fileParse).resumeText ??
+      activeResumeText
+    if (capturedResumeText.trim()) {
+      setOriginalResumeText(capturedResumeText.trim())
+    }
+
     if (!options.selectedKeywords?.length && !options.customSnippets?.length) {
       setResult(null)
       setEditedResume(null)
@@ -242,7 +256,7 @@ export default function HomePage() {
       />
 
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10 sm:px-6">
-        <TrustBanner message="Your resume is processed in memory and never stored. No account required." />
+        <TrustBanner message="Your resume is saved only in this browser for convenience. It is sent to AI providers during generation and is not stored on our servers." />
 
         <div className="grid gap-6 lg:grid-cols-2">
           <StepCard
@@ -323,6 +337,7 @@ export default function HomePage() {
               <Tabs defaultValue="resume">
                 <TabsList>
                   <TabsTrigger value="resume">Resume</TabsTrigger>
+                  <TabsTrigger value="changes">Changes</TabsTrigger>
                   <TabsTrigger value="keywords">Keyword report</TabsTrigger>
                   <TabsTrigger value="cover">Cover letter</TabsTrigger>
                 </TabsList>
@@ -330,6 +345,16 @@ export default function HomePage() {
                 <TabsContent value="resume" className="mt-4">
                   {editedResume ? (
                     <EditableResumePreview
+                      resume={editedResume}
+                      onResumeChange={setEditedResume}
+                    />
+                  ) : null}
+                </TabsContent>
+
+                <TabsContent value="changes" className="mt-4">
+                  {originalResumeText && editedResume ? (
+                    <ResumeDiffView
+                      originalText={originalResumeText}
                       resume={editedResume}
                       onResumeChange={setEditedResume}
                     />
