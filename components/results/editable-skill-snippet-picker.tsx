@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Plus, RotateCw } from 'lucide-react'
+import { Loader2, Plus, RotateCw, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -80,6 +80,25 @@ export function EditableSkillSnippetPicker({
       Object.fromEntries(Object.entries(current).filter(([keyword]) => validKeywords.has(keyword)))
     )
   }, [items])
+
+  function removeKeyword(keyword: string) {
+    setSelectedKeywords((current) => current.filter((entry) => entry !== keyword))
+    setEditedSnippets((current) => {
+      const next = { ...current }
+      delete next[keyword]
+      return next
+    })
+    setVariationCounts((current) => {
+      const next = { ...current }
+      delete next[keyword]
+      return next
+    })
+    setSnippetHistory((current) => {
+      const next = { ...current }
+      delete next[keyword]
+      return next
+    })
+  }
 
   function toggleKeyword(keyword: string) {
     setSelectedKeywords((current) => {
@@ -231,6 +250,7 @@ export function EditableSkillSnippetPicker({
                 canTailorWithAi={canTailorWithAi}
                 onSnippetChange={(value) => updateSnippet(keyword, value)}
                 onTailor={() => void handleTailorSnippet(keyword)}
+                onRemove={() => removeKeyword(keyword)}
               />
             )
           })}
@@ -282,6 +302,7 @@ interface SnippetEditorCardProps {
   canTailorWithAi: boolean
   onSnippetChange: (value: string) => void
   onTailor: () => void
+  onRemove: () => void
 }
 
 function SnippetEditorCard({
@@ -294,6 +315,7 @@ function SnippetEditorCard({
   canTailorWithAi,
   onSnippetChange,
   onTailor,
+  onRemove,
 }: SnippetEditorCardProps) {
   const similarityAudit = usePhrasingSimilarityAudit(snippet, jobDescription)
 
@@ -329,6 +351,17 @@ function SnippetEditorCard({
           )}
         </Button>
         {similarityAudit.hasHighSimilarity ? <PhrasingSimilarityBadge /> : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="ml-auto h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+          disabled={isLoading || isTailoring}
+          onClick={onRemove}
+        >
+          <X className="size-3" />
+          Remove
+        </Button>
       </div>
       <Textarea
         id={`snippet-${keyword}`}

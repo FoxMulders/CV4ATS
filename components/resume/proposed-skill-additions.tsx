@@ -1,7 +1,7 @@
 'use client'
 
-import { Lightbulb, Plus } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Lightbulb, Plus, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -48,10 +48,53 @@ export function ProposedSkillAdditions({
 
   const [fieldValue, setFieldValue] = useState('')
   const [customSkill, setCustomSkill] = useState('')
+  const userTouchedRef = useRef(false)
+  const seededTermsKeyRef = useRef('')
+
+  const extrapolatedTermsKey = useMemo(
+    () =>
+      extrapolated
+        .map((skill) => skill.term.toLowerCase())
+        .sort()
+        .join('|'),
+    [extrapolated]
+  )
 
   useEffect(() => {
-    setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
-  }, [extrapolated])
+    if (extrapolated.length === 0) {
+      seededTermsKeyRef.current = ''
+      userTouchedRef.current = false
+      setFieldValue('')
+      return
+    }
+
+    if (extrapolatedTermsKey === seededTermsKeyRef.current) return
+
+    const previousKey = seededTermsKeyRef.current
+    seededTermsKeyRef.current = extrapolatedTermsKey
+
+    if (!previousKey) {
+      setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
+      return
+    }
+
+    const previousTerms = new Set(previousKey.split('|').filter(Boolean))
+    const nextTerms = extrapolatedTermsKey.split('|').filter(Boolean)
+    const overlap =
+      nextTerms.length === 0
+        ? 0
+        : nextTerms.filter((term) => previousTerms.has(term)).length / nextTerms.length
+
+    if (overlap < 0.5) {
+      userTouchedRef.current = false
+      setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
+      return
+    }
+
+    if (!userTouchedRef.current) {
+      setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
+    }
+  }, [extrapolated, extrapolatedTermsKey])
 
   const selectedTerms = useMemo(() => {
     return parseProposedSkillsField(fieldValue).map((term) => term.toLowerCase())
@@ -61,13 +104,27 @@ export function ProposedSkillAdditions({
     return selectedTerms.includes(term.toLowerCase())
   }
 
+  function updateFieldValue(value: string) {
+    userTouchedRef.current = true
+    setFieldValue(value)
+  }
+
   function toggleTerm(term: string) {
     const current = parseProposedSkillsField(fieldValue)
     const lower = term.toLowerCase()
     const next = current.some((entry) => entry.toLowerCase() === lower)
       ? current.filter((entry) => entry.toLowerCase() !== lower)
       : [...current, term]
-    setFieldValue(formatProposedSkillsField(next))
+    updateFieldValue(formatProposedSkillsField(next))
+  }
+
+  function removeTerm(term: string) {
+    const current = parseProposedSkillsField(fieldValue)
+    const lower = term.toLowerCase()
+    if (!current.some((entry) => entry.toLowerCase() === lower)) return
+    updateFieldValue(
+      formatProposedSkillsField(current.filter((entry) => entry.toLowerCase() !== lower))
+    )
   }
 
   function appendCustomSkill() {
@@ -80,7 +137,7 @@ export function ProposedSkillAdditions({
       return
     }
 
-    setFieldValue(formatProposedSkillsField([...current, trimmed]))
+    updateFieldValue(formatProposedSkillsField([...current, trimmed]))
     setCustomSkill('')
   }
 
@@ -123,8 +180,8 @@ export function ProposedSkillAdditions({
           Proposed skill additions
         </CardTitle>
         <CardDescription>
-          Skills inferred from your experience and summary but not yet listed explicitly. Edit the
-          field below or click chips to toggle, then add them to your resume.
+          Skills inferred from your experience and summary but not yet listed explicitly. Click
+          highlighted chips or use the × to remove them from the list before adding to your resume.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -133,19 +190,42 @@ export function ProposedSkillAdditions({
             {extrapolated.map((skill) => {
               const selected = isTermSelected(skill.term)
               return (
-                <button
+                <div
                   key={skill.term}
-                  type="button"
-                  onClick={() => toggleTerm(skill.term)}
-                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className={
+                    selected
+                      ? 'inline-flex items-center overflow-hidden rounded-full focus-within:ring-2 focus-within:ring-sky-500'
+                      : 'rounded-full focus-within:ring-2 focus-within:ring-sky-500'
+                  }
                 >
-                  <Badge
-                    variant={selected ? 'default' : 'outline'}
-                    className={selected ? 'bg-sky-700 hover:bg-sky-800' : 'bg-background'}
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleTerm(skill.term)}
+                    className="rounded-full focus-visible:outline-none"
                   >
-                    {skill.term}
-                  </Badge>
-                </button>
+                    <Badge
+                      variant={selected ? 'default' : 'outline'}
+                      className={
+                        selected
+                          ? 'rounded-r-none bg-sky-700 hover:bg-sky-800'
+                          : 'bg-background'
+                      }
+                    >
+                      {skill.term}
+                    </Badge>
+                  </button>
+                  {selected ? (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${skill.term}`}
+                      onClick={() => removeTerm(skill.term)}
+                      className="inline-flex h-full items-center rounded-r-full bg-sky-700 px-1.5 text-sky-50 hover:bg-sky-900"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  ) : null}
+                </div>
               )
             })}
           </div>
@@ -160,7 +240,7 @@ export function ProposedSkillAdditions({
           <Textarea
             id="proposed-skill-additions"
             value={fieldValue}
-            onChange={(event) => setFieldValue(event.target.value)}
+            onChange={(event) => updateFieldValue(event.target.value)}
             placeholder="Agile, Jira, scope management, workflow automation"
             rows={3}
             className="font-mono text-sm"
