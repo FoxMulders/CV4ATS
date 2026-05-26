@@ -6,7 +6,7 @@ import { searchJobs } from '@/lib/jobs/search'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const searchQuerySchema = z.object({
-  query: z.string().optional().default('project manager'),
+  query: z.string().optional().default(''),
   location: z.string().optional().default('Edmonton'),
 })
 

@@ -31,7 +31,7 @@ export interface EdmontonEmployerTarget {
   hiringSources: EmployerHiringSource[]
 }
 
-/** Major Edmonton-area employers for SDLC, IT, and project management hiring. */
+/** Major Edmonton-area employers scanned for open roles across sectors. */
 export const EDMONTON_EMPLOYER_TARGETS: EdmontonEmployerTarget[] = [
   {
     id: 'atco',
@@ -520,30 +520,22 @@ export function formatEmployerScanLabel(limit = 4): string {
   return `${preview}, and ${remaining} more Edmonton-area employers`
 }
 
-/** Role title fragments combined with employer names in targeted Adzuna queries. */
+/** Optional role keywords appended to employer-targeted Adzuna searches. */
 export const EDMONTON_ROLE_SEARCH_TERMS = [
-  'project manager',
-  'program manager',
-  'delivery manager',
-  'software developer',
-  'application developer',
-  'automation',
-  'workflow',
-  'SDLC',
-  'application development',
-  'software delivery',
-  'IT project',
-  'agile delivery',
-  'devops',
+  'jobs',
+  'careers',
+  'openings',
+  'full time',
+  'contract',
 ] as const
 
-export function buildEmployerSearchQuery(employer: EdmontonEmployerTarget): string {
-  const adzunaSource = employer.hiringSources.find((source) => source.type === 'adzuna')
-  if (adzunaSource) return adzunaSource.endpoint
-
-  const employerTerms = employer.searchKeywords.map((term) => `"${term}"`).join(' OR ')
-  const roleTerms = EDMONTON_ROLE_SEARCH_TERMS.join(' ')
-  return `(${employerTerms}) ${roleTerms}`
+export function buildEmployerSearchQuery(
+  employer: EdmontonEmployerTarget,
+  roleQuery = ''
+): string {
+  const employerTerm = employer.searchKeywords[0] ?? employer.name
+  const role = roleQuery.trim()
+  return role ? `${employerTerm} ${role}` : `${employerTerm} careers jobs`
 }
 
 export function getEmployerAdzunaSources(employer: EdmontonEmployerTarget): EmployerHiringSource[] {

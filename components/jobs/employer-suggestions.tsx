@@ -14,12 +14,11 @@ export function EmployerSuggestions() {
     <Card className="border-border/80 shadow-sm">
       <CardHeader>
         <CardTitle className="font-heading text-xl">
-          Where to find project management roles
+          Where to find open roles
         </CardTitle>
         <CardDescription>
-          {EDMONTON_EMPLOYER_TARGETS.length} Edmonton-area employers scanned for IT, SDLC, and
-          application delivery project management openings. Open careers portals directly or wait
-          for automated matches below.
+          {EDMONTON_EMPLOYER_TARGETS.length} Edmonton-area employers scanned for matching openings.
+          Open careers portals directly or run a keyword search above.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

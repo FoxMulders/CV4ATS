@@ -2,11 +2,15 @@ import type { JobListing, JobSearchResult } from '@/lib/jobs/types'
 import {
   buildEmployerSearchQuery,
   EDMONTON_EMPLOYER_TARGETS,
-  getEmployerAdzunaSources,
   resolveTargetEmployer,
 } from '@/lib/jobs/edmonton-employers'
 import { getActiveEdmontonSdlcPmJobs } from '@/lib/jobs/edmonton-fallback'
-import { EDMONTON_LOCATION, filterSdlcItPmJobs, SDLC_SEARCH_QUERY } from '@/lib/jobs/filters'
+import {
+  DEFAULT_ROLE_SEARCH_QUERY,
+  EDMONTON_LOCATION,
+  filterJobSearchResults,
+  matchesRoleQuery,
+} from '@/lib/jobs/filters'
 
 interface AdzunaJob {
   id: string
@@ -33,13 +37,19 @@ interface AdzunaSearchOptions {
 }
 
 const ADZUNA_FIELD_OPS_EXCLUDE =
-  'construction civil engineering field operations lineman warehouse truck driver pipefitter landscap janitor retail call center property developer business development'
+  'construction civil engineering field operations lineman warehouse truck driver pipefitter landscap janitor retail call center property developer'
 
-const GENERAL_SEARCH_QUERIES = [
-  SDLC_SEARCH_QUERY,
-  'software developer automation workflow delivery Edmonton Alberta',
-  'IT program manager application delivery agile SDLC',
+const BROAD_SEARCH_QUERIES = [
+  'Edmonton Alberta jobs',
+  'Edmonton careers full time',
+  'Edmonton professional roles',
 ] as const
+
+function buildGeneralSearchQueries(roleQuery: string): string[] {
+  const role = roleQuery.trim()
+  if (role) return [role]
+  return [...BROAD_SEARCH_QUERIES]
+}
 
 function formatSalary(min?: number, max?: number): string | undefined {
   if (!min && !max) return undefined
@@ -98,9 +108,9 @@ async function searchAdzuna(options: AdzunaSearchOptions): Promise<JobListing[]>
   return data.results.map((job) => mapAdzunaJob(job))
 }
 
-async function searchGeneralAdzunaJobs(location: string): Promise<JobListing[]> {
+async function searchGeneralAdzunaJobs(location: string, roleQuery: string): Promise<JobListing[]> {
   const batches = await Promise.all(
-    GENERAL_SEARCH_QUERIES.map((query) =>
+    buildGeneralSearchQueries(roleQuery).map((query) =>
       searchAdzuna({
         what: query,
         where: location,
@@ -113,31 +123,24 @@ async function searchGeneralAdzunaJobs(location: string): Promise<JobListing[]> 
   return batches.flat()
 }
 
-async function searchTargetEmployerJobs(location: string): Promise<JobListing[]> {
+async function searchTargetEmployerJobs(location: string, roleQuery: string): Promise<JobListing[]> {
   const employerResults = await Promise.all(
-    EDMONTON_EMPLOYER_TARGETS.flatMap((employer) => {
-      const adzunaSources = getEmployerAdzunaSources(employer)
-      const queries =
-        adzunaSources.length > 0
-          ? adzunaSources.map((source) => source.endpoint)
-          : [buildEmployerSearchQuery(employer)]
-
-      return queries.map(async (query) => {
-        const jobs = await searchAdzuna({
-          what: query,
-          where: location,
-          resultsPerPage: 12,
-          whatExclude: ADZUNA_FIELD_OPS_EXCLUDE,
-        })
-
-        return jobs
-          .filter((job) => resolveTargetEmployer(job.company, job.applyUrl)?.id === employer.id)
-          .map((job) => ({
-            ...job,
-            source: `Adzuna · ${employer.id}`,
-            targetEmployerId: employer.id,
-          }))
+    EDMONTON_EMPLOYER_TARGETS.map(async (employer) => {
+      const query = buildEmployerSearchQuery(employer, roleQuery)
+      const jobs = await searchAdzuna({
+        what: query,
+        where: location,
+        resultsPerPage: 12,
+        whatExclude: ADZUNA_FIELD_OPS_EXCLUDE,
       })
+
+      return jobs
+        .filter((job) => resolveTargetEmployer(job.company, job.applyUrl)?.id === employer.id)
+        .map((job) => ({
+          ...job,
+          source: `Adzuna · ${employer.id}`,
+          targetEmployerId: employer.id,
+        }))
     })
   )
 
@@ -175,26 +178,31 @@ function sortJobs(jobs: JobListing[]): JobListing[] {
 }
 
 export async function searchJobs(
-  _query = SDLC_SEARCH_QUERY,
+  query = DEFAULT_ROLE_SEARCH_QUERY,
   location = 'Edmonton'
 ): Promise<JobSearchResult> {
+  const normalizedQuery = query.trim()
   const normalizedLocation = location.trim() || 'Edmonton'
   const [generalJobs, employerJobs, fallbackJobs] = await Promise.all([
-    searchGeneralAdzunaJobs(normalizedLocation),
-    searchTargetEmployerJobs(normalizedLocation),
-    Promise.resolve(getActiveEdmontonSdlcPmJobs()),
+    searchGeneralAdzunaJobs(normalizedLocation, normalizedQuery),
+    searchTargetEmployerJobs(normalizedLocation, normalizedQuery),
+    Promise.resolve(
+      getActiveEdmontonSdlcPmJobs().filter((job) => matchesRoleQuery(job, normalizedQuery))
+    ),
   ])
 
   const hasAdzunaCredentials = Boolean(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY)
   const merged = dedupeJobs([...employerJobs, ...generalJobs, ...fallbackJobs])
-  const jobs = sortJobs(filterSdlcItPmJobs(merged))
+  const jobs = sortJobs(filterJobSearchResults(merged, normalizedQuery))
 
   const employerMatches = jobs.filter((job) => job.targetEmployerId).length
+  const queryLabel = normalizedQuery || 'all roles'
+  const employerLabel = `${EDMONTON_EMPLOYER_TARGETS.length} Edmonton-area employers`
 
   return {
     jobs,
     source: hasAdzunaCredentials && (generalJobs.length > 0 || employerJobs.length > 0) ? 'adzuna' : 'curated',
-    query: `${SDLC_SEARCH_QUERY} + ${EDMONTON_EMPLOYER_TARGETS.length} Edmonton-area PM employers`,
+    query: normalizedQuery ? `${normalizedQuery} · ${employerLabel}` : `${queryLabel} · ${employerLabel}`,
     location: EDMONTON_LOCATION,
     employerTargetsQueried: EDMONTON_EMPLOYER_TARGETS.length,
     employerMatches,

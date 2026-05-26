@@ -170,12 +170,52 @@ export function isSdlcItPmRole(job: JobListing): boolean {
   return INCLUDE_PATTERNS.some((pattern) => pattern.test(haystack))
 }
 
-export function filterSdlcItPmJobs(jobs: JobListing[]): JobListing[] {
-  return jobs.filter((job) => isEdmontonAreaJob(job) && isSdlcItPmRole(job))
+export function matchesRoleQuery(job: JobListing, query: string): boolean {
+  const trimmed = query.trim().toLowerCase()
+  if (!trimmed) return true
+
+  const haystack = `${job.title} ${job.description}`.toLowerCase()
+  const tokens = trimmed.split(/\s+/).filter((token) => token.length > 1)
+
+  if (tokens.length === 0) {
+    return haystack.includes(trimmed)
+  }
+
+  const title = job.title.toLowerCase()
+  const titleMatch = tokens.some((token) => title.includes(token))
+  const fullMatch = tokens.every((token) => haystack.includes(token))
+
+  return titleMatch || fullMatch
 }
 
-export const SDLC_SEARCH_QUERY =
-  'IT project manager software developer application development SDLC agile automation workflow delivery'
+export function filterJobSearchResults(jobs: JobListing[], query = ''): JobListing[] {
+  const normalizedQuery = query.trim()
 
-export const SDLC_FILTER_LABEL =
-  'Edmonton, AB & Remote (Canada/Alberta) · PM · Developer · Automation · SDLC · Delivery'
+  return jobs.filter((job) => {
+    if (!isEdmontonAreaJob(job)) return false
+
+    const haystack = `${job.title} ${job.company} ${job.description}`
+    if (EXCLUDE_PATTERNS.some((pattern) => pattern.test(haystack))) {
+      return false
+    }
+
+    if (!normalizedQuery) return true
+
+    return matchesRoleQuery(job, normalizedQuery)
+  })
+}
+
+/** @deprecated Use filterJobSearchResults */
+export function filterSdlcItPmJobs(jobs: JobListing[]): JobListing[] {
+  return filterJobSearchResults(jobs, '')
+}
+
+export const DEFAULT_ROLE_SEARCH_QUERY = ''
+
+export const JOB_SEARCH_FILTER_LABEL = 'Edmonton, AB & remote (Canada/Alberta) · any role'
+
+/** @deprecated Use JOB_SEARCH_FILTER_LABEL */
+export const SDLC_FILTER_LABEL = JOB_SEARCH_FILTER_LABEL
+
+/** @deprecated Use the role query passed to searchJobs */
+export const SDLC_SEARCH_QUERY = DEFAULT_ROLE_SEARCH_QUERY

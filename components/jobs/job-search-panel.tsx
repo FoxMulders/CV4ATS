@@ -15,10 +15,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useAppliedJobs } from '@/hooks/use-applied-jobs'
 import { useSavedResume } from '@/hooks/use-saved-resume'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
-import { SDLC_FILTER_LABEL } from '@/lib/jobs/filters'
+import { JOB_SEARCH_FILTER_LABEL } from '@/lib/jobs/filters'
 import {
   EDMONTON_EMPLOYER_TARGETS,
   formatEmployerScanLabel,
@@ -31,6 +32,8 @@ export function JobSearchPanel() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [jobs, setJobs] = useState<JobListing[]>([])
   const [manualJobs, setManualJobs] = useState<JobListing[]>([])
+  const [roleQuery, setRoleQuery] = useState('')
+  const [location, setLocation] = useState('Edmonton')
   const [jobUrl, setJobUrl] = useState('')
   const [searchMeta, setSearchMeta] = useState<{
     source: string
@@ -69,7 +72,15 @@ export function JobSearchPanel() {
 
     setIsSearching(true)
     try {
-      const response = await fetch('/api/jobs/search?location=Edmonton')
+      const params = new URLSearchParams({
+        location: location.trim() || 'Edmonton',
+      })
+      const trimmedRole = roleQuery.trim()
+      if (trimmedRole) {
+        params.set('query', trimmedRole)
+      }
+
+      const response = await fetch(`/api/jobs/search?${params.toString()}`)
       if (!response.ok) {
         throw new Error(await parseApiErrorResponse(response, 'Job search failed'))
       }
@@ -86,13 +97,14 @@ export function JobSearchPanel() {
         result.employerMatches && result.employerMatches > 0
           ? ` · ${result.employerMatches} from suggested Edmonton employers`
           : ''
-      toast.success(`Found ${result.jobs.length} Edmonton IT / SDLC / PM roles${employerNote}`)
+      const roleLabel = trimmedRole || 'open roles'
+      toast.success(`Found ${result.jobs.length} ${roleLabel} in ${location.trim() || 'Edmonton'}${employerNote}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Job search failed')
     } finally {
       setIsSearching(false)
     }
-  }, [automatedScanPaused])
+  }, [automatedScanPaused, location, roleQuery])
 
   useEffect(() => {
     if (!automatedScanPaused) {
@@ -211,6 +223,49 @@ export function JobSearchPanel() {
         onUnmarkApplied={handleUnmarkApplied}
       />
 
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-heading text-xl">
+            <Search className="size-4" />
+            Find roles
+          </CardTitle>
+          <CardDescription>
+            Search any job title or keywords — project manager, nurse, accountant, software
+            developer, and more. Leave keywords blank to browse Edmonton-area openings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-[2fr_1fr_auto] sm:items-end">
+          <div className="space-y-2">
+            <Label htmlFor="job-role-query">Role or keywords</Label>
+            <Input
+              id="job-role-query"
+              placeholder="e.g. project manager, registered nurse, marketing coordinator"
+              value={roleQuery}
+              onChange={(event) => setRoleQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void searchJobs()
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="job-location">Location</Label>
+            <Input
+              id="job-location"
+              placeholder="Edmonton"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void searchJobs()
+              }}
+            />
+          </div>
+          <Button onClick={() => void searchJobs()} disabled={isSearching || automatedScanPaused}>
+            {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
+            Search jobs
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card className="border-brand-gold/40 bg-gradient-to-br from-brand-gold/10 to-background shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-heading text-xl">
@@ -256,18 +311,20 @@ export function JobSearchPanel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">
-            {automatedScanPaused ? 'Automated scan paused' : 'Edmonton IT, SDLC & PM jobs'}
+            {automatedScanPaused ? 'Automated scan paused' : 'Job search results'}
           </h2>
           <p className="text-sm text-muted-foreground">
             {automatedScanPaused
               ? 'Background job search is paused while you work from a shared link.'
               : searchMeta
-                ? `${visibleJobs.length} open roles · ${appliedJobs.length} applied · ${SDLC_FILTER_LABEL}${
+                ? `${visibleJobs.length} open roles · ${appliedJobs.length} applied · ${JOB_SEARCH_FILTER_LABEL}${
+                    roleQuery.trim() ? ` · "${roleQuery.trim()}"` : ''
+                  }${
                     searchMeta.employerMatches
                       ? ` · ${searchMeta.employerMatches} from ${EDMONTON_EMPLOYER_TARGETS.length} suggested employers`
                       : ''
                   }`
-                : `Scanning ${formatEmployerScanLabel()} for PM roles…`}
+                : `Scanning ${formatEmployerScanLabel()}…`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -276,7 +333,7 @@ export function JobSearchPanel() {
               Resume automated scan
             </Button>
           ) : null}
-          <Button variant="outline" onClick={searchJobs} disabled={isSearching || automatedScanPaused}>
+          <Button variant="outline" onClick={() => void searchJobs()} disabled={isSearching || automatedScanPaused}>
             {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
             Refresh jobs
           </Button>
@@ -291,8 +348,8 @@ export function JobSearchPanel() {
 
       {!automatedScanPaused && !isSearching && jobs.length === 0 ? (
         <div className="rounded-lg border border-muted bg-muted/30 p-4 text-sm text-muted-foreground">
-          No active Edmonton IT / SDLC / PM roles matched your filters. Paste a job link above or
-          try refreshing later.
+          No roles matched your search in {location.trim() || 'Edmonton'}. Try different keywords,
+          paste a job link above, or refresh later.
         </div>
       ) : null}
 
@@ -301,7 +358,7 @@ export function JobSearchPanel() {
           {isSearching && jobs.length === 0 ? (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="animate-spin" />
-              Loading Edmonton IT / SDLC / PM jobs…
+              Loading job listings…
             </div>
           ) : null}
 

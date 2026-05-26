@@ -7,14 +7,14 @@ import { SiteHeader } from '@/components/layout/site-header'
 import { TrustBanner } from '@/components/layout/trust-banner'
 
 export const metadata: Metadata = {
-  title: 'Edmonton SDLC & IT PM Job Search',
+  title: 'Edmonton Job Search',
   description:
-    'Search Edmonton-area SDLC, application development, and IT operations PM roles. Tailor your resume with ATS4CV and unlock a 24-Hour Job Pass for unlimited role-specific downloads.',
+    'Search Edmonton-area roles in any field. Tailor your resume with ATS4CV and unlock a 24-Hour Job Pass for unlimited role-specific downloads.',
   alternates: {
     canonical: '/jobs',
   },
   openGraph: {
-    title: 'ATS4CV Job Search | Edmonton SDLC & IT PM Roles',
+    title: 'ATS4CV Job Search | Find Any Edmonton Role',
     description:
       'Find target roles and tailor your resume with context-aware ATS optimization and 24-Hour Job Pass exports.',
   },
@@ -27,8 +27,8 @@ export default function JobsPage() {
 
       <PageHero
         eyebrow="Edmonton job search"
-        title="SDLC & IT application PM roles"
-        description="Software delivery, application development, and technical IT operations project management across Edmonton-area employers — with one-click tailoring for every listing."
+        title="Find any role — tailor your resume"
+        description="Search by job title or keywords across Edmonton-area employers, paste a direct posting link, and tailor your resume for each opening with one click."
       />
 
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10 sm:px-6">
