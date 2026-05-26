@@ -139,6 +139,35 @@ function extractHeuristicTerms(cleanedText: string, scores: Map<string, number>)
 }
 
 /**
+ * Curated skill phrases only — no capitalized-phrase or n-gram heuristics.
+ * Safe for resume body text (avoids employers, clients, and posting metadata).
+ */
+export function extractCuratedSkillMatches(text: string): string[] {
+  const normalized = text.toLowerCase()
+  const found = new Set<string>()
+
+  for (const pattern of CURATED_PHRASE_PATTERNS) {
+    const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`
+    const matcher = new RegExp(pattern.source, flags)
+    let match: RegExpExecArray | null
+    while ((match = matcher.exec(normalized)) !== null) {
+      const phrase = normalizePhrase(match[0])
+      if (phrase) found.add(phrase)
+    }
+  }
+
+  const techMatches = normalized.match(TECH_TOKEN_PATTERN)
+  if (techMatches) {
+    for (const match of techMatches) {
+      const phrase = normalizePhrase(match)
+      if (phrase) found.add(phrase)
+    }
+  }
+
+  return filterReportableKeywords([...found])
+}
+
+/**
  * Extract high-value ATS keywords from a job description.
  * Prioritizes nouns, noun phrases, acronyms, and curated multi-word skills.
  */

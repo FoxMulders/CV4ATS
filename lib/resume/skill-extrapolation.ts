@@ -163,6 +163,19 @@ function extractExplicitTargets(cleanedText: string): string[] {
   return found
 }
 
+/** Strict regex-only skill matches — safe for resume body text. */
+export function extractExplicitTargetSkills(text: string): TargetSkill[] {
+  const byTerm = new Map<string, TargetSkill>()
+
+  for (const term of extractExplicitTargets(text)) {
+    if (!byTerm.has(term)) {
+      byTerm.set(term, { term, category: categorizeSkill(term) })
+    }
+  }
+
+  return [...byTerm.values()]
+}
+
 /**
  * Step 1: Parse the job description and return cleaned high-value skills.
  * Combines strict regex matching with NLP extraction — no conversational filler.
@@ -171,10 +184,8 @@ export function extrapolateTargetSkills(jobDescription: string): TargetSkill[] {
   const cleaned = stripIrrelevantJobDescriptionText(jobDescription)
   const byTerm = new Map<string, TargetSkill>()
 
-  for (const term of extractExplicitTargets(cleaned)) {
-    if (!byTerm.has(term)) {
-      byTerm.set(term, { term, category: categorizeSkill(term) })
-    }
+  for (const skill of extractExplicitTargetSkills(cleaned)) {
+    byTerm.set(skill.term, skill)
   }
 
   for (const keyword of extractHighValueKeywords(cleaned)) {

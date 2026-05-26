@@ -1,6 +1,9 @@
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
+import { extractCuratedSkillMatches } from '@/lib/resume/keyword-extraction'
+import { filterProposableSkills } from '@/lib/resume/proposed-skill-filter'
 import {
-  extrapolateTargetSkills,
+  extractExplicitTargetSkills,
+  keywordsToTargetSkills,
   type TargetSkill,
 } from '@/lib/resume/skill-extrapolation'
 import { tokenize } from '@/lib/resume/stopwords'
@@ -87,6 +90,15 @@ function isListedSkill(term: string, listedTerms: string[], skillsText: string):
   return skillsText.trim().length > 0 && keywordMatchesResume(skillsText, term)
 }
 
+function extractDemonstratedSkills(bodyText: string, resumeText: string): TargetSkill[] {
+  const rawTerms = [
+    ...extractCuratedSkillMatches(bodyText),
+    ...extractExplicitTargetSkills(bodyText).map((skill) => skill.term),
+  ]
+  const filtered = filterProposableSkills(rawTerms, resumeText)
+  return keywordsToTargetSkills(filtered)
+}
+
 /**
  * Infer skills demonstrated in experience/summary that are not yet listed
  * in the resume's skills section.
@@ -97,7 +109,7 @@ export function extrapolateProposedSkillsFromResume(resumeText: string): TargetS
 
   const { skillsText, bodyText } = splitSkillsAndBody(trimmed)
   const listedTerms = parseListedSkillTerms(trimmed)
-  const implied = extrapolateTargetSkills(bodyText)
+  const implied = extractDemonstratedSkills(bodyText, trimmed)
 
   return implied.filter(
     (skill) => !isListedSkill(skill.term, listedTerms, skillsText)
