@@ -12,7 +12,7 @@ export default function JobsPage() {
       <PageHero
         eyebrow="Edmonton job search"
         title="SDLC & IT application PM roles"
-        description="Software delivery, application development, and technical IT operations project management — with one-click tailoring for every listing."
+        description="Software delivery, application development, and technical IT operations project management across Edmonton-area employers — with one-click tailoring for every listing."
       />
 
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10 sm:px-6">

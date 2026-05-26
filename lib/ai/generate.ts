@@ -1,19 +1,26 @@
-import { APICallError, NoObjectGeneratedError, Output, streamText, type DeepPartial, type JSONValue } from 'ai'
-
-import { shouldUseLocalFallback } from '@/lib/ai/errors'
 import {
-  createGeminiModel,
-  geminiProviderOptions,
-  GEMINI_MODEL_ID,
-  getGeminiApiKey,
-} from '@/lib/ai/gemini'
+  APICallError,
+  NoObjectGeneratedError,
+  Output,
+  streamText,
+  type DeepPartial,
+  type JSONValue,
+} from 'ai'
+
+import {
+  formatDirectProviderSetupError,
+  isAiProviderUnavailable,
+  isRateLimitOrQuotaError,
+  isVercelAiGatewayError,
+  shouldUseLocalFallback,
+  unwrapAiError,
+} from '@/lib/ai/errors'
+import { GEMINI_MODEL_ID } from '@/lib/ai/gemini'
 import {
   generateTailoredResumeLocally,
   refineTailoredResumeLocally,
 } from '@/lib/ai/local-fallback'
-import {
-  normalizeAiGenerationOutput,
-} from '@/lib/ai/normalize-output'
+import { normalizeAiGenerationOutput } from '@/lib/ai/normalize-output'
 import {
   buildRefinementPrompt,
   buildUserPrompt,
@@ -24,6 +31,10 @@ import {
   AI_GENERATION_MAX_TOKENS,
   AI_GENERATION_TEMPERATURE,
   AI_REFINEMENT_TEMPERATURE,
+  AI_STREAM_MAX_RETRIES,
+  assertDirectAiProviderConfigured,
+  buildFreeProviderChain,
+  type ResolvedAiModel,
 } from '@/lib/ai/provider'
 import { aiGenerationResultSchema, type AiGenerationResult } from '@/lib/ai/schemas'
 
@@ -38,52 +49,65 @@ function asPartialResult(value: JSONValue | undefined): DeepPartial<AiGeneration
   return value as DeepPartial<AiGenerationResult>
 }
 
-function formatGeminiError(error: unknown): string {
-  if (APICallError.isInstance(error)) {
-    if (error.statusCode === 401 || error.statusCode === 403) {
-      return 'Gemini rejected the API key. Verify GEMINI_API_KEY in Vercel matches your ATS4CV Google AI Studio key, then redeploy.'
-    }
-    if (error.statusCode === 429) {
-      return 'Gemini rate limit reached. Wait a minute and try again.'
-    }
-    if (error.statusCode === 404) {
-      return `Gemini model "${GEMINI_MODEL_ID}" was not found. Set GEMINI_MODEL_ID=gemini-flash-latest in Vercel, or pick a model listed in Google AI Studio for your ATS4CV key.`
-    }
-    return `Gemini API error (${error.statusCode}): ${error.message}`
+function formatAiError(error: unknown, provider: ResolvedAiModel): string {
+  const root = unwrapAiError(error)
+
+  if (isVercelAiGatewayError(root) || isVercelAiGatewayError(error)) {
+    return formatDirectProviderSetupError()
   }
 
-  if (NoObjectGeneratedError.isInstance(error)) {
-    return `Gemini returned an unparseable response. Try a shorter resume. (${error.message})`
+  if (APICallError.isInstance(root)) {
+    if (root.statusCode === 401 || root.statusCode === 403) {
+      return provider.provider === 'google'
+        ? 'Gemini rejected the API key. Verify GEMINI_API_KEY in Vercel matches your ATS4CV Google AI Studio key, then redeploy.'
+        : 'Groq rejected the API key. Verify GROQ_API_KEY in Vercel, then redeploy.'
+    }
+    if (root.statusCode === 429) {
+      return provider.provider === 'google'
+        ? 'Gemini rate limit reached. Trying Groq or local keyword tailoring…'
+        : 'Groq rate limit reached. Falling back to local keyword tailoring…'
+    }
+    if (root.statusCode === 404) {
+      return `Model "${provider.modelId}" was not found. Set GEMINI_MODEL_ID=gemini-flash-latest in Vercel for Gemini keys.`
+    }
+    return `${provider.provider} API error (${root.statusCode}): ${root.message}`
+  }
+
+  if (NoObjectGeneratedError.isInstance(root)) {
+    return `AI returned an unparseable response. Try a shorter resume. (${root.message})`
   }
 
   if (error instanceof Error) {
     return error.message
   }
 
-  return 'Gemini generation failed unexpectedly.'
+  return 'Resume generation failed unexpectedly.'
 }
 
-async function streamStructuredGeneration(
+function shouldTryNextProvider(error: unknown): boolean {
+  const root = unwrapAiError(error)
+  return (
+    isRateLimitOrQuotaError(root) ||
+    isVercelAiGatewayError(root) ||
+    isAiProviderUnavailable(root)
+  )
+}
+
+async function runStreamWithProvider(
+  entry: ResolvedAiModel,
   prompt: string,
   temperature: number,
-  callbacks: AiStreamCallbacks = {}
+  callbacks: AiStreamCallbacks
 ): Promise<AiGenerationResult> {
-  if (!getGeminiApiKey()) {
-    throw new Error(
-      'GEMINI_API_KEY is not configured. Add it in Vercel → Environment Variables for the ATS4CV project.'
-    )
-  }
-
-  const model = createGeminiModel()
-
   const stream = streamText({
-    model,
+    model: entry.model,
     system: SYSTEM_PROMPT,
     prompt,
     temperature,
     maxOutputTokens: AI_GENERATION_MAX_TOKENS,
+    maxRetries: AI_STREAM_MAX_RETRIES,
     output: Output.json(),
-    providerOptions: geminiProviderOptions(),
+    providerOptions: entry.providerOptions,
   })
 
   for await (const partial of stream.partialOutputStream) {
@@ -97,8 +121,35 @@ async function streamStructuredGeneration(
     const raw = await stream.output
     return aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw))
   } catch (error) {
-    throw new Error(formatGeminiError(error), { cause: error })
+    throw new Error(formatAiError(error, entry), { cause: error })
   }
+}
+
+async function streamStructuredGeneration(
+  prompt: string,
+  temperature: number,
+  callbacks: AiStreamCallbacks = {}
+): Promise<AiGenerationResult> {
+  assertDirectAiProviderConfigured()
+
+  const chain = buildFreeProviderChain()
+  let lastError: unknown
+
+  for (let index = 0; index < chain.length; index += 1) {
+    const entry = chain[index]!
+    try {
+      return await runStreamWithProvider(entry, prompt, temperature, callbacks)
+    } catch (error) {
+      lastError = error
+      const hasNext = index < chain.length - 1
+      if (hasNext && shouldTryNextProvider(error)) {
+        continue
+      }
+      throw error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('No AI provider available.')
 }
 
 export async function generateTailoredResume(
@@ -149,3 +200,5 @@ export async function refineTailoredResume(
     throw error
   }
 }
+
+export { GEMINI_MODEL_ID }

@@ -1,4 +1,4 @@
-import { assertGeminiConfigured, GEMINI_MODEL_ID } from '@/lib/ai/gemini'
+import { assertDirectAiProviderConfigured, describeConfiguredProvider } from '@/lib/ai/provider'
 import type { GenerationResult } from '@/lib/ai/schemas'
 import { runGenerationPipeline } from '@/lib/api/generation-pipeline'
 import type { StreamEvent } from '@/lib/api/progress-stream'
@@ -20,17 +20,18 @@ export async function runStreamedGeneration(
   mapComplete?: (result: GenerationResult & Record<string, unknown>) => GenerationResult &
     Record<string, unknown>
 ): Promise<void> {
-  emit({ type: 'progress', step: 0, label: `Connecting to Gemini (${GEMINI_MODEL_ID})…` })
+  const providerLabel = describeConfiguredProvider()
+  emit({ type: 'progress', step: 0, label: `Connecting to ${providerLabel}…` })
 
   try {
-    assertGeminiConfigured()
+    assertDirectAiProviderConfigured()
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Gemini is not configured.'
+    const message = error instanceof Error ? error.message : 'AI provider is not configured.'
     emit({ type: 'error', error: message })
     return
   }
 
-  emit({ type: 'progress', step: 0, label: 'Streaming tailored resume from Gemini…' })
+  emit({ type: 'progress', step: 0, label: `Streaming tailored resume (${providerLabel})…` })
 
   try {
     const result = await withGenerationTimeout(

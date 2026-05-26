@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "app/api/parse-resume/route.ts": {
-      "maxDuration": 30
-    }
-  }
-}

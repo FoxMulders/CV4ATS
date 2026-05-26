@@ -28,10 +28,12 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Purpose |
 |----------|---------|
-| `GEMINI_API_KEY` | Google Gemini API key ([AI Studio](https://aistudio.google.com/apikey)) |
-| `GEMINI_MODEL` | Optional Gemini model (default: `gemini-1.5-flash`) |
-| `GROQ_API_KEY` | Groq API key (used if `GEMINI_API_KEY` is unset) |
+| `GEMINI_API_KEY` | Google Gemini API key ([AI Studio](https://aistudio.google.com/apikey)) — **required for production** |
+| `GEMINI_MODEL_ID` | Optional Gemini model (default: `gemini-flash-latest`) |
+| `GROQ_API_KEY` | Optional Groq fallback when Gemini is rate-limited |
 | `GROQ_MODEL` | Optional Groq model (default: `llama-3.1-70b-versatile`) |
+
+**Do not use Vercel AI Gateway** (`AI_GATEWAY_API_KEY`) — its free tier is rate-limited. Remove it from Vercel environment variables and use `GEMINI_API_KEY` instead.
 
 ## Deploy to Vercel
 

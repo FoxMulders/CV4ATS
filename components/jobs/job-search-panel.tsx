@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { JobCard, type JobTailorResult } from '@/components/jobs/job-card'
+import { EmployerSuggestions } from '@/components/jobs/employer-suggestions'
 import {
   ResumeInputStep,
   isResumeInputReady,
@@ -15,7 +16,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { SDLC_FILTER_LABEL } from '@/lib/jobs/filters'
-import { EDMONTON_EMPLOYER_NAMES } from '@/lib/jobs/edmonton-employers'
+import {
+  EDMONTON_EMPLOYER_TARGETS,
+  formatEmployerScanLabel,
+} from '@/lib/jobs/edmonton-employers'
 import type { JobIngestResult, JobListing, JobSearchResult } from '@/lib/jobs/types'
 
 export function JobSearchPanel() {
@@ -66,7 +70,7 @@ export function JobSearchPanel() {
       })
       const employerNote =
         result.employerMatches && result.employerMatches > 0
-          ? ` · ${result.employerMatches} from priority Edmonton employers`
+          ? ` · ${result.employerMatches} from suggested Edmonton employers`
           : ''
       toast.success(`Found ${result.jobs.length} Edmonton IT / SDLC / PM roles${employerNote}`)
     } catch (error) {
@@ -199,6 +203,8 @@ export function JobSearchPanel() {
         </div>
       ) : null}
 
+      <EmployerSuggestions />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">
@@ -210,10 +216,10 @@ export function JobSearchPanel() {
               : searchMeta
                 ? `${jobs.length} roles found · ${SDLC_FILTER_LABEL}${
                     searchMeta.employerMatches
-                      ? ` · ${searchMeta.employerMatches} from priority employers`
+                      ? ` · ${searchMeta.employerMatches} from ${EDMONTON_EMPLOYER_TARGETS.length} suggested employers`
                       : ''
                   }`
-                : `Scanning ${EDMONTON_EMPLOYER_NAMES.slice(0, 4).join(', ')}, and more…`}
+                : `Scanning ${formatEmployerScanLabel()} for PM roles…`}
           </p>
         </div>
         <div className="flex gap-2">

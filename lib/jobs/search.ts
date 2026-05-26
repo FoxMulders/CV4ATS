@@ -194,7 +194,7 @@ export async function searchJobs(
   return {
     jobs,
     source: hasAdzunaCredentials && (generalJobs.length > 0 || employerJobs.length > 0) ? 'adzuna' : 'curated',
-    query: `${SDLC_SEARCH_QUERY} + ${EDMONTON_EMPLOYER_TARGETS.length} priority Edmonton employers`,
+    query: `${SDLC_SEARCH_QUERY} + ${EDMONTON_EMPLOYER_TARGETS.length} Edmonton-area PM employers`,
     location: EDMONTON_LOCATION,
     employerTargetsQueried: EDMONTON_EMPLOYER_TARGETS.length,
     employerMatches,

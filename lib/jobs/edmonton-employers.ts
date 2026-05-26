@@ -3,6 +3,11 @@ export type EdmontonEmployerSector =
   | 'utilities'
   | 'public-sector'
   | 'higher-education'
+  | 'healthcare'
+  | 'energy'
+  | 'financial'
+  | 'consulting'
+  | 'education-k12'
 
 export type HiringSourceType = 'adzuna' | 'careers-portal' | 'rss'
 
@@ -135,9 +140,385 @@ export const EDMONTON_EMPLOYER_TARGETS: EdmontonEmployerTarget[] = [
       { type: 'careers-portal', endpoint: 'https://www.macewan.ca/about/campus/careers/' },
     ],
   },
+  {
+    id: 'ahs',
+    name: 'Alberta Health Services',
+    aliases: ['AHS', 'Alberta Health Services - IT', 'Alberta Health Services AHS'],
+    sector: 'healthcare',
+    searchKeywords: ['Alberta Health Services', 'AHS'],
+    portalIdentifiers: ['careers.albertahealthservices.ca', 'albertahealthservices.ca/careers'],
+    careersUrl: 'https://careers.albertahealthservices.ca/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Alberta Health Services IT project manager SDLC application development digital' },
+      { type: 'careers-portal', endpoint: 'https://careers.albertahealthservices.ca/' },
+    ],
+  },
+  {
+    id: 'goa',
+    name: 'Government of Alberta',
+    aliases: [
+      'Government of Alberta',
+      'Alberta Public Service',
+      'Alberta Government',
+      'GoA',
+      'Government of Alberta - Technology and Innovation',
+    ],
+    sector: 'public-sector',
+    searchKeywords: ['Government of Alberta', 'Alberta Public Service'],
+    portalIdentifiers: ['jobs.alberta.ca', 'alberta.ca/jobs'],
+    careersUrl: 'https://www.alberta.ca/jobs',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Government of Alberta IT project manager SDLC application development software delivery' },
+      { type: 'careers-portal', endpoint: 'https://www.alberta.ca/jobs' },
+    ],
+  },
+  {
+    id: 'epcor',
+    name: 'EPCOR',
+    aliases: ['EPCOR Utilities', 'EPCOR Water Services', 'EPCOR Technologies'],
+    sector: 'utilities',
+    searchKeywords: ['EPCOR'],
+    portalIdentifiers: ['epcor.com/careers', 'careers.epcor.com'],
+    careersUrl: 'https://www.epcor.com/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'EPCOR IT project manager application development software delivery SDLC' },
+      { type: 'careers-portal', endpoint: 'https://www.epcor.com/careers' },
+    ],
+  },
+  {
+    id: 'atb',
+    name: 'ATB Financial',
+    aliases: ['ATB', 'Alberta Treasury Branches', 'ATB Financial - Technology'],
+    sector: 'financial',
+    searchKeywords: ['ATB Financial', 'ATB'],
+    portalIdentifiers: ['atb.com/careers', 'careers.atb.com'],
+    careersUrl: 'https://www.atb.com/company/careers/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'ATB Financial IT project manager software delivery SDLC application development' },
+      { type: 'careers-portal', endpoint: 'https://www.atb.com/company/careers/' },
+    ],
+  },
+  {
+    id: 'stantec',
+    name: 'Stantec',
+    aliases: ['Stantec Consulting', 'Stantec Inc.', 'Stantec - Digital Services'],
+    sector: 'consulting',
+    searchKeywords: ['Stantec'],
+    portalIdentifiers: ['stantec.com/careers', 'stantec.jobs'],
+    careersUrl: 'https://www.stantec.com/en/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Stantec IT project manager software developer application development SDLC Edmonton' },
+      { type: 'careers-portal', endpoint: 'https://www.stantec.com/en/careers' },
+    ],
+  },
+  {
+    id: 'abc',
+    name: 'Alberta Blue Cross',
+    aliases: ['Alberta Blue Cross - IT', 'ABC Benefits Corporation'],
+    sector: 'financial',
+    searchKeywords: ['Alberta Blue Cross'],
+    portalIdentifiers: ['ab.bluecross.ca/careers', 'bluecross.ca/careers'],
+    careersUrl: 'https://www.ab.bluecross.ca/about-us/careers/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Alberta Blue Cross IT project manager application development software delivery' },
+      { type: 'careers-portal', endpoint: 'https://www.ab.bluecross.ca/about-us/careers/' },
+    ],
+  },
+  {
+    id: 'enbridge',
+    name: 'Enbridge',
+    aliases: ['Enbridge Inc.', 'Enbridge - IT', 'Enbridge Gas'],
+    sector: 'energy',
+    searchKeywords: ['Enbridge'],
+    portalIdentifiers: ['enbridge.com/careers', 'jobs.enbridge.com'],
+    careersUrl: 'https://www.enbridge.com/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Enbridge IT project manager SDLC application development software delivery Alberta' },
+      { type: 'careers-portal', endpoint: 'https://www.enbridge.com/careers' },
+    ],
+  },
+  {
+    id: 'suncor',
+    name: 'Suncor Energy',
+    aliases: ['Suncor', 'Suncor Energy Inc.', 'Suncor - Technology'],
+    sector: 'energy',
+    searchKeywords: ['Suncor Energy', 'Suncor'],
+    portalIdentifiers: ['suncor.com/careers', 'jobs.suncor.com'],
+    careersUrl: 'https://www.suncor.com/en-ca/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Suncor IT project manager application development software delivery SDLC Alberta' },
+      { type: 'careers-portal', endpoint: 'https://www.suncor.com/en-ca/careers' },
+    ],
+  },
+  {
+    id: 'cnrl',
+    name: 'Canadian Natural Resources',
+    aliases: ['Canadian Natural', 'CNRL', 'Canadian Natural Resources Limited'],
+    sector: 'energy',
+    searchKeywords: ['Canadian Natural Resources', 'CNRL', 'Canadian Natural'],
+    portalIdentifiers: ['canadiannatural.com/careers', 'cnrl.com/careers'],
+    careersUrl: 'https://www.canadiannatural.com/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Canadian Natural Resources IT project manager software delivery SDLC application' },
+      { type: 'careers-portal', endpoint: 'https://www.canadiannatural.com/careers' },
+    ],
+  },
+  {
+    id: 'cenovus',
+    name: 'Cenovus Energy',
+    aliases: ['Cenovus', 'Cenovus Energy Inc.'],
+    sector: 'energy',
+    searchKeywords: ['Cenovus Energy', 'Cenovus'],
+    portalIdentifiers: ['cenovus.com/careers', 'jobs.cenovus.com'],
+    careersUrl: 'https://www.cenovus.com/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Cenovus IT project manager application development software delivery SDLC' },
+      { type: 'careers-portal', endpoint: 'https://www.cenovus.com/careers' },
+    ],
+  },
+  {
+    id: 'pembina',
+    name: 'Pembina Pipeline',
+    aliases: ['Pembina', 'Pembina Pipeline Corporation'],
+    sector: 'energy',
+    searchKeywords: ['Pembina Pipeline', 'Pembina'],
+    portalIdentifiers: ['pembina.com/careers', 'jobs.pembina.com'],
+    careersUrl: 'https://www.pembina.com/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Pembina Pipeline IT project manager software delivery application development' },
+      { type: 'careers-portal', endpoint: 'https://www.pembina.com/careers' },
+    ],
+  },
+  {
+    id: 'capital-power',
+    name: 'Capital Power',
+    aliases: ['Capital Power Corporation'],
+    sector: 'energy',
+    searchKeywords: ['Capital Power'],
+    portalIdentifiers: ['capitalpower.com/careers', 'jobs.capitalpower.com'],
+    careersUrl: 'https://www.capitalpower.com/careers/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Capital Power IT project manager application development software delivery SDLC' },
+      { type: 'careers-portal', endpoint: 'https://www.capitalpower.com/careers/' },
+    ],
+  },
+  {
+    id: 'imperial-oil',
+    name: 'Imperial Oil',
+    aliases: ['Imperial Oil Limited', 'Imperial - IT'],
+    sector: 'energy',
+    searchKeywords: ['Imperial Oil'],
+    portalIdentifiers: ['imperialoil.ca/careers', 'jobs.exxonmobil.com/imperial'],
+    careersUrl: 'https://www.imperialoil.ca/en-ca/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Imperial Oil IT project manager software delivery application development SDLC' },
+      { type: 'careers-portal', endpoint: 'https://www.imperialoil.ca/en-ca/careers' },
+    ],
+  },
+  {
+    id: 'ama',
+    name: 'Alberta Motor Association',
+    aliases: ['AMA', 'Alberta Motor Association - IT'],
+    sector: 'corporate',
+    searchKeywords: ['Alberta Motor Association', 'AMA'],
+    portalIdentifiers: ['ama.ab.ca/careers', 'careers.ama.ab.ca'],
+    careersUrl: 'https://ama.ab.ca/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Alberta Motor Association IT project manager software developer application development' },
+      { type: 'careers-portal', endpoint: 'https://ama.ab.ca/careers' },
+    ],
+  },
+  {
+    id: 'epsb',
+    name: 'Edmonton Public Schools',
+    aliases: ['EPSB', 'Edmonton Public School Board', 'Edmonton Public Schools - IT'],
+    sector: 'education-k12',
+    searchKeywords: ['Edmonton Public Schools', 'EPSB'],
+    portalIdentifiers: ['epsb.ca/careers', 'eps.ca/careers'],
+    careersUrl: 'https://www.epsb.ca/careers/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Edmonton Public Schools IT project manager application development software delivery' },
+      { type: 'careers-portal', endpoint: 'https://www.epsb.ca/careers/' },
+    ],
+  },
+  {
+    id: 'servus',
+    name: 'Servus Credit Union',
+    aliases: ['Servus', 'Servus Credit Union - Technology'],
+    sector: 'financial',
+    searchKeywords: ['Servus Credit Union', 'Servus'],
+    portalIdentifiers: ['servus.ca/careers', 'careers.servus.ca'],
+    careersUrl: 'https://www.servus.ca/about-us/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Servus Credit Union IT project manager software delivery application development' },
+      { type: 'careers-portal', endpoint: 'https://www.servus.ca/about-us/careers' },
+    ],
+  },
+  {
+    id: 'cgi',
+    name: 'CGI',
+    aliases: ['CGI Group', 'CGI Inc.', 'CGI - Edmonton'],
+    sector: 'consulting',
+    searchKeywords: ['CGI'],
+    portalIdentifiers: ['cgi.com/careers', 'jobs.cgi.com'],
+    careersUrl: 'https://www.cgi.com/en/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'CGI IT project manager software developer application development SDLC Edmonton' },
+      { type: 'careers-portal', endpoint: 'https://www.cgi.com/en/careers' },
+    ],
+  },
+  {
+    id: 'ibm',
+    name: 'IBM',
+    aliases: ['IBM Canada', 'IBM - Edmonton', 'International Business Machines'],
+    sector: 'consulting',
+    searchKeywords: ['IBM', 'IBM Canada'],
+    portalIdentifiers: ['ibm.com/careers', 'careers.ibm.com'],
+    careersUrl: 'https://www.ibm.com/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'IBM IT project manager software delivery application development SDLC Edmonton Alberta' },
+      { type: 'careers-portal', endpoint: 'https://www.ibm.com/careers' },
+    ],
+  },
+  {
+    id: 'accenture',
+    name: 'Accenture',
+    aliases: ['Accenture Canada', 'Accenture - Edmonton'],
+    sector: 'consulting',
+    searchKeywords: ['Accenture'],
+    portalIdentifiers: ['accenture.com/careers', 'jobs.accenture.com'],
+    careersUrl: 'https://www.accenture.com/ca-en/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Accenture IT project manager software delivery application development SDLC Edmonton' },
+      { type: 'careers-portal', endpoint: 'https://www.accenture.com/ca-en/careers' },
+    ],
+  },
+  {
+    id: 'deloitte',
+    name: 'Deloitte',
+    aliases: ['Deloitte Canada', 'Deloitte - Edmonton', 'Deloitte Digital'],
+    sector: 'consulting',
+    searchKeywords: ['Deloitte'],
+    portalIdentifiers: ['deloitte.com/careers', 'jobs.deloitte.com'],
+    careersUrl: 'https://www.deloitte.com/ca/en/careers.html',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Deloitte IT project manager software delivery application development SDLC Edmonton' },
+      { type: 'careers-portal', endpoint: 'https://www.deloitte.com/ca/en/careers.html' },
+    ],
+  },
+  {
+    id: 'norquest',
+    name: 'NorQuest College',
+    aliases: ['NorQuest', 'NorQuest College - IT'],
+    sector: 'higher-education',
+    searchKeywords: ['NorQuest College', 'NorQuest'],
+    portalIdentifiers: ['norquest.ca/careers', 'careers.norquest.ca'],
+    careersUrl: 'https://www.norquest.ca/about/careers.aspx',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'NorQuest College IT project manager software developer application development' },
+      { type: 'careers-portal', endpoint: 'https://www.norquest.ca/about/careers.aspx' },
+    ],
+  },
+  {
+    id: 'concordia-edmonton',
+    name: 'Concordia University of Edmonton',
+    aliases: ['Concordia Edmonton', 'Concordia University Edmonton', 'CUE'],
+    sector: 'higher-education',
+    searchKeywords: ['Concordia University of Edmonton', 'Concordia Edmonton'],
+    portalIdentifiers: ['concordia.ab.ca/careers', 'cue.ac/careers'],
+    careersUrl: 'https://www.concordia.ab.ca/about/careers/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Concordia University of Edmonton IT project manager application development' },
+      { type: 'careers-portal', endpoint: 'https://www.concordia.ab.ca/about/careers/' },
+    ],
+  },
+  {
+    id: 'rogers',
+    name: 'Rogers Communications',
+    aliases: ['Rogers', 'Shaw Communications', 'Rogers Business', 'Rogers - Edmonton'],
+    sector: 'corporate',
+    searchKeywords: ['Rogers Communications', 'Rogers', 'Shaw'],
+    portalIdentifiers: ['jobs.rogers.com', 'rogers.com/careers'],
+    careersUrl: 'https://jobs.rogers.com/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Rogers IT project manager software developer application development SDLC Edmonton' },
+      { type: 'careers-portal', endpoint: 'https://jobs.rogers.com/' },
+    ],
+  },
+  {
+    id: 'alberta-innovates',
+    name: 'Alberta Innovates',
+    aliases: ['Alberta Innovates - Technology Futures', 'AI Alberta Innovates'],
+    sector: 'public-sector',
+    searchKeywords: ['Alberta Innovates'],
+    portalIdentifiers: ['albertainnovates.ca/careers', 'careers.albertainnovates.ca'],
+    careersUrl: 'https://albertainnovates.ca/careers/',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Alberta Innovates IT project manager software delivery application development' },
+      { type: 'careers-portal', endpoint: 'https://albertainnovates.ca/careers/' },
+    ],
+  },
+  {
+    id: 'parkland',
+    name: 'Parkland Corporation',
+    aliases: ['Parkland', 'Parkland Fuel Corporation'],
+    sector: 'energy',
+    searchKeywords: ['Parkland Corporation', 'Parkland'],
+    portalIdentifiers: ['parkland.ca/careers', 'careers.parkland.ca'],
+    careersUrl: 'https://www.parkland.ca/careers',
+    hiringSources: [
+      { type: 'adzuna', endpoint: 'Parkland Corporation IT project manager software delivery application development' },
+      { type: 'careers-portal', endpoint: 'https://www.parkland.ca/careers' },
+    ],
+  },
 ]
 
 export const EDMONTON_EMPLOYER_NAMES = EDMONTON_EMPLOYER_TARGETS.map((employer) => employer.name)
+
+export const EDMONTON_EMPLOYER_SECTOR_LABELS: Record<EdmontonEmployerSector, string> = {
+  corporate: 'Corporate',
+  utilities: 'Utilities',
+  'public-sector': 'Public sector',
+  'higher-education': 'Higher education',
+  healthcare: 'Healthcare',
+  energy: 'Energy',
+  financial: 'Financial services',
+  consulting: 'Consulting & IT services',
+  'education-k12': 'K-12 education',
+}
+
+export function groupEmployersBySector(): Array<{
+  sector: EdmontonEmployerSector
+  label: string
+  employers: EdmontonEmployerTarget[]
+}> {
+  const order: EdmontonEmployerSector[] = [
+    'public-sector',
+    'healthcare',
+    'utilities',
+    'energy',
+    'financial',
+    'corporate',
+    'consulting',
+    'higher-education',
+    'education-k12',
+  ]
+
+  return order
+    .map((sector) => ({
+      sector,
+      label: EDMONTON_EMPLOYER_SECTOR_LABELS[sector],
+      employers: EDMONTON_EMPLOYER_TARGETS.filter((employer) => employer.sector === sector),
+    }))
+    .filter((group) => group.employers.length > 0)
+}
+
+export function formatEmployerScanLabel(limit = 4): string {
+  const preview = EDMONTON_EMPLOYER_NAMES.slice(0, limit).join(', ')
+  const remaining = EDMONTON_EMPLOYER_TARGETS.length - limit
+  if (remaining <= 0) return preview
+  return `${preview}, and ${remaining} more Edmonton-area employers`
+}
 
 /** Role title fragments combined with employer names in targeted Adzuna queries. */
 export const EDMONTON_ROLE_SEARCH_TERMS = [

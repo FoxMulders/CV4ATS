@@ -35,6 +35,12 @@ export function assertGeminiConfigured(): void {
  * Equivalent to: createGoogleGenerativeAI({ apiKey }).(GEMINI_MODEL_ID)
  */
 export function createGeminiModel(modelId: string = GEMINI_MODEL_ID): LanguageModel {
+  if (modelId.includes('/')) {
+    throw new Error(
+      `Model "${modelId}" is a Vercel AI Gateway id. Use GEMINI_MODEL_ID=gemini-flash-latest with GEMINI_API_KEY from Google AI Studio instead of AI_GATEWAY_API_KEY.`
+    )
+  }
+
   const apiKey = getGeminiApiKey()
   if (!apiKey) {
     throw new Error(

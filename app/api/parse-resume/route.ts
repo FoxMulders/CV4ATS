@@ -5,6 +5,9 @@ import { MAX_FILE_SIZE_BYTES } from '@/lib/ai/schemas'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { parseResumeFile, ResumeParseError } from '@/lib/resume/parse-file'
 
+/** Resume parsing (PDF/DOCX) can exceed the default 10s on large files. */
+export const maxDuration = 30
+
 export async function POST(request: Request) {
   const ip = getClientIp(request)
   const rateLimit = await checkRateLimit('parse', ip)
