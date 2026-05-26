@@ -55,6 +55,8 @@ export function createGeminiModel(modelId: string = GEMINI_MODEL_ID): LanguageMo
 export function geminiProviderOptions() {
   return {
     google: {
+      // Maps to Gemini responseMimeType + responseSchema via the AI SDK.
+      structuredOutputs: true,
       thinkingConfig: {
         thinkingBudget: 0,
       },

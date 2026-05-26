@@ -90,7 +90,11 @@ tailoredResume must use these exact field names:
 - experience.location, education.graduationDate, education.details: use "" when not applicable.
 - education: use [] when the source resume has no education section.
 - certifications: use [] when the candidate has none.
-- coverLetter: a single plain-text string, not a nested object.`
+- coverLetter: a single plain-text string, not a nested object.
+
+## Response format (mandatory)
+Return your response exclusively as a valid JSON object matching the schema above.
+Do not include markdown, code fences like \`\`\`json, headings, or conversational prose before or after the JSON.`
 
 export interface UserPromptOptions {
   targetSkills?: string[]

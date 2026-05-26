@@ -1,4 +1,4 @@
-import { APICallError, RetryError } from 'ai'
+import { APICallError, NoObjectGeneratedError, RetryError } from 'ai'
 
 const RATE_LIMIT_PATTERN = /\b429\b|too many requests|rate limit|quota|resource exhausted/i
 
@@ -67,6 +67,10 @@ export function shouldUseLocalFallback(error: unknown): boolean {
     isAiProviderUnavailable(root) ||
     isAiProviderUnavailable(error)
   ) {
+    return true
+  }
+
+  if (NoObjectGeneratedError.isInstance(root) || NoObjectGeneratedError.isInstance(error)) {
     return true
   }
 

@@ -1,3 +1,17 @@
+/** Strip markdown fences and conversational wrappers before JSON.parse. */
+export function parseJsonFromModelText(text: string): unknown {
+  const trimmed = text.trim()
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i)
+  const candidate = (fenced?.[1] ?? trimmed).trim()
+
+  const start = candidate.indexOf('{')
+  const end = candidate.lastIndexOf('}')
+  const jsonSlice =
+    start >= 0 && end > start ? candidate.slice(start, end + 1) : candidate
+
+  return JSON.parse(jsonSlice)
+}
+
 /** Map Gemini JSON aliases to the strict ATS4CV schema before Zod validation. */
 export function normalizeAiGenerationOutput(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {

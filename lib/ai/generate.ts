@@ -4,7 +4,6 @@ import {
   Output,
   streamText,
   type DeepPartial,
-  type JSONValue,
 } from 'ai'
 
 import {
@@ -20,7 +19,7 @@ import {
   generateTailoredResumeLocally,
   refineTailoredResumeLocally,
 } from '@/lib/ai/local-fallback'
-import { normalizeAiGenerationOutput } from '@/lib/ai/normalize-output'
+import { normalizeAiGenerationOutput, parseJsonFromModelText } from '@/lib/ai/normalize-output'
 import {
   buildRefinementPrompt,
   buildUserPrompt,
@@ -42,11 +41,39 @@ export type AiStreamCallbacks = {
   onPartial?: (partial: DeepPartial<AiGenerationResult>) => void | Promise<void>
 }
 
-function asPartialResult(value: JSONValue | undefined): DeepPartial<AiGenerationResult> | undefined {
+const STRUCTURED_OUTPUT = Output.object({
+  schema: aiGenerationResultSchema,
+  name: 'TailoredApplication',
+  description:
+    'Structured ATS resume package with keywordReport, tailoredResume, and coverLetter.',
+})
+
+function parseStructuredResult(raw: unknown): AiGenerationResult {
+  return aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw))
+}
+
+function tryRecoverStructuredOutput(error: unknown): AiGenerationResult | undefined {
+  const root = unwrapAiError(error)
+  const text = NoObjectGeneratedError.isInstance(root) ? root.text : undefined
+
+  if (!text?.trim()) {
+    return undefined
+  }
+
+  try {
+    return parseStructuredResult(parseJsonFromModelText(text))
+  } catch {
+    return undefined
+  }
+}
+
+function asPartialResult(
+  value: DeepPartial<AiGenerationResult> | undefined
+): DeepPartial<AiGenerationResult> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return undefined
   }
-  return value as DeepPartial<AiGenerationResult>
+  return value
 }
 
 function formatAiError(error: unknown, provider: ResolvedAiModel): string {
@@ -89,7 +116,8 @@ function shouldTryNextProvider(error: unknown): boolean {
   return (
     isRateLimitOrQuotaError(root) ||
     isVercelAiGatewayError(root) ||
-    isAiProviderUnavailable(root)
+    isAiProviderUnavailable(root) ||
+    NoObjectGeneratedError.isInstance(root)
   )
 }
 
@@ -106,7 +134,7 @@ async function runStreamWithProvider(
     temperature,
     maxOutputTokens: AI_GENERATION_MAX_TOKENS,
     maxRetries: AI_STREAM_MAX_RETRIES,
-    output: Output.json(),
+    output: STRUCTURED_OUTPUT,
     providerOptions: entry.providerOptions,
   })
 
@@ -119,8 +147,12 @@ async function runStreamWithProvider(
 
   try {
     const raw = await stream.output
-    return aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw))
+    return parseStructuredResult(raw)
   } catch (error) {
+    const recovered = tryRecoverStructuredOutput(error)
+    if (recovered) {
+      return recovered
+    }
     throw new Error(formatAiError(error, entry), { cause: error })
   }
 }
