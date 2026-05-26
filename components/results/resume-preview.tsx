@@ -1,10 +1,15 @@
+'use client'
+
 import type { TailoredResume } from '@/lib/ai/schemas'
+
+import { PhrasingSimilarityPreview } from '@/components/results/phrasing-similarity-preview'
 
 interface ResumePreviewProps {
   resume: TailoredResume
+  jobDescription?: string
 }
 
-export function ResumePreview({ resume }: ResumePreviewProps) {
+export function ResumePreview({ resume, jobDescription }: ResumePreviewProps) {
   const contactParts = [
     resume.contact.email,
     resume.contact.phone,
@@ -26,6 +31,13 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
           Professional Summary
         </h3>
         <p>{resume.summary}</p>
+        {jobDescription?.trim() ? (
+          <PhrasingSimilarityPreview
+            text={resume.summary}
+            jobDescription={jobDescription}
+            previewClassName="mt-2"
+          />
+        ) : null}
       </section>
 
       <section>
@@ -49,9 +61,18 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
               <p className="text-muted-foreground">
                 {job.startDate} – {job.endDate}
               </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
+              <ul className="mt-2 list-disc space-y-2 pl-5">
                 {job.bullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
+                  <li key={bullet}>
+                    {bullet}
+                    {jobDescription?.trim() ? (
+                      <PhrasingSimilarityPreview
+                        text={bullet}
+                        jobDescription={jobDescription}
+                        previewClassName="mt-1"
+                      />
+                    ) : null}
+                  </li>
                 ))}
               </ul>
             </div>

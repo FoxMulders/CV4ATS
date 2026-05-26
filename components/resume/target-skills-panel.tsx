@@ -22,6 +22,8 @@ interface TargetSkillsPanelProps {
   preScan: PreScanResult | null
   isLoading?: boolean
   onInsertSelections?: (selections: SkillSnippetSelection[]) => void
+  jobDescription?: string
+  resumeText?: string
 }
 
 function SkillBadge({ skill }: { skill: TargetSkill }) {
@@ -35,7 +37,13 @@ function SkillBadge({ skill }: { skill: TargetSkill }) {
   )
 }
 
-export function TargetSkillsPanel({ preScan, isLoading, onInsertSelections }: TargetSkillsPanelProps) {
+export function TargetSkillsPanel({
+  preScan,
+  isLoading,
+  onInsertSelections,
+  jobDescription,
+  resumeText,
+}: TargetSkillsPanelProps) {
   if (isLoading) {
     return (
       <Card className="border-dashed">
@@ -109,6 +117,8 @@ export function TargetSkillsPanel({ preScan, isLoading, onInsertSelections }: Ta
             isLoading={isLoading}
             description="Click a missing skill to see the full sentence it will add. Edit the wording, then insert into your resume."
             insertLabel="Insert selected into resume"
+            jobDescription={jobDescription}
+            resumeText={resumeText}
           />
         ) : (
           <p className="text-sm text-muted-foreground">

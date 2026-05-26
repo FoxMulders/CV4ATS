@@ -13,6 +13,8 @@ interface KeywordReportPanelProps {
   label?: string
   onIncorporateKeywords?: (selections: SkillSnippetSelection[]) => void | Promise<void>
   isRerunning?: boolean
+  jobDescription?: string
+  resumeText?: string
 }
 
 export function KeywordReportPanel({
@@ -20,6 +22,8 @@ export function KeywordReportPanel({
   label = 'After tailoring',
   onIncorporateKeywords,
   isRerunning = false,
+  jobDescription,
+  resumeText,
 }: KeywordReportPanelProps) {
   const matchedKeywords = sanitizeKeywordList(report.matchedKeywords)
   const missingKeywords = sanitizeKeywordList(report.missingKeywords)
@@ -61,6 +65,8 @@ export function KeywordReportPanel({
               keywords={missingKeywords}
               onIncorporate={onIncorporateKeywords}
               isLoading={isRerunning}
+              jobDescription={jobDescription}
+              resumeText={resumeText}
             />
           ) : missingKeywords.length ? (
             <div className="flex flex-wrap gap-2">

@@ -33,6 +33,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { GenerationResult, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import type { JobListing } from '@/lib/jobs/types'
+import { formatJobDescriptionForAi } from '@/lib/jobs/types'
 import { getEmployerDisplayName } from '@/lib/jobs/edmonton-employers'
 import {
   getResumeTextForSubmit,
@@ -225,6 +226,13 @@ export function JobCard({
   const priorityEmployerName = job.targetEmployerId
     ? getEmployerDisplayName(job.targetEmployerId)
     : undefined
+  const jobDescriptionForAi = formatJobDescriptionForAi(job)
+  const resumeContextText =
+    editedResume != null
+      ? serializeTailoredResume(editedResume)
+      : tailorResult
+        ? serializeTailoredResume(tailorResult.tailoredResume)
+        : getResumeTextForSubmit(resumeText, resumeFile, fileParse).resumeText ?? resumeText
 
   return (
     <Card
@@ -396,6 +404,8 @@ export function JobCard({
                           keywords={sanitizeKeywordList(tailorResult.keywordReport.missingKeywords)}
                           onIncorporate={handleIncorporateKeywords}
                           isLoading={isTailoring}
+                          jobDescription={jobDescriptionForAi}
+                          resumeText={resumeContextText}
                         />
                       </CardContent>
                     </Card>
@@ -419,6 +429,7 @@ export function JobCard({
                       <EditableResumePreview
                         resume={editedResume}
                         onResumeChange={setEditedResume}
+                        jobDescription={jobDescriptionForAi}
                       />
                     ) : null}
                   </TabsContent>
@@ -436,6 +447,8 @@ export function JobCard({
                       report={tailorResult.keywordReport}
                       onIncorporateKeywords={handleIncorporateKeywords}
                       isRerunning={isTailoring}
+                      jobDescription={jobDescriptionForAi}
+                      resumeText={resumeContextText}
                     />
                   </TabsContent>
                 </Tabs>

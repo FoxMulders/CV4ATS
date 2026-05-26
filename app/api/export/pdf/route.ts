@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
 
+import { verifyExportAccess } from '@/lib/billing/premium-access'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { tailoredResumeSchema } from '@/lib/ai/schemas'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { buildResumePdf } from '@/lib/resume/export-pdf'
 
 export async function POST(request: Request) {
+  const access = verifyExportAccess(request)
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: 402 })
+  }
+
   const ip = getClientIp(request)
   const rateLimit = await checkRateLimit('export', ip)
 

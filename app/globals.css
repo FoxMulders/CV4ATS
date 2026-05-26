@@ -137,3 +137,42 @@
     font-family: var(--font-heading), Georgia, 'Times New Roman', serif;
   }
 }
+
+.copy-protected-workspace {
+  position: relative;
+}
+
+.copy-protected-workspace--locked {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.copy-protected-workspace__content--blurred {
+  filter: blur(5px);
+  pointer-events: none;
+}
+
+.copy-protected-workspace__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: linear-gradient(
+    180deg,
+    oklch(1 0 0 / 0.08),
+    oklch(0.32 0.08 260 / 0.12)
+  );
+}
+
+.copy-protected-workspace__overlay-card {
+  max-width: 22rem;
+  border-radius: 0.75rem;
+  border: 1px solid oklch(0.9 0.015 260 / 0.9);
+  background: oklch(1 0.003 85 / 0.96);
+  padding: 1rem 1.125rem;
+  text-align: center;
+  box-shadow: 0 10px 30px oklch(0.24 0.04 260 / 0.12);
+}

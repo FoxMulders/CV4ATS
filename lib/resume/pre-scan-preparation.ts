@@ -50,7 +50,17 @@ export function runSkillExtrapolationAndInjection(
     }
   }
 
-  const suggestedAdditions = missingSkills.map(buildSuggestedAddition)
+  const usedSnippets: string[] = []
+  const suggestedAdditions = missingSkills.map((skill, index) => {
+    const addition = buildSuggestedAddition(skill, {
+      resumeText,
+      jobDescription,
+      siblingSnippets: usedSnippets,
+      variationIndex: index,
+    })
+    usedSnippets.push(addition.snippet)
+    return addition
+  })
 
   let preparedResumeText = resumeText
   let autoInjectedSkills: string[] = []

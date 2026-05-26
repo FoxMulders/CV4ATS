@@ -3,15 +3,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { CopyProtectedWorkspace } from '@/components/billing/copy-protected-workspace'
+import { SquareCheckoutModal } from '@/components/billing/square-checkout-modal'
 import { PageHero } from '@/components/layout/page-hero'
 import { SiteFooter } from '@/components/layout/site-footer'
 import { SiteHeader } from '@/components/layout/site-header'
 import { StepCard } from '@/components/layout/step-card'
 import { TrustBanner } from '@/components/layout/trust-banner'
+import { CompetitiveAdvantagesSection } from '@/components/marketing/competitive-advantages-section'
 import { TargetSkillsPanel } from '@/components/resume/target-skills-panel'
 import { AtsComplianceComparison } from '@/components/results/ats-compliance-comparison'
 import { CoverLetterPreview } from '@/components/results/cover-letter-preview'
-import { DownloadActions } from '@/components/results/download-actions'
+import {
+  DownloadActions,
+} from '@/components/results/download-actions'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
 import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
 import { EditableResumePreview } from '@/components/results/editable-resume-preview'
@@ -28,6 +33,7 @@ import {
   type ResumeFileParseState,
 } from '@/components/wizard/resume-input-step'
 import { formatScorePassLine } from '@/lib/api/generation-config'
+import { useJobPass } from '@/hooks/use-job-pass'
 import { useSavedResume } from '@/hooks/use-saved-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
@@ -69,6 +75,15 @@ export default function HomePage() {
   const [preScanPreview, setPreScanPreview] = useState<PreScanResult | null>(null)
   const [preScanLoading, setPreScanLoading] = useState(false)
   const [originalResumeText, setOriginalResumeText] = useState<string | null>(null)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const {
+    accessToken,
+    isUnlocked,
+    unlock,
+    checkoutEnabled,
+    jobDescriptionHash,
+    passExpiryLabel,
+  } = useJobPass(jobDescription)
 
   useSavedResume(resumeText, setResumeText, fileParse)
 
@@ -245,6 +260,23 @@ export default function HomePage() {
     })
   }
 
+  async function handleCheckoutSuccess(result: {
+    accessToken: string
+    jobDescriptionHash: string
+    expiresAt: number
+    unlockedAt: number
+  }) {
+    unlock(result)
+    toast.success('24-Hour Job Pass active — unlimited edits and downloads for this role.')
+  }
+
+  const premiumLocked = Boolean(result && checkoutEnabled && !isUnlocked)
+
+  useEffect(() => {
+    if (!result || !checkoutEnabled || isUnlocked || !jobDescriptionHash) return
+    setCheckoutOpen(true)
+  }, [result, checkoutEnabled, isUnlocked, jobDescriptionHash])
+
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <SiteHeader current="tailor" />
@@ -256,9 +288,11 @@ export default function HomePage() {
       />
 
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10 sm:px-6">
+        <CompetitiveAdvantagesSection />
+
         <TrustBanner message="Your resume is saved only in this browser for convenience. It is sent to AI providers during generation and is not stored on our servers." />
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div id="tailor-workspace" className="grid scroll-mt-24 gap-6 lg:grid-cols-2">
           <StepCard
             step={1}
             title="Job description"
@@ -294,6 +328,8 @@ export default function HomePage() {
                 preScan={preScanPreview}
                 isLoading={preScanLoading}
                 onInsertSelections={handleInsertSkillSelections}
+                jobDescription={jobDescription}
+                resumeText={activeResumeText}
               />
             </div>
           ) : null}
@@ -315,72 +351,110 @@ export default function HomePage() {
               <CardTitle className="font-heading text-2xl">Your tailored application</CardTitle>
               <CardDescription>
                 Review, edit, and download your professional resume package
+                {isUnlocked && passExpiryLabel ? (
+                  <span className="mt-1 block text-xs text-brand-gold">
+                    24-Hour Job Pass active for this role until {passExpiryLabel}
+                  </span>
+                ) : null}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {result.preScan ? (
-                <TargetSkillsPanel preScan={result.preScan} />
-              ) : null}
-
-              <AtsComplianceComparison
-                before={result.baselineKeywordReport}
-                after={result.keywordReport}
-                refinementPasses={result.refinementPasses}
-                targetScoreMet={result.targetScoreMet}
-              />
-
-              <DownloadActions
-                resume={editedResume ?? result.tailoredResume}
-                coverLetter={coverLetter}
-              />
-
-              <Tabs defaultValue="resume">
-                <TabsList>
-                  <TabsTrigger value="resume">Resume</TabsTrigger>
-                  <TabsTrigger value="changes">Changes</TabsTrigger>
-                  <TabsTrigger value="keywords">Keyword report</TabsTrigger>
-                  <TabsTrigger value="cover">Cover letter</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="resume" className="mt-4">
-                  {editedResume ? (
-                    <EditableResumePreview
-                      resume={editedResume}
-                      onResumeChange={setEditedResume}
-                    />
-                  ) : null}
-                </TabsContent>
-
-                <TabsContent value="changes" className="mt-4">
-                  {originalResumeText && editedResume ? (
-                    <ResumeDiffView
-                      originalText={originalResumeText}
-                      resume={editedResume}
-                      onResumeChange={setEditedResume}
-                    />
-                  ) : null}
-                </TabsContent>
-
-                <TabsContent value="keywords" className="mt-4">
-                  <KeywordReportPanel
-                    report={result.keywordReport}
-                    onIncorporateKeywords={handleIncorporateKeywords}
-                    isRerunning={isLoading}
+              <CopyProtectedWorkspace
+                locked={premiumLocked}
+                onUnlockRequest={() => setCheckoutOpen(true)}
+              >
+                {result.preScan ? (
+                  <TargetSkillsPanel
+                    preScan={result.preScan}
+                    jobDescription={jobDescription}
+                    resumeText={
+                      originalResumeText ??
+                      (editedResume ? serializeTailoredResume(editedResume) : activeResumeText)
+                    }
                   />
-                </TabsContent>
+                ) : null}
 
-                <TabsContent value="cover" className="mt-4">
-                  <CoverLetterPreview
-                    fieldId="home-cover-letter"
-                    value={coverLetter}
-                    onChange={setCoverLetter}
-                  />
-                </TabsContent>
-              </Tabs>
+                <AtsComplianceComparison
+                  before={result.baselineKeywordReport}
+                  after={result.keywordReport}
+                  refinementPasses={result.refinementPasses}
+                  targetScoreMet={result.targetScoreMet}
+                />
+
+                <DownloadActions
+                  resume={editedResume ?? result.tailoredResume}
+                  coverLetter={coverLetter}
+                  premiumAccessToken={accessToken}
+                  jobDescriptionHash={jobDescriptionHash}
+                  isPremiumUnlocked={isUnlocked}
+                  passExpiryLabel={passExpiryLabel}
+                  onCheckoutRequest={() => setCheckoutOpen(true)}
+                />
+
+                <Tabs defaultValue="changes">
+                  <TabsList>
+                    <TabsTrigger value="resume">Resume</TabsTrigger>
+                    <TabsTrigger value="changes">Changes</TabsTrigger>
+                    <TabsTrigger value="keywords">Keyword report</TabsTrigger>
+                    <TabsTrigger value="cover">Cover letter</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="resume" className="mt-4">
+                    {editedResume ? (
+                      <EditableResumePreview
+                        resume={editedResume}
+                        onResumeChange={setEditedResume}
+                        originalText={originalResumeText}
+                        jobDescription={jobDescription}
+                      />
+                    ) : null}
+                  </TabsContent>
+
+                  <TabsContent value="changes" className="mt-4">
+                    {originalResumeText && editedResume ? (
+                      <ResumeDiffView
+                        originalText={originalResumeText}
+                        resume={editedResume}
+                        onResumeChange={setEditedResume}
+                        jobDescription={jobDescription}
+                      />
+                    ) : null}
+                  </TabsContent>
+
+                  <TabsContent value="keywords" className="mt-4">
+                    <KeywordReportPanel
+                      report={result.keywordReport}
+                      onIncorporateKeywords={handleIncorporateKeywords}
+                      isRerunning={isLoading}
+                      jobDescription={jobDescription}
+                      resumeText={
+                        editedResume
+                          ? serializeTailoredResume(editedResume)
+                          : originalResumeText ?? activeResumeText
+                      }
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="cover" className="mt-4">
+                    <CoverLetterPreview
+                      fieldId="home-cover-letter"
+                      value={coverLetter}
+                      onChange={setCoverLetter}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </CopyProtectedWorkspace>
             </CardContent>
           </Card>
         ) : null}
       </main>
+
+      <SquareCheckoutModal
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        jobDescription={jobDescription}
+        onSuccess={handleCheckoutSuccess}
+      />
 
       <SiteFooter />
     </div>

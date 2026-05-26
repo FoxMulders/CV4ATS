@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AddExperiencePanel } from '@/components/resume/add-experience-panel'
+import { ProposedSkillAdditions } from '@/components/resume/proposed-skill-additions'
 import { ResumeSourcePreview } from '@/components/resume/resume-source-preview'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -249,7 +250,16 @@ export function ResumeInputStep({
       </Tabs>
 
       {previewText ? (
-        <ResumeSourcePreview text={previewText} sourceLabel={previewSource} />
+        <>
+          <ProposedSkillAdditions
+            resumeText={previewText}
+            onResumeTextChange={(value) => {
+              onResumeFileChange(null)
+              onResumeTextChange(value)
+            }}
+          />
+          <ResumeSourcePreview text={previewText} sourceLabel={previewSource} />
+        </>
       ) : null}
 
       <AddExperiencePanel variant="inline" onAdd={handleAddExperience} />
