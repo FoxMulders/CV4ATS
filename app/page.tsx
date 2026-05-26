@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { CopyProtectedWorkspace } from '@/components/billing/copy-protected-workspace'
+import { PremiumUnlockBanner } from '@/components/billing/premium-unlock-banner'
 import { SquareCheckoutModal } from '@/components/billing/square-checkout-modal'
 import { PageHero } from '@/components/layout/page-hero'
 import { SiteFooter } from '@/components/layout/site-footer'
@@ -272,11 +272,6 @@ export default function HomePage() {
 
   const premiumLocked = Boolean(result && checkoutEnabled && !isUnlocked)
 
-  useEffect(() => {
-    if (!result || !checkoutEnabled || isUnlocked || !jobDescriptionHash) return
-    setCheckoutOpen(true)
-  }, [result, checkoutEnabled, isUnlocked, jobDescriptionHash])
-
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <SiteHeader current="tailor" />
@@ -359,91 +354,90 @@ export default function HomePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <CopyProtectedWorkspace
-                locked={premiumLocked}
-                onUnlockRequest={() => setCheckoutOpen(true)}
-              >
-                {result.preScan ? (
-                  <TargetSkillsPanel
-                    preScan={result.preScan}
+              {premiumLocked ? (
+                <PremiumUnlockBanner onUnlockRequest={() => setCheckoutOpen(true)} />
+              ) : null}
+
+              {result.preScan ? (
+                <TargetSkillsPanel
+                  preScan={result.preScan}
+                  jobDescription={jobDescription}
+                  resumeText={
+                    originalResumeText ??
+                    (editedResume ? serializeTailoredResume(editedResume) : activeResumeText)
+                  }
+                />
+              ) : null}
+
+              <AtsComplianceComparison
+                before={result.baselineKeywordReport}
+                after={result.keywordReport}
+                refinementPasses={result.refinementPasses}
+                targetScoreMet={result.targetScoreMet}
+              />
+
+              <DownloadActions
+                resume={editedResume ?? result.tailoredResume}
+                coverLetter={coverLetter}
+                premiumAccessToken={accessToken}
+                jobDescriptionHash={jobDescriptionHash}
+                isPremiumUnlocked={isUnlocked}
+                passExpiryLabel={passExpiryLabel}
+                onCheckoutRequest={() => setCheckoutOpen(true)}
+              />
+
+              <Tabs defaultValue="changes">
+                <TabsList>
+                  <TabsTrigger value="resume">Resume</TabsTrigger>
+                  <TabsTrigger value="changes">Changes</TabsTrigger>
+                  <TabsTrigger value="keywords">Keyword report</TabsTrigger>
+                  <TabsTrigger value="cover">Cover letter</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="resume" className="mt-4">
+                  {editedResume ? (
+                    <EditableResumePreview
+                      resume={editedResume}
+                      onResumeChange={setEditedResume}
+                      originalText={originalResumeText}
+                      jobDescription={jobDescription}
+                    />
+                  ) : null}
+                </TabsContent>
+
+                <TabsContent value="changes" className="mt-4">
+                  {originalResumeText && editedResume ? (
+                    <ResumeDiffView
+                      originalText={originalResumeText}
+                      resume={editedResume}
+                      onResumeChange={setEditedResume}
+                      jobDescription={jobDescription}
+                    />
+                  ) : null}
+                </TabsContent>
+
+                <TabsContent value="keywords" className="mt-4">
+                  <KeywordReportPanel
+                    report={result.keywordReport}
+                    onIncorporateKeywords={handleIncorporateKeywords}
+                    isRerunning={isLoading}
                     jobDescription={jobDescription}
                     resumeText={
-                      originalResumeText ??
-                      (editedResume ? serializeTailoredResume(editedResume) : activeResumeText)
+                      editedResume
+                        ? serializeTailoredResume(editedResume)
+                        : originalResumeText ?? activeResumeText
                     }
                   />
-                ) : null}
+                </TabsContent>
 
-                <AtsComplianceComparison
-                  before={result.baselineKeywordReport}
-                  after={result.keywordReport}
-                  refinementPasses={result.refinementPasses}
-                  targetScoreMet={result.targetScoreMet}
-                />
-
-                <DownloadActions
-                  resume={editedResume ?? result.tailoredResume}
-                  coverLetter={coverLetter}
-                  premiumAccessToken={accessToken}
-                  jobDescriptionHash={jobDescriptionHash}
-                  isPremiumUnlocked={isUnlocked}
-                  passExpiryLabel={passExpiryLabel}
-                  onCheckoutRequest={() => setCheckoutOpen(true)}
-                />
-
-                <Tabs defaultValue="changes">
-                  <TabsList>
-                    <TabsTrigger value="resume">Resume</TabsTrigger>
-                    <TabsTrigger value="changes">Changes</TabsTrigger>
-                    <TabsTrigger value="keywords">Keyword report</TabsTrigger>
-                    <TabsTrigger value="cover">Cover letter</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="resume" className="mt-4">
-                    {editedResume ? (
-                      <EditableResumePreview
-                        resume={editedResume}
-                        onResumeChange={setEditedResume}
-                        originalText={originalResumeText}
-                        jobDescription={jobDescription}
-                      />
-                    ) : null}
-                  </TabsContent>
-
-                  <TabsContent value="changes" className="mt-4">
-                    {originalResumeText && editedResume ? (
-                      <ResumeDiffView
-                        originalText={originalResumeText}
-                        resume={editedResume}
-                        onResumeChange={setEditedResume}
-                        jobDescription={jobDescription}
-                      />
-                    ) : null}
-                  </TabsContent>
-
-                  <TabsContent value="keywords" className="mt-4">
-                    <KeywordReportPanel
-                      report={result.keywordReport}
-                      onIncorporateKeywords={handleIncorporateKeywords}
-                      isRerunning={isLoading}
-                      jobDescription={jobDescription}
-                      resumeText={
-                        editedResume
-                          ? serializeTailoredResume(editedResume)
-                          : originalResumeText ?? activeResumeText
-                      }
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="cover" className="mt-4">
-                    <CoverLetterPreview
-                      fieldId="home-cover-letter"
-                      value={coverLetter}
-                      onChange={setCoverLetter}
-                    />
-                  </TabsContent>
-                </Tabs>
-              </CopyProtectedWorkspace>
+                <TabsContent value="cover" className="mt-4">
+                  <CoverLetterPreview
+                    fieldId="home-cover-letter"
+                    value={coverLetter}
+                    onChange={setCoverLetter}
+                  />
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         ) : null}

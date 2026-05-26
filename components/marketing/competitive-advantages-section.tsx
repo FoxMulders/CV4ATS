@@ -27,7 +27,7 @@ const FEATURES: Array<{
     icon: '🔒',
     title: 'Complete Privacy & Secure Checkout',
     description:
-      'Your resume data is processed entirely in memory and is never permanently stored or sold. Unlock a 24-Hour Job Pass with secure Square checkout for unlimited edits and re-downloads per role for just $4.99.',
+      'Your resume data is processed entirely in memory and is never permanently stored or sold. Preview your ATS score and tailored resume for free; unlock a 24-Hour Job Pass with secure Square checkout for unlimited exports and re-downloads per role for just $4.99.',
   },
 ] 
 

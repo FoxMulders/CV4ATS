@@ -41,8 +41,8 @@ export function CopyProtectedWorkspace({
           <div className="copy-protected-workspace__overlay-card">
             <p className="text-sm font-medium text-foreground">24-Hour Job Pass required</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Unlock full access for this role to remove blur, enable copy, and download unlimited
-              PDF/DOCX exports for 24 hours.
+              Unlock full access for this role to download PDF/DOCX exports and re-download after
+              edits for 24 hours.
             </p>
             {onUnlockRequest ? (
               <Button type="button" size="sm" className="mt-3" onClick={onUnlockRequest}>

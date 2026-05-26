@@ -118,8 +118,8 @@ export function DownloadActions({
     <div className="space-y-3">
       {!isPremiumUnlocked ? (
         <p className="rounded-lg border border-amber-200/80 bg-amber-50/70 px-3 py-2 text-sm text-amber-950">
-          Preview is locked for this role. Purchase a 24-Hour Job Pass to remove blur, enable copy,
-          and download unlimited exports while you perfect your resume.
+          Your score and resume preview are free. Purchase a 24-Hour Job Pass to download PDF/DOCX
+          exports and re-download after edits.
         </p>
       ) : passExpiryLabel ? (
         <p className="rounded-lg border border-brand-gold/30 bg-brand-gold/10 px-3 py-2 text-sm text-foreground">
