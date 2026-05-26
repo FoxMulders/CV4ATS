@@ -2,6 +2,7 @@
 
 import {
   Briefcase,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -42,6 +43,7 @@ import { GenerationProgress } from '@/components/wizard/generation-progress'
 import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
+import { formatAppliedDate, type AppliedJobRecord } from '@/lib/jobs/applied-jobs'
 
 export interface JobTailorResult extends GenerationResult {
   jobId: string
@@ -61,6 +63,9 @@ interface JobCardProps {
   tailorResult?: JobTailorResult
   onTailorComplete: (result: JobTailorResult) => void
   manuallyShared?: boolean
+  appliedRecord?: AppliedJobRecord
+  onMarkApplied?: (job: JobListing) => void
+  onUnmarkApplied?: (job: JobListing) => void
 }
 
 function scoreVariant(score: number): 'default' | 'secondary' | 'outline' | 'destructive' {
@@ -78,6 +83,9 @@ export function JobCard({
   tailorResult,
   onTailorComplete,
   manuallyShared = false,
+  appliedRecord,
+  onMarkApplied,
+  onUnmarkApplied,
 }: JobCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [isTailoring, setIsTailoring] = useState(false)
@@ -219,13 +227,23 @@ export function JobCard({
     : undefined
 
   return (
-    <Card className="border-border/80 shadow-sm transition-shadow hover:shadow-md">
+    <Card
+      className={`border-border/80 shadow-sm transition-shadow hover:shadow-md ${
+        appliedRecord ? 'border-emerald-200/80 bg-emerald-50/20' : ''
+      }`}
+    >
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="text-lg">{job.title}</CardTitle>
               {manuallyShared ? <Badge variant="secondary">Manually shared</Badge> : null}
+              {appliedRecord ? (
+                <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
+                  <CheckCircle2 className="size-3" />
+                  Applied {formatAppliedDate(appliedRecord.appliedAt)}
+                </Badge>
+              ) : null}
               {priorityEmployerName ? (
                 <Badge variant="outline" className="border-brand-gold/60 text-brand-gold">
                   {priorityEmployerName}
@@ -316,10 +334,22 @@ export function JobCard({
             target="_blank"
             rel="noopener noreferrer"
             className={buttonVariants({ variant: 'outline' })}
+            onClick={() => onMarkApplied?.(job)}
           >
             <ExternalLink />
             Apply for this job
           </a>
+
+          {appliedRecord ? (
+            <Button type="button" variant="ghost" onClick={() => onUnmarkApplied?.(job)}>
+              Undo applied
+            </Button>
+          ) : (
+            <Button type="button" variant="secondary" onClick={() => onMarkApplied?.(job)}>
+              <CheckCircle2 />
+              Mark as applied
+            </Button>
+          )}
 
           <Button variant="ghost" onClick={() => setExpanded((value) => !value)}>
             {expanded ? <ChevronUp /> : <ChevronDown />}
@@ -420,6 +450,7 @@ export function JobCard({
                   target="_blank"
                   rel="noopener noreferrer"
                   className={buttonVariants({ size: 'lg' })}
+                  onClick={() => onMarkApplied?.(job)}
                 >
                   <ExternalLink />
                   Submit application for {job.title}

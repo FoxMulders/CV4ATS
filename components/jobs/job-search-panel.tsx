@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { JobCard, type JobTailorResult } from '@/components/jobs/job-card'
+import { AppliedJobsPanel } from '@/components/jobs/applied-jobs-panel'
 import { EmployerSuggestions } from '@/components/jobs/employer-suggestions'
 import {
   ResumeInputStep,
@@ -14,12 +15,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useAppliedJobs } from '@/hooks/use-applied-jobs'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { SDLC_FILTER_LABEL } from '@/lib/jobs/filters'
 import {
   EDMONTON_EMPLOYER_TARGETS,
   formatEmployerScanLabel,
 } from '@/lib/jobs/edmonton-employers'
+import { partitionJobsByApplied } from '@/lib/jobs/applied-jobs'
 import type { JobIngestResult, JobListing, JobSearchResult } from '@/lib/jobs/types'
 
 export function JobSearchPanel() {
@@ -43,6 +46,14 @@ export function JobSearchPanel() {
     parsedText: '',
     error: null,
   })
+  const {
+    appliedJobs,
+    hideApplied,
+    setHideApplied,
+    markApplied,
+    unmarkApplied,
+    getAppliedRecord,
+  } = useAppliedJobs()
 
   const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
     setFileParse(state)
@@ -131,6 +142,44 @@ export function JobSearchPanel() {
     void searchJobs()
   }
 
+  function handleMarkApplied(job: JobListing) {
+    if (getAppliedRecord(job)) return
+    markApplied(job)
+    toast.success(`Saved: applied to ${job.title} at ${job.company}`)
+  }
+
+  function handleUnmarkApplied(job: JobListing) {
+    unmarkApplied(job)
+    toast.message(`Removed ${job.title} from your applied list`)
+  }
+
+  function renderJobCard(job: JobListing, manuallyShared = false) {
+    return (
+      <JobCard
+        key={job.id}
+        job={job}
+        resumeText={resumeText}
+        resumeFile={resumeFile}
+        fileParse={fileParse}
+        tailorResult={tailorResults[job.id]}
+        onTailorComplete={handleTailorComplete}
+        manuallyShared={manuallyShared}
+        appliedRecord={getAppliedRecord(job)}
+        onMarkApplied={handleMarkApplied}
+        onUnmarkApplied={handleUnmarkApplied}
+      />
+    )
+  }
+
+  const { open: openManualJobs, applied: appliedManualJobs } = partitionJobsByApplied(
+    manualJobs,
+    appliedJobs
+  )
+  const visibleManualJobs = hideApplied ? openManualJobs : [...openManualJobs, ...appliedManualJobs]
+
+  const { open: openJobs, applied: appliedJobsInList } = partitionJobsByApplied(jobs, appliedJobs)
+  const visibleJobs = hideApplied ? openJobs : [...openJobs, ...appliedJobsInList]
+
   return (
     <div className="space-y-8">
       <Card className="border-border/80 shadow-sm">
@@ -151,6 +200,13 @@ export function JobSearchPanel() {
           />
         </CardContent>
       </Card>
+
+      <AppliedJobsPanel
+        appliedJobs={appliedJobs}
+        hideApplied={hideApplied}
+        onHideAppliedChange={setHideApplied}
+        onUnmarkApplied={handleUnmarkApplied}
+      />
 
       <Card className="border-brand-gold/40 bg-gradient-to-br from-brand-gold/10 to-background shadow-sm">
         <CardHeader>
@@ -188,18 +244,7 @@ export function JobSearchPanel() {
               Parsed from your links · filters bypassed · ready to tailor
             </p>
           </div>
-          {manualJobs.map((job) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              resumeText={resumeText}
-              resumeFile={resumeFile}
-              fileParse={fileParse}
-              tailorResult={tailorResults[job.id]}
-              onTailorComplete={handleTailorComplete}
-              manuallyShared
-            />
-          ))}
+          {visibleManualJobs.map((job) => renderJobCard(job, true))}
         </div>
       ) : null}
 
@@ -214,7 +259,7 @@ export function JobSearchPanel() {
             {automatedScanPaused
               ? 'Background job search is paused while you work from a shared link.'
               : searchMeta
-                ? `${jobs.length} roles found · ${SDLC_FILTER_LABEL}${
+                ? `${visibleJobs.length} open roles · ${appliedJobs.length} applied · ${SDLC_FILTER_LABEL}${
                     searchMeta.employerMatches
                       ? ` · ${searchMeta.employerMatches} from ${EDMONTON_EMPLOYER_TARGETS.length} suggested employers`
                       : ''
@@ -257,17 +302,7 @@ export function JobSearchPanel() {
             </div>
           ) : null}
 
-          {jobs.map((job) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              resumeText={resumeText}
-              resumeFile={resumeFile}
-              fileParse={fileParse}
-              tailorResult={tailorResults[job.id]}
-              onTailorComplete={handleTailorComplete}
-            />
-          ))}
+          {visibleJobs.map((job) => renderJobCard(job))}
         </div>
       ) : null}
     </div>
