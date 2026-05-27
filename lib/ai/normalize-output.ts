@@ -1,3 +1,6 @@
+import type { TailoredResume } from '@/lib/ai/schemas'
+import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+
 /** Strip markdown fences and conversational wrappers before JSON.parse. */
 export function parseJsonFromModelText(text: string): unknown {
   const trimmed = text.trim()
@@ -69,7 +72,7 @@ function normalizeTailoredResume(value: unknown): unknown {
     resume.contact = contact
   }
 
-  return resume
+  return formatTailoredResume(resume as TailoredResume)
 }
 
 function normalizeExperienceEntry(entry: unknown): unknown {

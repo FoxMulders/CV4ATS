@@ -70,11 +70,22 @@ Integration rules:
 - Use lemma variants naturally (manage/managed/managing, automate/automation/automated) — do not repeat the same term in adjacent bullets.
 - Never invent tools, certifications, employers, titles, dates, or achievements not grounded in the source resume.
 
-## ATS formatting
-- Single-column logical structure.
-- Standard headings: PROFESSIONAL SUMMARY, WORK EXPERIENCE, EDUCATION, SKILLS.
-- Reverse-chronological work experience.
-- Plain professional language — no tables, columns, graphics, or special characters.
+## ATS formatting (mandatory)
+Rebuild every resume for ATS parsing and human hiring managers:
+
+1. **Structure** — Single-column layout with standard section headers only: PROFESSIONAL SUMMARY, SKILLS, WORK EXPERIENCE, EDUCATION, CERTIFICATIONS. Reverse-chronological work experience. No tables, columns, text boxes, or graphics.
+
+2. **Bullets & characters** — Clean bullet points with strong action verbs. No special characters that break parsing (fancy bullets, zero-width spaces, odd Unicode dashes). Fix formatting inconsistencies and hyphenation (e.g., end-to-end, cross-functional, high-quality — never endtoend, crossfunctional, highquality).
+
+3. **Quantified achievements** — Preserve and strengthen the candidate's strongest results. Prioritize scope, scale, and measurable outcomes when the source resume supports them.
+
+4. **Keyword alignment** — Extract keywords from the job description and match the role's language in summary, skills, and bullets. Prefer exact JD phrasing when truthful; weave terms naturally inside accomplishment statements.
+
+5. **Tense consistency** — Past tense for completed roles; present tense for ongoing/current roles (endDate Present/Current). Standardize hyphenated and non-hyphenated forms of compound terms.
+
+6. **Early-career summary** — When the source resume summarizes pre-2006 or decades-prior roles in one block (e.g., "Prior to 2006 — held multiple IT support and technical roles dating back to 1995…"), keep it as a concise early-career entry that supports 30+ years of experience without cluttering recent roles.
+
+7. **Skills cleanup** — No dangling bullets, no merged tool names (Confluence • Jira not Confluence•Jira), no empty skill entries.
 
 ## Keyword report
 - **matchScore**: 0-100 estimate of alignment with JD hard skills, methodologies, and tools (not conversational words).

@@ -1,5 +1,6 @@
 import type { KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import { sanitizeKeywordReport } from '@/lib/api/generation-config'
+import { serializeFormattedResume } from '@/lib/resume/ats-resume-formatter'
 import { extractHighValueKeywords } from '@/lib/resume/keyword-extraction'
 import { filterRelevantKeywords } from '@/lib/resume/keyword-filter'
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
@@ -33,25 +34,7 @@ function formatSuggestions(missingKeywords: string[], score: number): string[] {
 }
 
 export function serializeTailoredResume(resume: TailoredResume): string {
-  const parts = [
-    resume.contact.name,
-    resume.contact.email,
-    resume.contact.phone,
-    resume.contact.location,
-    resume.contact.linkedin,
-    resume.summary,
-    resume.skills.join(' '),
-    ...resume.experience.flatMap((entry) => [
-      entry.title,
-      entry.company,
-      entry.location ?? '',
-      ...entry.bullets,
-    ]),
-    ...resume.education.flatMap((entry) => [entry.degree, entry.school, entry.details ?? '']),
-    ...(resume.certifications ?? []),
-  ]
-
-  return parts.filter(Boolean).join('\n')
+  return serializeFormattedResume(resume)
 }
 
 export function scoreAtsCompliance(resumeText: string, jobDescription: string): KeywordReport {

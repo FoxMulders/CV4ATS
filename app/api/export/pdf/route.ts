@@ -4,6 +4,7 @@ import { verifyExportAccess } from '@/lib/billing/premium-access'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { tailoredResumeSchema } from '@/lib/ai/schemas'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
 import { buildResumePdf } from '@/lib/resume/export-pdf'
 
 export async function POST(request: Request) {
@@ -27,8 +28,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid resume data.' }, { status: 400 })
     }
 
-    const buffer = await buildResumePdf(parsed.data)
-    const filename = `${sanitizeFilename(parsed.data.contact.name)}-resume.pdf`
+    const resume = formatTailoredResume(parsed.data)
+    const buffer = await buildResumePdf(resume)
+    const filename = `${sanitizeFilename(resume.contact.name)}-resume.pdf`
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

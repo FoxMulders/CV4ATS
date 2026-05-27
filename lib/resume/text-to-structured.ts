@@ -1,4 +1,5 @@
 import type { Education, Experience, TailoredResume } from '@/lib/ai/schemas'
+import { formatResumeText, formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
 
 const SECTION_HEADING =
   /^(professional summary|summary|skills|technical skills|work experience|experience|employment|education|certifications?)\s*:?\s*$/i
@@ -178,15 +179,16 @@ function parseSummary(lines: string[]): string {
 
 /** Best-effort plain-text resume → structured TailoredResume for local fallback mode. */
 export function parseResumeTextToTailoredResume(resumeText: string): TailoredResume {
-  const lines = splitLines(resumeText)
-  const contact = extractContact(resumeText)
+  const normalizedText = formatResumeText(resumeText.replace(/\r\n/g, '\n'))
+  const lines = splitLines(normalizedText)
+  const contact = extractContact(normalizedText)
 
-  return {
+  return formatTailoredResume({
     contact,
     summary: parseSummary(lines),
     skills: parseSkills(lines),
     experience: parseExperience(lines),
     education: parseEducation(lines),
     certifications: [],
-  }
+  })
 }

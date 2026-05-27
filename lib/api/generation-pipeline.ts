@@ -16,6 +16,7 @@ import { appendSnippetsToResume } from '@/lib/resume/skill-snippets'
 import { injectSelectedKeywords } from '@/lib/resume/inject-selected-keywords'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { runSkillExtrapolationAndInjection } from '@/lib/resume/pre-scan-preparation'
+import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
 import {
   buildAtsComparison,
   scoreAtsCompliance,
@@ -273,6 +274,18 @@ export async function runGenerationPipeline(
   }
 
   await emitStep(3)
+
+  aiResult = {
+    ...aiResult,
+    tailoredResume: formatTailoredResume(aiResult.tailoredResume),
+  }
+
+  comparison = buildAtsComparison(
+    preparedResumeText,
+    serializeTailoredResume(aiResult.tailoredResume),
+    jobDescription,
+    sanitizeKeywordReport(aiResult.keywordReport).suggestions
+  )
 
   const result: GenerationPipelineResult = {
     ...aiResult,
