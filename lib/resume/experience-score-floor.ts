@@ -32,13 +32,26 @@ export function qualifiesForSeniorItExperienceFloor(resumeText: string): boolean
   return domainHits > CORE_OPERATIONAL_DOMAINS.length / 2
 }
 
+export function computeTailoredExperienceFloor(rawScore: number): number {
+  if (rawScore >= 77) return TAILORED_EXPERIENCE_FLOOR_MAX
+  if (rawScore >= 55) {
+    return Math.round(
+      TAILORED_EXPERIENCE_FLOOR_MIN +
+        ((Math.min(rawScore, 77) - 55) / 22) * (TAILORED_EXPERIENCE_FLOOR_MAX - TAILORED_EXPERIENCE_FLOOR_MIN)
+    )
+  }
+  return TAILORED_EXPERIENCE_FLOOR_MIN
+}
+
 export function applyExperienceScoreFloor(
   displayScore: number,
   rawScore: number,
   resumeText: string,
-  phase: 'baseline' | 'tailored'
+  phase: 'baseline' | 'tailored',
+  options: { sourceResumeText?: string; baselineScore?: number } = {}
 ): number {
-  if (!qualifiesForSeniorItExperienceFloor(resumeText)) {
+  const qualificationText = options.sourceResumeText?.trim() || resumeText
+  if (!qualifiesForSeniorItExperienceFloor(qualificationText)) {
     return displayScore
   }
 
@@ -46,13 +59,8 @@ export function applyExperienceScoreFloor(
     return Math.max(displayScore, BASELINE_EXPERIENCE_FLOOR)
   }
 
-  const tailoredFloor =
-    rawScore >= 77
-      ? TAILORED_EXPERIENCE_FLOOR_MAX
-      : rawScore >= 55
-        ? TAILORED_EXPERIENCE_FLOOR_MIN +
-          ((Math.min(rawScore, 77) - 55) / 22) * (TAILORED_EXPERIENCE_FLOOR_MAX - TAILORED_EXPERIENCE_FLOOR_MIN)
-        : TAILORED_EXPERIENCE_FLOOR_MIN
+  const tailoredFloor = computeTailoredExperienceFloor(rawScore)
+  const baselineFloor = options.baselineScore ?? BASELINE_EXPERIENCE_FLOOR
 
-  return Math.max(displayScore, Math.round(tailoredFloor))
+  return Math.max(displayScore, tailoredFloor, baselineFloor)
 }

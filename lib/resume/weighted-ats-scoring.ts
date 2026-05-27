@@ -50,6 +50,10 @@ export interface WeightedScoreResult {
 
 export interface WeightedScoringOptions {
   phase?: 'baseline' | 'tailored'
+  /** Original uploaded resume — used for senior IT floor qualification (survives LLM rewrites). */
+  sourceResumeText?: string
+  /** Baseline display score — after tailoring never reports lower than this for qualified profiles. */
+  baselineScore?: number
 }
 
 const SECTION_BOUNDARY =
@@ -267,7 +271,9 @@ function scoreTerms(
 
     const occurrences = countKeywordOccurrences(sections.fullText, term)
     const density = densityMultiplier(occurrences)
-    const phrasingPenaltyApplied = keywordInPhrasingViolation(term, sections, jobDescription)
+    const phrasingPenaltyApplied =
+      options.phase !== 'tailored' &&
+      keywordInPhrasingViolation(term, sections, jobDescription)
     const penaltyFactor = phrasingPenaltyApplied ? PHRASING_PENALTY_FACTOR : 1
     const contribution = sectionWeight * density * penaltyFactor
 
@@ -288,7 +294,11 @@ function scoreTerms(
     normalizedScore,
     rawScore,
     sections.fullText,
-    options.phase ?? 'tailored'
+    options.phase ?? 'tailored',
+    {
+      sourceResumeText: options.sourceResumeText,
+      baselineScore: options.baselineScore,
+    }
   )
 
   const matchedKeywords = breakdown.filter((entry) => entry.matched).map((entry) => entry.term)

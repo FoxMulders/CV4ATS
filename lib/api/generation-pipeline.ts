@@ -83,8 +83,17 @@ function runScoringIntegration(
   }
 }
 
-function scoreResume(resume: AiGenerationResult['tailoredResume'], jobDescription: string): number {
-  return scoreAtsCompliance(serializeTailoredResume(resume), jobDescription).matchScore
+function scoreResume(
+  resume: AiGenerationResult['tailoredResume'],
+  jobDescription: string,
+  sourceResumeText: string,
+  baselineScore?: number
+): number {
+  return scoreAtsCompliance(serializeTailoredResume(resume), jobDescription, {
+    phase: 'tailored',
+    sourceResumeText,
+    baselineScore,
+  }).matchScore
 }
 
 function applySourceGrounding(
@@ -136,6 +145,7 @@ export async function runGenerationPipeline(
 
   const baselineKeywordReport = scoreAtsCompliance(workingResumeText, jobDescription, {
     phase: 'baseline',
+    sourceResumeText: resumeText,
   })
   const baselineScore = baselineKeywordReport.matchScore
 
@@ -200,7 +210,7 @@ export async function runGenerationPipeline(
   aiResult = integration.aiResult
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
-  const afterInitialScore = scoreResume(aiResult.tailoredResume, jobDescription)
+  const afterInitialScore = scoreResume(aiResult.tailoredResume, jobDescription, resumeText, baselineScore)
   await emitScorePass({
     type: 'score-pass',
     pass: 1,
@@ -216,7 +226,8 @@ export async function runGenerationPipeline(
     workingResumeText,
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
-    sanitizeKeywordReport(aiResult.keywordReport).suggestions
+    sanitizeKeywordReport(aiResult.keywordReport).suggestions,
+    resumeText
   )
 
   let currentScore = comparison.keywordReport.matchScore
@@ -256,7 +267,8 @@ export async function runGenerationPipeline(
       workingResumeText,
       serializeTailoredResume(aiResult.tailoredResume),
       jobDescription,
-      sanitizeKeywordReport(aiResult.keywordReport).suggestions
+      sanitizeKeywordReport(aiResult.keywordReport).suggestions,
+      resumeText
     )
 
     currentScore = comparison.keywordReport.matchScore
@@ -282,7 +294,8 @@ export async function runGenerationPipeline(
     workingResumeText,
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
-    sanitizeKeywordReport(aiResult.keywordReport).suggestions
+    sanitizeKeywordReport(aiResult.keywordReport).suggestions,
+    resumeText
   )
 
   if (integration.injectedSkills.length > 0 || comparison.keywordReport.matchScore !== beforeFinalScore) {
@@ -310,7 +323,8 @@ export async function runGenerationPipeline(
     workingResumeText,
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
-    sanitizeKeywordReport(aiResult.keywordReport).suggestions
+    sanitizeKeywordReport(aiResult.keywordReport).suggestions,
+    resumeText
   )
 
   const phrasingAudit = auditResumePhrasingCompliance(

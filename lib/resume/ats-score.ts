@@ -53,8 +53,8 @@ export function scoreAtsCompliance(
 
   return sanitizeKeywordReport({
     matchScore: weighted.matchScore,
-    matchedKeywords: sanitizeKeywordList(weighted.matchedKeywords),
-    missingKeywords: sanitizeKeywordList(weighted.missingKeywords),
+    matchedKeywords: sanitizeKeywordList(weighted.matchedKeywords, resumeText),
+    missingKeywords: sanitizeKeywordList(weighted.missingKeywords, resumeText),
     suggestions: formatSuggestions(weighted.missingKeywords, weighted.matchScore),
   })
 }
@@ -63,12 +63,20 @@ export function buildAtsComparison(
   beforeText: string,
   afterText: string,
   jobDescription: string,
-  aiSuggestions?: string[]
+  aiSuggestions?: string[],
+  sourceResumeText?: string
 ): { baselineKeywordReport: KeywordReport; keywordReport: KeywordReport; improvement: number } {
+  const qualificationText = sourceResumeText?.trim() || beforeText
+
   const baselineKeywordReport = scoreAtsCompliance(beforeText, jobDescription, {
     phase: 'baseline',
+    sourceResumeText: qualificationText,
   })
-  const afterReport = scoreAtsCompliance(afterText, jobDescription, { phase: 'tailored' })
+  const afterReport = scoreAtsCompliance(afterText, jobDescription, {
+    phase: 'tailored',
+    sourceResumeText: qualificationText,
+    baselineScore: baselineKeywordReport.matchScore,
+  })
 
   const keywordReport: KeywordReport = sanitizeKeywordReport({
     ...afterReport,
