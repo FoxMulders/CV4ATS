@@ -98,7 +98,7 @@ Rebuild every resume for ATS parsing and human hiring managers:
 7. **Skills cleanup** — No dangling bullets, no merged tool names (Confluence • Jira not Confluence•Jira), no empty skill entries.
 
 ## Keyword report
-- **matchScore**: 0-100 estimate of alignment with JD hard skills, methodologies, and tools (not conversational words).
+- **matchScore**: 0-100 weighted estimate of alignment with JD hard skills, methodologies, and tools. Work experience matches count most; skills-list-only matches count less; keyword stuffing and copied job-description phrasing reduce the score. Well-tailored resumes typically land between 75% and 88%; 95%+ is reserved for near-identical profile matches.
 - **matchedKeywords**: role-specific terms from the JD that the tailored resume supports. Include methodologies, tools, and multi-word competencies. Exclude stop-words and hiring-admin terms.
 - **missingKeywords**: important JD skill/requirement terms not yet adequately represented. Only list terms the candidate plausibly has based on the source resume. Exclude stop-words and hiring-admin terms.
 - **suggestions**: 3-5 actionable, honest improvements focused on weaving missing hard skills and methodologies into summary, skills, or bullets.

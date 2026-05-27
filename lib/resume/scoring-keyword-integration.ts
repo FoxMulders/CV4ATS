@@ -1,7 +1,7 @@
 import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
-import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
+import { computeWeightedMatchScore } from '@/lib/resume/weighted-ats-scoring'
 import {
   getMissingScoringKeywords,
   getScoringKeywordTargets,
@@ -70,10 +70,7 @@ export function integrateScoringKeywordsUntilSaturation(
 }
 
 function computeMatchScore(resumeText: string, jobDescription: string): number {
-  const terms = getScoringKeywordTargets(jobDescription, resumeText)
-  if (terms.length === 0) return 0
-  const matched = terms.filter((term) => keywordMatchesResume(resumeText, term)).length
-  return Math.round((matched / terms.length) * 100)
+  return computeWeightedMatchScore(resumeText, jobDescription).matchScore
 }
 
 function finalize(

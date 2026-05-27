@@ -1,10 +1,9 @@
 import type { KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import { sanitizeKeywordReport } from '@/lib/api/generation-config'
 import { serializeFormattedResume } from '@/lib/resume/ats-resume-formatter'
-import { extractHighValueKeywords } from '@/lib/resume/keyword-extraction'
 import { filterRelevantKeywords } from '@/lib/resume/keyword-filter'
-import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
+import { computeWeightedMatchScore } from '@/lib/resume/weighted-ats-scoring'
 
 function formatSuggestions(missingKeywords: string[], score: number): string[] {
   const suggestions: string[] = []
@@ -24,10 +23,18 @@ function formatSuggestions(missingKeywords: string[], score: number): string[] {
     }
   }
 
-  if (score >= 80) {
-    suggestions.push('Strong ATS keyword alignment — keep phrasing natural and quantified.')
+  if (score >= 76) {
+    suggestions.push(
+      'Strong weighted ATS alignment — prioritize experience bullets over skills-list repetition to improve further.'
+    )
   } else {
-    suggestions.push('Use standard section headings and plain text formatting for ATS parsing.')
+    suggestions.push(
+      'Embed missing competencies in work experience bullets (full weight) rather than repeating them in the skills list.'
+    )
+  }
+
+  if (score >= 84) {
+    suggestions.push('Scores above 88% are reserved for near-identical profile matches — keep phrasing natural.')
   }
 
   return suggestions.slice(0, 5)
@@ -38,27 +45,13 @@ export function serializeTailoredResume(resume: TailoredResume): string {
 }
 
 export function scoreAtsCompliance(resumeText: string, jobDescription: string): KeywordReport {
-  const terms = sanitizeKeywordList(extractHighValueKeywords(jobDescription), resumeText)
-
-  const matchedKeywords: string[] = []
-  const missingKeywords: string[] = []
-
-  for (const term of terms) {
-    if (keywordMatchesResume(resumeText, term)) {
-      matchedKeywords.push(term)
-    } else {
-      missingKeywords.push(term)
-    }
-  }
-
-  const matchScore =
-    terms.length === 0 ? 0 : Math.round((matchedKeywords.length / terms.length) * 100)
+  const weighted = computeWeightedMatchScore(resumeText, jobDescription)
 
   return sanitizeKeywordReport({
-    matchScore,
-    matchedKeywords: sanitizeKeywordList(matchedKeywords),
-    missingKeywords: sanitizeKeywordList(missingKeywords),
-    suggestions: formatSuggestions(missingKeywords, matchScore),
+    matchScore: weighted.matchScore,
+    matchedKeywords: sanitizeKeywordList(weighted.matchedKeywords),
+    missingKeywords: sanitizeKeywordList(weighted.missingKeywords),
+    suggestions: formatSuggestions(weighted.missingKeywords, weighted.matchScore),
   })
 }
 

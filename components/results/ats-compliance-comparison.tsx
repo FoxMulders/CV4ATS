@@ -13,15 +13,15 @@ interface AtsComplianceComparisonProps {
 }
 
 function scoreLabel(score: number): string {
-  if (score >= 90) return 'Excellent'
-  if (score >= 80) return 'Strong'
+  if (score >= 88) return 'Excellent'
+  if (score >= 75) return 'Strong'
   if (score >= 60) return 'Moderate'
   if (score >= 40) return 'Needs work'
   return 'Low'
 }
 
 function scoreVariant(score: number): 'default' | 'secondary' | 'outline' | 'destructive' {
-  if (score >= 90) return 'default'
+  if (score >= 88) return 'default'
   if (score >= 60) return 'secondary'
   if (score >= 40) return 'outline'
   return 'destructive'
@@ -85,8 +85,9 @@ export function AtsComplianceComparison({
 
         {targetScoreMet ? (
           <p className="text-sm text-muted-foreground">
-            Target ATS alignment of 90%+ reached. Review missing terms below and add only what
-            truthfully reflects your background.
+            Target weighted ATS alignment reached. Review missing terms below and add only what
+            truthfully reflects your background — scores above 88% are reserved for near-identical
+            profile matches.
           </p>
         ) : improvement > 0 ? (
           <p className="text-sm text-muted-foreground">
