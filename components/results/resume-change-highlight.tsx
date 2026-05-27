@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useTransition, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useTransition, useState, type ReactNode } from 'react'
 import { RotateCcw, X } from 'lucide-react'
 
 import type { TailoredResume } from '@/lib/ai/schemas'
@@ -53,6 +53,35 @@ const HighlightedText = memo(function HighlightedText({
     </span>
   )
 })
+
+function ChangeComparison({
+  original,
+  originalLabel = 'Original',
+  changedLabel = 'Changed',
+  children,
+}: {
+  original: string
+  originalLabel?: string
+  changedLabel?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm leading-relaxed text-muted-foreground">
+        <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em]">
+          {originalLabel}
+        </span>
+        {original.trim() ? original : 'Not in your original resume'}
+      </div>
+      <div className="rounded-md border border-amber-200/80 bg-amber-50/40 px-3 py-2 text-sm leading-relaxed text-foreground">
+        <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
+          {changedLabel}
+        </span>
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export function ResumeChangeHighlight({
   originalText,
@@ -137,8 +166,8 @@ export function ResumeChangeHighlight({
     <div className="space-y-4">
       {!embedded ? (
         <p className="rounded-lg border border-amber-200/80 bg-amber-50/60 px-3 py-2 text-sm text-amber-950">
-          <span className="font-medium">Highlighted text</span> differs from your original resume.
-          Click any highlight to revert that change.
+          <span className="font-medium">Changed sections</span> show your original text beside the
+          tailored version. Click any highlight to revert that edit.
         </p>
       ) : null}
 
@@ -180,16 +209,16 @@ export function ResumeChangeHighlight({
               </button>
             ) : null}
           </div>
-          <p>
-            {showSummaryHighlights ? (
+          {showSummaryHighlights ? (
+            <ChangeComparison original={summaryComparisonCorpus}>
               <HighlightedText
                 spans={summarySpans}
                 onRevertPhrase={(phrase) => revertChange({ kind: 'summary', phrase })}
               />
-            ) : (
-              displaySummary
-            )}
-          </p>
+            </ChangeComparison>
+          ) : (
+            <p>{displaySummary}</p>
+          )}
           {showSummaryPhrasingAudit ? (
             <PhrasingSimilarityPreview
               text={resume.summary}
@@ -203,10 +232,12 @@ export function ResumeChangeHighlight({
           <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
             Skills
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {resume.skills.map((skill, index) => {
-              const isAdded = !phraseExistsInOriginal(skill, originalText)
-              if (!isAdded) {
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {resume.skills.map((skill, index) => {
+                const isAdded = !phraseExistsInOriginal(skill, originalText)
+                if (isAdded) return null
+
                 return (
                   <span
                     key={`${skill}-${index}`}
@@ -215,20 +246,29 @@ export function ResumeChangeHighlight({
                     {skill}
                   </span>
                 )
-              }
+              })}
+            </div>
+            {resume.skills.map((skill, index) => {
+              const isAdded = !phraseExistsInOriginal(skill, originalText)
+              if (!isAdded) return null
 
               return (
-                <button
+                <ChangeComparison
                   key={`${skill}-${index}`}
-                  type="button"
-                  disabled={isRevertPending}
-                  className="inline-flex items-center gap-1 rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs text-amber-950 ring-1 ring-amber-400/60 transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
-                  title="Click to revert this skill"
-                  onClick={() => revertChange({ kind: 'skill', index })}
+                  original=""
+                  changedLabel="Added skill"
                 >
-                  {skill}
-                  <X className="size-3" />
-                </button>
+                  <button
+                    type="button"
+                    disabled={isRevertPending}
+                    className="inline-flex items-center gap-1 rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs text-amber-950 ring-1 ring-amber-400/60 transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Click to revert this skill"
+                    onClick={() => revertChange({ kind: 'skill', index })}
+                  >
+                    {skill}
+                    <X className="size-3" />
+                  </button>
+                </ChangeComparison>
               )
             })}
           </div>
@@ -248,54 +288,59 @@ export function ResumeChangeHighlight({
                 <p className="text-muted-foreground">
                   {job.startDate} – {job.endDate}
                 </p>
-                <ul className="mt-2 list-disc space-y-2 pl-5">
-                  {bullets.map(({ bullet, bulletIndex, bulletChanged, spans }) => (
-                    <li key={`${experienceIndex}-${bulletIndex}-${bullet}`}>
-                      <div className="flex flex-wrap items-start gap-2">
-                        {bulletChanged ? (
-                          <button
-                            type="button"
-                            disabled={isRevertPending}
-                            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() =>
-                              revertChange({
-                                kind: 'bullet-revert',
-                                experienceIndex,
-                                bulletIndex,
-                              })
-                            }
-                          >
-                            <RotateCcw className="size-3" />
-                            Revert bullet
-                          </button>
-                        ) : null}
-                        <span className="min-w-0 flex-1">
-                          {hasHighlightedChanges(spans) || bulletChanged ? (
-                            <HighlightedText
-                              spans={spans}
-                              onRevertPhrase={(phrase) =>
+                <ul className="mt-2 space-y-3">
+                  {bullets.map(({ bullet, bulletIndex, baseline, bulletChanged, spans }) => {
+                    const hasChanges = hasHighlightedChanges(spans) || bulletChanged
+                    const changedContent = hasChanges ? (
+                      <HighlightedText
+                        spans={spans}
+                        onRevertPhrase={(phrase) =>
+                          revertChange({
+                            kind: 'bullet',
+                            experienceIndex,
+                            bulletIndex,
+                            phrase,
+                          })
+                        }
+                      />
+                    ) : (
+                      bullet
+                    )
+
+                    return (
+                      <li key={`${experienceIndex}-${bulletIndex}-${bullet}`}>
+                        {hasChanges ? (
+                          <div className="space-y-2">
+                            <ChangeComparison original={baseline}>{changedContent}</ChangeComparison>
+                            <button
+                              type="button"
+                              disabled={isRevertPending}
+                              className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() =>
                                 revertChange({
-                                  kind: 'bullet',
+                                  kind: 'bullet-revert',
                                   experienceIndex,
                                   bulletIndex,
-                                  phrase,
                                 })
                               }
-                            />
-                          ) : (
-                            bullet
-                          )}
-                        </span>
-                      </div>
-                      {jobDescription?.trim() ? (
-                        <PhrasingSimilarityPreview
-                          text={bullet}
-                          jobDescription={jobDescription}
-                          previewClassName="ml-5 mt-1"
-                        />
-                      ) : null}
-                    </li>
-                  ))}
+                            >
+                              <RotateCcw className="size-3" />
+                              Revert bullet
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="pl-3 text-sm leading-relaxed">{changedContent}</p>
+                        )}
+                        {jobDescription?.trim() ? (
+                          <PhrasingSimilarityPreview
+                            text={bullet}
+                            jobDescription={jobDescription}
+                            previewClassName="mt-1"
+                          />
+                        ) : null}
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ))}
@@ -335,16 +380,18 @@ export function ResumeChangeHighlight({
 
                 return (
                   <li key={`${cert}-${index}`}>
-                    <button
-                      type="button"
-                      disabled={isRevertPending}
-                      className="inline-flex items-center gap-1 rounded-sm bg-amber-200/90 px-1.5 py-0.5 text-left transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
-                      title="Click to revert this certification"
-                      onClick={() => revertChange({ kind: 'certification', index })}
-                    >
-                      {cert}
-                      <X className="size-3 shrink-0" />
-                    </button>
+                    <ChangeComparison original="" changedLabel="Added certification">
+                      <button
+                        type="button"
+                        disabled={isRevertPending}
+                        className="inline-flex items-center gap-1 rounded-sm bg-amber-200/90 px-1.5 py-0.5 text-left transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
+                        title="Click to revert this certification"
+                        onClick={() => revertChange({ kind: 'certification', index })}
+                      >
+                        {cert}
+                        <X className="size-3 shrink-0" />
+                      </button>
+                    </ChangeComparison>
                   </li>
                 )
               })}
