@@ -6,6 +6,7 @@ import {
 } from '@/lib/resume/resume-evidence-aliases'
 import { isRecognizedAtsTerm } from '@/lib/resume/ats-term-lexicon'
 import { isNonCompetencyMetadata } from '@/lib/resume/non-competency-metadata-filter'
+import { isPostingArtifact, isLikelyPersonName } from '@/lib/resume/posting-artifact-filter'
 import { isRelevantJobKeyword } from '@/lib/resume/keyword-filter'
 import { isReportableAtsKeyword } from '@/lib/resume/keyword-report-filter'
 import { extractCareerContext } from '@/lib/resume/resume-career-context'
@@ -252,6 +253,10 @@ function tokensAreBareSkill(term: string): boolean {
   return tokens.length === 1 && tokens[0]!.length >= 4 && !SCRAPER_JUNK_TOKENS.has(tokens[0]!)
 }
 
+function isLikelyPersonNameReason(term: string): boolean {
+  return isLikelyPersonName(term)
+}
+
 export function auditKeywordTerm(term: string, resumeText = ''): AuditedKeyword {
   const original = term.trim()
   const normalized = normalizeTerm(original)
@@ -271,6 +276,17 @@ export function auditKeywordTerm(term: string, resumeText = ''): AuditedKeyword 
       term: normalized,
       status: 'purged',
       reason: 'Non-competency posting metadata (compensation, benefits, or salary)',
+    }
+  }
+
+  if (isPostingArtifact(normalized)) {
+    return {
+      original,
+      term: normalized,
+      status: 'purged',
+      reason: isLikelyPersonNameReason(normalized)
+        ? 'Recruiter or contact name — not a resume competency'
+        : 'Job posting prose or sentence fragment — not a skill',
     }
   }
 

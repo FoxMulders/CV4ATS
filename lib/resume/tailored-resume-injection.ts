@@ -1,5 +1,6 @@
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
+import { isInjectableCompetency } from '@/lib/resume/posting-artifact-filter'
 import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 
@@ -99,6 +100,10 @@ export function buildDedicatedKeywordBullet(skill: TargetSkill): string {
     return `Leveraged ${titleCase(term)} to improve delivery tracking, collaboration, and release readiness.`
   }
 
+  if (!isInjectableCompetency(term)) {
+    return ''
+  }
+
   return `Delivered ${titleCase(term)} initiatives with measurable impact on quality, speed, and business outcomes.`
 }
 
@@ -151,6 +156,9 @@ function buildFragmentForSkill(skill: TargetSkill): string {
       }
       if (skill.category === 'tool') {
         return `, leveraging ${titleCase(term)}`
+      }
+      if (!isInjectableCompetency(term)) {
+        return ''
       }
       return `, delivering ${titleCase(term)} initiatives with measurable impact`
   }
@@ -292,7 +300,10 @@ export function injectIntoTailoredResume(
   missingSkills: TargetSkill[]
 ): TailoredResumeInjectionResult {
   const serialized = serializeTailoredResume(resume)
-  const stillMissing = missingSkills.filter((skill) => !keywordMatchesResume(serialized, skill.term))
+  const stillMissing = missingSkills.filter(
+    (skill) =>
+      isInjectableCompetency(skill.term) && !keywordMatchesResume(serialized, skill.term)
+  )
 
   if (stillMissing.length === 0) {
     return { resume, injectedSkills: [], modifiedBulletCount: 0 }

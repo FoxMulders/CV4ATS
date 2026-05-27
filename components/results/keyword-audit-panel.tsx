@@ -33,12 +33,14 @@ function AuditGroup({
   items,
   emptyMessage,
   resumeText = '',
+  showResumeSupportBadge = false,
 }: {
   title: string
   icon: string
   items: AuditedKeyword[]
   emptyMessage: string
   resumeText?: string
+  showResumeSupportBadge?: boolean
 }) {
   return (
     <div className="space-y-2">
@@ -60,7 +62,9 @@ function AuditGroup({
                     <Badge variant="secondary">{item.term}</Badge>
                   </>
                 ) : null}
-                {resumeText && resumeSupportsPurgedTerm(item.original, resumeText) ? (
+                {showResumeSupportBadge &&
+                resumeText &&
+                resumeSupportsPurgedTerm(item.original, resumeText) ? (
                   <Badge variant="secondary" className="text-[10px]">
                     Resume supports
                   </Badge>
@@ -125,20 +129,19 @@ export function KeywordAuditPanel({
             items={audit.purged}
             emptyMessage="No scraper junk or irrelevant domain terms detected."
             resumeText={resumeText}
+            showResumeSupportBadge
           />
           <AuditGroup
             title="Modified for context"
             icon="⚠️"
             items={audit.modified}
             emptyMessage="No bare keywords needed rephrasing."
-            resumeText={resumeText}
           />
           <AuditGroup
             title="Approved"
             icon="✅"
             items={audit.approved}
             emptyMessage="No approved ATS keywords detected."
-            resumeText={resumeText}
           />
         </CardContent>
       </Card>

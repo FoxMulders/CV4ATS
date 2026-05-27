@@ -1,4 +1,5 @@
 import { stripJobBoardMetadata } from '@/lib/resume/keyword-audit'
+import { stripRecruiterContactText } from '@/lib/resume/posting-artifact-filter'
 import { isStopWord, phraseWithoutStopWords, tokenize } from '@/lib/resume/stopwords'
 
 const IRRELEVANT_TERMS = new Set([
@@ -262,7 +263,7 @@ export function filterRelevantKeywords(terms: string[]): string[] {
 }
 
 export function stripIrrelevantJobDescriptionText(jobDescription: string): string {
-  let text = jobDescription
+  let text = stripRecruiterContactText(jobDescription)
   for (const pattern of IRRELEVANT_PHRASE_PATTERNS) {
     text = text.replace(pattern, ' ')
     pattern.lastIndex = 0

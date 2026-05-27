@@ -1,3 +1,5 @@
+import { isLikelyPersonName, isPostingArtifact } from '@/lib/resume/posting-artifact-filter'
+
 /** JD competency terms → resume language that satisfies evidence checks. */
 export const RESUME_EVIDENCE_ALIASES: Record<string, string[]> = {
   'information technology': [
@@ -86,6 +88,7 @@ export function resumeSupportsPurgedTerm(term: string, resumeText: string): bool
   const haystack = resumeText.toLowerCase()
   const normalized = term.trim().toLowerCase()
   if (!normalized || !haystack.trim()) return false
+  if (isPostingArtifact(normalized) || isLikelyPersonName(normalized)) return false
 
   if (haystack.includes(normalized)) return true
 
@@ -97,9 +100,12 @@ export function resumeSupportsPurgedTerm(term: string, resumeText: string): bool
   if (aliases.some((alias) => aliasMatchesHaystack(alias, haystack))) return true
 
   const tokens = normalized.split(/\s+/).filter((token) => token.length >= 3)
-  if (tokens.length > 1) {
-    const matched = tokens.filter((token) => haystack.includes(token)).length
-    if (matched >= Math.ceil(tokens.length * 0.5)) return true
+  if (tokens.length > 1 && !isLikelyPersonName(normalized)) {
+    const matched = tokens.filter((token) => {
+      const pattern = new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+      return pattern.test(haystack)
+    }).length
+    if (matched >= Math.ceil(tokens.length * 0.75)) return true
   }
 
   if (normalized === 'technology' && resumeShowsItExperience(resumeText)) {

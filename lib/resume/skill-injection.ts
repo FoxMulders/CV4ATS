@@ -1,4 +1,5 @@
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
+import { isInjectableCompetency } from '@/lib/resume/posting-artifact-filter'
 import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
 
 export interface SkillInjectionResult {
@@ -164,7 +165,10 @@ function buildDomainFragment(terms: string[]): string {
     return ', delivering custom software solutions aligned to business outcomes'
   }
 
-  return `, delivering ${formatSkillList(terms)} initiatives with measurable impact`
+  const injectable = terms.filter((term) => isInjectableCompetency(term))
+  if (injectable.length === 0) return ''
+
+  return `, delivering ${formatSkillList(injectable)} initiatives with measurable impact`
 }
 
 function injectIntoBullet(
@@ -183,7 +187,10 @@ function missingSkillsFromTargets(
   resumeText: string,
   extrapolatedSkills: TargetSkill[]
 ): TargetSkill[] {
-  return extrapolatedSkills.filter((skill) => !keywordMatchesResume(resumeText, skill.term))
+  return extrapolatedSkills.filter(
+    (skill) =>
+      isInjectableCompetency(skill.term) && !keywordMatchesResume(resumeText, skill.term)
+  )
 }
 
 function groupMissingByCategory(missing: TargetSkill[]): Record<SkillCategory, string[]> {

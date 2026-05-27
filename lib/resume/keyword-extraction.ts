@@ -7,6 +7,7 @@ import {
 import {
   stripIrrelevantJobDescriptionText,
 } from '@/lib/resume/keyword-filter'
+import { isLikelyPersonName, isPostingArtifact } from '@/lib/resume/posting-artifact-filter'
 import { filterReportableKeywords } from '@/lib/resume/keyword-report-filter'
 import {
   filterStopWordTokens,
@@ -97,7 +98,7 @@ export function pruneRedundantKeywords(ranked: string[]): string[] {
 
 function addScore(scores: Map<string, number>, term: string, weight: number): void {
   const normalized = normalizePhrase(term)
-  if (!normalized || filterReportableKeywords([normalized]).length === 0) return
+  if (!normalized || isPostingArtifact(normalized)) return
   scores.set(normalized, (scores.get(normalized) ?? 0) + weight)
 }
 
@@ -122,6 +123,7 @@ function extractTechTokens(text: string, scores: Map<string, number>): void {
 
 function extractHeuristicTerms(cleanedText: string, scores: Map<string, number>): void {
   for (const phrase of extractCapitalizedPhrases(cleanedText)) {
+    if (isLikelyPersonName(phrase)) continue
     addScore(scores, phrase, 4)
   }
 

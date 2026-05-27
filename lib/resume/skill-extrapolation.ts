@@ -4,6 +4,7 @@ import {
   filterCompetencyKeywords,
   filterCompetencyTargetSkills,
 } from '@/lib/resume/non-competency-metadata-filter'
+import { isInjectableCompetency } from '@/lib/resume/posting-artifact-filter'
 import { tokenize } from '@/lib/resume/stopwords'
 
 export type SkillCategory = 'methodology' | 'competency' | 'domainTech' | 'tool'
@@ -202,7 +203,7 @@ export function extrapolateTargetSkills(jobDescription: string): TargetSkill[] {
 
   for (const keyword of extractHighValueKeywords(cleaned)) {
     const term = normalizeTerm(keyword)
-    if (!term || byTerm.has(term)) continue
+    if (!term || byTerm.has(term) || !isInjectableCompetency(term)) continue
     byTerm.set(term, { term, category: categorizeSkill(term) })
   }
 

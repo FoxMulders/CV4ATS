@@ -1,6 +1,10 @@
 import { isRecognizedAtsTerm } from '@/lib/resume/ats-term-lexicon'
 import { isRelevantJobKeyword } from '@/lib/resume/keyword-filter'
 import {
+  isPostingArtifact,
+  matchesKnownCompetencyPhrase,
+} from '@/lib/resume/posting-artifact-filter'
+import {
   isPureStopWordPhrase,
   isStopWord,
   phraseWithoutStopWords,
@@ -19,6 +23,7 @@ export function isReportableAtsKeyword(term: string): boolean {
   if (!stripped || stripped.length < MIN_KEYWORD_LENGTH) return false
   if (isPureStopWordPhrase(term)) return false
   if (/[,;:]/.test(term)) return false
+  if (isPostingArtifact(stripped)) return false
   if (!isRelevantJobKeyword(stripped)) return false
 
   const tokens = tokenize(stripped)
@@ -32,6 +37,11 @@ export function isReportableAtsKeyword(term: string): boolean {
   if (substantive.length === 0) return false
 
   if (tokens.length > 3 && !stripped.includes('-')) return false
+
+  if (tokens.length >= 2) {
+    const hasIndustryTerm = tokens.some((token) => isRecognizedAtsTerm(token))
+    if (!hasIndustryTerm && !matchesKnownCompetencyPhrase(stripped)) return false
+  }
 
   if (tokens.length === 1) {
     const token = tokens[0]!
