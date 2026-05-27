@@ -47,6 +47,15 @@ const TERM_SNIPPET_OVERRIDES: Array<{
       return `Delivered operational excellence across ${tenure} technical operations at ${company}, improving SLA adherence, release reliability, and cross-functional coordination.`
     },
   },
+  {
+    match: /\binformation technology\b/i,
+    build: (_anchor, resumeText) => {
+      const tenure = /30\+?\s*years?|years of it|years of technical/i.test(resumeText)
+        ? '30+ years of'
+        : 'Extensive'
+      return `Brings ${tenure} information technology experience spanning software delivery, application development, infrastructure operations, and cross-functional technical leadership.`
+    },
+  },
 ]
 
 export function isUserRestorablePurgedKeyword(item: AuditedKeyword): boolean {
@@ -115,6 +124,12 @@ function scoreAnchorForTerm(term: string, anchor: ExperienceAnchor): number {
   if (normalized.includes('operational excellence')) {
     if (/operations|operational|sla|infrastructure|support/i.test(haystack)) score += 10
     if (/alberta motor|microserve|\bama\b/i.test(haystack)) score += 8
+  }
+
+  if (normalized.includes('information technology')) {
+    if (/\bit\b|it experience|technical|software|computer systems|systems technology/i.test(haystack)) {
+      score += 12
+    }
   }
 
   for (const alias of getResumeEvidenceAliases(normalized)) {
@@ -191,7 +206,13 @@ export function buildPurgedKeywordRestoration(
   const overrideSnippet = buildOverrideSnippet(keyword, anchor, resumeText)
   const base = buildSnippetForKeyword(keyword, context)
   const placement: SuggestedAddition['placement'] =
-    skill.category === 'tool' ? 'skills' : anchor ? 'experience' : base.placement
+    /\binformation technology\b/i.test(keyword)
+      ? 'summary'
+      : skill.category === 'tool'
+        ? 'skills'
+        : anchor
+          ? 'experience'
+          : base.placement
 
   const snippet =
     overrideSnippet ??

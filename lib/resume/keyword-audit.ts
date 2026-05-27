@@ -1,5 +1,7 @@
 import {
   getResumeEvidenceAliases,
+  isItDomainTerm,
+  resumeShowsItExperience,
   resumeSupportsPurgedTerm,
 } from '@/lib/resume/resume-evidence-aliases'
 import { isRecognizedAtsTerm } from '@/lib/resume/ats-term-lexicon'
@@ -135,6 +137,8 @@ const PM_IT_ALIGNMENT_TERMS = new Set([
   'excellence',
   'improvement',
   'process',
+  'technology',
+  'information',
 ])
 
 const CONTEXTUAL_PHRASE_HINTS: Record<string, string> = {
@@ -147,6 +151,8 @@ const CONTEXTUAL_PHRASE_HINTS: Record<string, string> = {
   workflows: 'business workflows',
   'process improvement': 'process improvement through workflow automation',
   'operational excellence': 'operational excellence across technical operations',
+  'information technology': 'information technology delivery and operations',
+  'information systems': 'information systems and application delivery',
 }
 
 function normalizeTerm(term: string): string {
@@ -208,6 +214,8 @@ function alignsWithPmItBackground(term: string, resumeText: string): boolean {
   }
 
   if (resumeSupportsPurgedTerm(normalized, resumeText)) return true
+
+  if (isItDomainTerm(normalized) && resumeShowsItExperience(haystack)) return true
 
   if (tokens.length === 1 && tokens[0]!.length >= 4) {
     return haystack.includes(tokens[0]!)

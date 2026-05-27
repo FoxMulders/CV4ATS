@@ -57,6 +57,8 @@ export const INDUSTRY_SKILL_TERMS = new Set([
   'excellence',
   'improvement',
   'process',
+  'technology',
+  'information',
   'agent',
   'agents',
   'custom',

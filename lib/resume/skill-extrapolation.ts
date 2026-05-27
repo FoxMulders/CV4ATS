@@ -31,6 +31,8 @@ const EXPLICIT_TARGET_PATTERNS: Array<{ pattern: RegExp; term: string }> = [
   { pattern: /\bworkflow automation\b/gi, term: 'workflow automation' },
   { pattern: /\bprocess improvement\b/gi, term: 'process improvement' },
   { pattern: /\boperational excellence\b/gi, term: 'operational excellence' },
+  { pattern: /\binformation technology\b/gi, term: 'information technology' },
+  { pattern: /\binformation systems\b/gi, term: 'information systems' },
   { pattern: /\bdevops\b/gi, term: 'devops' },
   { pattern: /\bsdlc\b/gi, term: 'sdlc' },
   { pattern: /\bsafe\b/gi, term: 'safe' },
@@ -77,6 +79,8 @@ const COMPETENCY_PATTERNS = [
   /\broadmap\b/gi,
   /\bprocess improvement\b/gi,
   /\boperational excellence\b/gi,
+  /\binformation technology\b/gi,
+  /\binformation systems\b/gi,
 ]
 
 const DOMAIN_PATTERNS = [
