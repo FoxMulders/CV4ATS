@@ -68,6 +68,8 @@ function contentTokenIndices(tokens: WordToken[]): number[] {
   return indices
 }
 
+const jobDescriptionNgramCache = new Map<string, Set<string>>()
+
 function buildJobDescriptionNgramSet(jobDescription: string): Set<string> {
   const tokens = tokenizeWithPositions(jobDescription)
   const contentIndices = contentTokenIndices(tokens)
@@ -95,6 +97,18 @@ function buildJobDescriptionNgramSet(jobDescription: string): Set<string> {
   return ngrams
 }
 
+function getJobDescriptionNgramSet(jobDescription: string): Set<string> {
+  const cached = jobDescriptionNgramCache.get(jobDescription)
+  if (cached) return cached
+
+  const ngrams = buildJobDescriptionNgramSet(jobDescription)
+  if (jobDescriptionNgramCache.size >= 24) {
+    jobDescriptionNgramCache.clear()
+  }
+  jobDescriptionNgramCache.set(jobDescription, ngrams)
+  return ngrams
+}
+
 function rangeIsCovered(
   start: number,
   end: number,
@@ -111,7 +125,7 @@ export function auditExactPhrasingMatch(
     return { matches: [], hasHighSimilarity: false }
   }
 
-  const jobNgrams = buildJobDescriptionNgramSet(jobDescription)
+  const jobNgrams = getJobDescriptionNgramSet(jobDescription)
   if (jobNgrams.size === 0) {
     return { matches: [], hasHighSimilarity: false }
   }

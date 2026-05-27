@@ -116,9 +116,96 @@ export function extrapolateProposedSkillsFromResume(resumeText: string): TargetS
   )
 }
 
-export function appendSkillsToResumeText(resumeText: string, skillsToAdd: string[]): string {
+export type SkillsListFormat = {
+  delimiter: string
+  casing: 'preserve' | 'title' | 'lower' | 'upper'
+}
+
+function inferSkillCasingStyle(existingSkills: string[]): SkillsListFormat['casing'] {
+  if (existingSkills.length === 0) return 'preserve'
+
+  const sample = existingSkills.slice(0, 8)
+  if (sample.every((skill) => skill === skill.toUpperCase() && /[A-Z]/.test(skill))) {
+    return 'upper'
+  }
+  if (sample.every((skill) => skill === skill.toLowerCase())) {
+    return 'lower'
+  }
+  if (
+    sample.every((skill) =>
+      skill
+        .split(/\s+/)
+        .every((word) => word.charAt(0) === word.charAt(0).toUpperCase() && word.slice(1) === word.slice(1).toLowerCase())
+    )
+  ) {
+    return 'title'
+  }
+
+  return 'preserve'
+}
+
+export function detectSkillsListFormat(
+  resumeText: string,
+  existingSkills: string[] = []
+): SkillsListFormat {
+  const lines = splitLines(resumeText)
+  const section = extractSection(lines, /^skills|technical skills|core competencies|competencies/i)
+  const skillsBlock = section.join('\n')
+  const casing = inferSkillCasingStyle(existingSkills)
+
+  if (skillsBlock.includes(' • ')) return { delimiter: ' • ', casing }
+  if (/\s\|\s/.test(skillsBlock)) return { delimiter: ' | ', casing }
+  if (skillsBlock.includes(';')) return { delimiter: '; ', casing }
+
+  return { delimiter: ', ', casing }
+}
+
+function applySkillCasing(term: string, casing: SkillsListFormat['casing']): string {
+  switch (casing) {
+    case 'upper':
+      return term.toUpperCase()
+    case 'lower':
+      return term.toLowerCase()
+    case 'title':
+      return term
+        .split(/\s+/)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ')
+    default:
+      return term
+  }
+}
+
+/** Match a new skill's casing and wording to existing resume skills when possible. */
+export function formatSkillLikeExisting(term: string, existingSkills: string[]): string {
+  const trimmed = term.trim()
+  if (!trimmed) return trimmed
+
+  const existingMatch = existingSkills.find(
+    (skill) => skill.toLowerCase() === trimmed.toLowerCase()
+  )
+  if (existingMatch) return existingMatch
+
+  return applySkillCasing(trimmed, inferSkillCasingStyle(existingSkills))
+}
+
+export function formatSkillsLikeExisting(terms: string[], existingSkills: string[]): string[] {
+  return terms.map((term) => formatSkillLikeExisting(term, existingSkills))
+}
+
+export function appendSkillsToResumeText(
+  resumeText: string,
+  skillsToAdd: string[],
+  existingSkills: string[] = parseListedSkillTerms(resumeText)
+): string {
+  const format = detectSkillsListFormat(resumeText, existingSkills)
   const additions = [
-    ...new Set(skillsToAdd.map((skill) => skill.trim()).filter(Boolean)),
+    ...new Set(
+      formatSkillsLikeExisting(
+        skillsToAdd.map((skill) => skill.trim()).filter(Boolean),
+        existingSkills
+      )
+    ),
   ]
   if (additions.length === 0) return resumeText
 
@@ -139,13 +226,13 @@ export function appendSkillsToResumeText(resumeText: string, skillsToAdd: string
       insertAt += 1
     }
 
-    const additionLine = additions.join(', ')
+    const additionLine = additions.join(format.delimiter)
     const nextLines = [...lines]
     nextLines.splice(insertAt, 0, additionLine)
     return nextLines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
   }
 
-  const block = ['', 'SKILLS', additions.join(', ')]
+  const block = ['', 'SKILLS', additions.join(format.delimiter)]
   return `${resumeText.trim()}${block.join('\n')}`
 }
 

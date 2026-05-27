@@ -107,6 +107,13 @@ export function buildHighlightSpans(text: string, comparisonCorpus: string): Hig
     return [{ text, highlighted: true }]
   }
 
+  const normalizedCorpus = normalizeForMatch(comparisonCorpus)
+  const phraseExistsInNormalizedCorpus = (phrase: string): boolean => {
+    const needle = normalizeForMatch(phrase)
+    if (needle.length < MIN_PHRASE_LENGTH) return true
+    return normalizedCorpus.includes(needle)
+  }
+
   const tokens = text.match(/\S+|\s+/g) ?? [text]
   const spans: HighlightSpan[] = []
   let index = 0
@@ -122,7 +129,7 @@ export function buildHighlightSpans(text: string, comparisonCorpus: string): Hig
     let highlightLength = 0
     for (let end = tokens.length; end > index; end -= 1) {
       const chunk = tokens.slice(index, end).join('')
-      if (!phraseExistsInCorpus(chunk, comparisonCorpus)) {
+      if (!phraseExistsInNormalizedCorpus(chunk)) {
         highlightLength = end - index
         break
       }

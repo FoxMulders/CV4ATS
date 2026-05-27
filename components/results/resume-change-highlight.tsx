@@ -1,11 +1,10 @@
 'use client'
 
+import { memo, useCallback, useEffect, useMemo, useTransition, useState } from 'react'
 import { RotateCcw, X } from 'lucide-react'
 
 import type { TailoredResume } from '@/lib/ai/schemas'
-import {
-  PhrasingSimilarityPreview,
-} from '@/components/results/phrasing-similarity-preview'
+import { PhrasingSimilarityPreview } from '@/components/results/phrasing-similarity-preview'
 import {
   applyResumeChangeRevert,
   buildHighlightSpans,
@@ -14,6 +13,7 @@ import {
   hasHighlightedChanges,
   isSubstantiallyChanged,
   phraseExistsInOriginal,
+  type HighlightSpan,
   type ResumeChangeTarget,
 } from '@/lib/resume/resume-diff'
 
@@ -26,17 +26,13 @@ interface ResumeChangeHighlightProps {
   embedded?: boolean
 }
 
-function HighlightedText({
-  text,
-  comparisonCorpus,
+const HighlightedText = memo(function HighlightedText({
+  spans,
   onRevertPhrase,
 }: {
-  text: string
-  comparisonCorpus: string
+  spans: HighlightSpan[]
   onRevertPhrase: (phrase: string) => void
 }) {
-  const spans = buildHighlightSpans(text, comparisonCorpus)
-
   return (
     <span>
       {spans.map((span, index) =>
@@ -56,7 +52,7 @@ function HighlightedText({
       )}
     </span>
   )
-}
+})
 
 export function ResumeChangeHighlight({
   originalText,
@@ -65,16 +61,70 @@ export function ResumeChangeHighlight({
   jobDescription,
   embedded = false,
 }: ResumeChangeHighlightProps) {
-  function revertChange(target: ResumeChangeTarget) {
-    onResumeChange(applyResumeChangeRevert(resume, target, originalText))
-  }
+  const [summaryReverted, setSummaryReverted] = useState(false)
+  const [isRevertPending, startTransition] = useTransition()
 
-  const originalSummary = extractOriginalSummary(originalText)
-  const summaryChanged = isSubstantiallyChanged(resume.summary, originalText)
-  const summarySpans = buildHighlightSpans(
-    resume.summary,
-    originalSummary || findBestOriginalMatch(resume.summary, originalText)
+  const originalSummary = useMemo(
+    () => extractOriginalSummary(originalText),
+    [originalText]
   )
+
+  const summaryComparisonCorpus = useMemo(
+    () => originalSummary || findBestOriginalMatch(resume.summary, originalText),
+    [originalSummary, resume.summary, originalText]
+  )
+
+  const summarySpans = useMemo(
+    () => buildHighlightSpans(resume.summary, summaryComparisonCorpus),
+    [resume.summary, summaryComparisonCorpus]
+  )
+
+  const summaryChanged = useMemo(
+    () => isSubstantiallyChanged(resume.summary, originalText),
+    [resume.summary, originalText]
+  )
+
+  const experienceDiffs = useMemo(
+    () =>
+      resume.experience.map((job, experienceIndex) => ({
+        job,
+        experienceIndex,
+        bullets: job.bullets.map((bullet, bulletIndex) => {
+          const baseline = findBestOriginalMatch(bullet, originalText)
+          return {
+            bullet,
+            bulletIndex,
+            baseline,
+            bulletChanged: isSubstantiallyChanged(bullet, originalText),
+            spans: buildHighlightSpans(bullet, baseline),
+          }
+        }),
+      })),
+    [resume.experience, originalText]
+  )
+
+  useEffect(() => {
+    setSummaryReverted(false)
+  }, [resume.summary])
+
+  const revertChange = useCallback(
+    (target: ResumeChangeTarget) => {
+      startTransition(() => {
+        if (target.kind === 'summary-revert') {
+          setSummaryReverted(true)
+        }
+        onResumeChange(applyResumeChangeRevert(resume, target, originalText))
+      })
+    },
+    [onResumeChange, originalText, resume]
+  )
+
+  const displaySummary = summaryReverted
+    ? originalSummary || resume.summary
+    : resume.summary
+  const showSummaryHighlights =
+    !summaryReverted && (hasHighlightedChanges(summarySpans) || summaryChanged)
+  const showSummaryPhrasingAudit = !summaryReverted && Boolean(jobDescription?.trim())
 
   const contactParts = [
     resume.contact.email,
@@ -118,34 +168,32 @@ export function ResumeChangeHighlight({
             <h3 className="border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
               Professional Summary
             </h3>
-            {summaryChanged ? (
+            {summaryChanged && !summaryReverted ? (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950"
+                disabled={isRevertPending}
+                className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => revertChange({ kind: 'summary-revert' })}
               >
                 <RotateCcw className="size-3" />
-                Revert summary
+                {isRevertPending ? 'Reverting…' : 'Revert summary'}
               </button>
             ) : null}
           </div>
           <p>
-            {hasHighlightedChanges(summarySpans) || summaryChanged ? (
+            {showSummaryHighlights ? (
               <HighlightedText
-                text={resume.summary}
-                comparisonCorpus={
-                  originalSummary || findBestOriginalMatch(resume.summary, originalText)
-                }
+                spans={summarySpans}
                 onRevertPhrase={(phrase) => revertChange({ kind: 'summary', phrase })}
               />
             ) : (
-              resume.summary
+              displaySummary
             )}
           </p>
-          {jobDescription?.trim() ? (
+          {showSummaryPhrasingAudit ? (
             <PhrasingSimilarityPreview
               text={resume.summary}
-              jobDescription={jobDescription}
+              jobDescription={jobDescription!}
               previewClassName="mt-2"
             />
           ) : null}
@@ -173,7 +221,8 @@ export function ResumeChangeHighlight({
                 <button
                   key={`${skill}-${index}`}
                   type="button"
-                  className="inline-flex items-center gap-1 rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs text-amber-950 ring-1 ring-amber-400/60 transition hover:bg-red-200 hover:text-red-950"
+                  disabled={isRevertPending}
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs text-amber-950 ring-1 ring-amber-400/60 transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
                   title="Click to revert this skill"
                   onClick={() => revertChange({ kind: 'skill', index })}
                 >
@@ -190,7 +239,7 @@ export function ResumeChangeHighlight({
             Work Experience
           </h3>
           <div className="space-y-4">
-            {resume.experience.map((job, experienceIndex) => (
+            {experienceDiffs.map(({ job, experienceIndex, bullets }) => (
               <div key={`${job.company}-${job.title}-${job.startDate}`}>
                 <p className="font-semibold">
                   {job.title} — {job.company}
@@ -200,59 +249,53 @@ export function ResumeChangeHighlight({
                   {job.startDate} – {job.endDate}
                 </p>
                 <ul className="mt-2 list-disc space-y-2 pl-5">
-                  {job.bullets.map((bullet, bulletIndex) => {
-                    const baseline = findBestOriginalMatch(bullet, originalText)
-                    const bulletChanged = isSubstantiallyChanged(bullet, originalText)
-                    const spans = buildHighlightSpans(bullet, baseline)
-
-                    return (
-                      <li key={`${experienceIndex}-${bulletIndex}-${bullet}`}>
-                        <div className="flex flex-wrap items-start gap-2">
-                          {bulletChanged ? (
-                            <button
-                              type="button"
-                              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950"
-                              onClick={() =>
+                  {bullets.map(({ bullet, bulletIndex, bulletChanged, spans }) => (
+                    <li key={`${experienceIndex}-${bulletIndex}-${bullet}`}>
+                      <div className="flex flex-wrap items-start gap-2">
+                        {bulletChanged ? (
+                          <button
+                            type="button"
+                            disabled={isRevertPending}
+                            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() =>
+                              revertChange({
+                                kind: 'bullet-revert',
+                                experienceIndex,
+                                bulletIndex,
+                              })
+                            }
+                          >
+                            <RotateCcw className="size-3" />
+                            Revert bullet
+                          </button>
+                        ) : null}
+                        <span className="min-w-0 flex-1">
+                          {hasHighlightedChanges(spans) || bulletChanged ? (
+                            <HighlightedText
+                              spans={spans}
+                              onRevertPhrase={(phrase) =>
                                 revertChange({
-                                  kind: 'bullet-revert',
+                                  kind: 'bullet',
                                   experienceIndex,
                                   bulletIndex,
+                                  phrase,
                                 })
                               }
-                            >
-                              <RotateCcw className="size-3" />
-                              Revert bullet
-                            </button>
-                          ) : null}
-                          <span className="min-w-0 flex-1">
-                            {hasHighlightedChanges(spans) || bulletChanged ? (
-                              <HighlightedText
-                                text={bullet}
-                                comparisonCorpus={baseline}
-                                onRevertPhrase={(phrase) =>
-                                  revertChange({
-                                    kind: 'bullet',
-                                    experienceIndex,
-                                    bulletIndex,
-                                    phrase,
-                                  })
-                                }
-                              />
-                            ) : (
-                              bullet
-                            )}
-                          </span>
-                        </div>
-                        {jobDescription?.trim() ? (
-                          <PhrasingSimilarityPreview
-                            text={bullet}
-                            jobDescription={jobDescription}
-                            previewClassName="ml-5 mt-1"
-                          />
-                        ) : null}
-                      </li>
-                    )
-                  })}
+                            />
+                          ) : (
+                            bullet
+                          )}
+                        </span>
+                      </div>
+                      {jobDescription?.trim() ? (
+                        <PhrasingSimilarityPreview
+                          text={bullet}
+                          jobDescription={jobDescription}
+                          previewClassName="ml-5 mt-1"
+                        />
+                      ) : null}
+                    </li>
+                  ))}
                 </ul>
               </div>
             ))}
@@ -294,7 +337,8 @@ export function ResumeChangeHighlight({
                   <li key={`${cert}-${index}`}>
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 rounded-sm bg-amber-200/90 px-1.5 py-0.5 text-left transition hover:bg-red-200 hover:text-red-950"
+                      disabled={isRevertPending}
+                      className="inline-flex items-center gap-1 rounded-sm bg-amber-200/90 px-1.5 py-0.5 text-left transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
                       title="Click to revert this certification"
                       onClick={() => revertChange({ kind: 'certification', index })}
                     >

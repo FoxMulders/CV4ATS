@@ -15,6 +15,8 @@ import {
   appendSkillsToResumeText,
   extrapolateProposedSkillsFromResume,
   formatProposedSkillsField,
+  formatSkillsLikeExisting,
+  parseListedSkillTerms,
   parseProposedSkillsField,
 } from '@/lib/resume/resume-skill-proposals'
 
@@ -23,13 +25,6 @@ interface ProposedSkillAdditionsProps {
   onResumeTextChange?: (value: string) => void
   tailoredResume?: TailoredResume | null
   onTailoredResumeChange?: (resume: TailoredResume) => void
-}
-
-function titleCaseSkill(term: string): string {
-  return term
-    .split(/\s+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
 }
 
 export function ProposedSkillAdditions({
@@ -158,7 +153,10 @@ export function ProposedSkillAdditions({
 
       onTailoredResumeChange({
         ...tailoredResume,
-        skills: [...tailoredResume.skills, ...additions.map(titleCaseSkill)],
+        skills: [
+          ...tailoredResume.skills,
+          ...formatSkillsLikeExisting(additions, tailoredResume.skills),
+        ],
       })
       toast.success(`Added ${additions.length} skill${additions.length === 1 ? '' : 's'} to resume`)
       return
@@ -166,7 +164,9 @@ export function ProposedSkillAdditions({
 
     if (!onResumeTextChange) return
 
-    onResumeTextChange(appendSkillsToResumeText(resumeText, skillsToAdd))
+    onResumeTextChange(
+      appendSkillsToResumeText(resumeText, skillsToAdd, parseListedSkillTerms(resumeText))
+    )
     toast.success(`Added ${skillsToAdd.length} skill${skillsToAdd.length === 1 ? '' : 's'} to resume`)
   }
 

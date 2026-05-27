@@ -46,12 +46,14 @@ export function PhrasingSimilarityPreview({
   previewClassName,
 }: PhrasingSimilarityPreviewProps) {
   const audit = usePhrasingSimilarityAudit(text, jobDescription)
+  const spans = useMemo(
+    () => buildPhrasingHighlightSpans(text, audit.matches),
+    [text, audit.matches]
+  )
 
   if (!audit.hasHighSimilarity) {
     return null
   }
-
-  const spans = buildPhrasingHighlightSpans(text, audit.matches)
 
   return (
     <div className="space-y-1.5">
