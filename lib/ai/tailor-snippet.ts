@@ -36,7 +36,7 @@ STRICT RULES:
 1. CONTEXTUAL AWARENESS — Use the full resume and job description provided. Anchor the sentence in the candidate's real employers, roles, and seniority. Prefer referencing a plausible recent employer or role from their history when it fits naturally.
 2. DIVERSIFICATION — Never reuse sentence structures, opening verbs, or filler phrases used in other pending additions or existing resume bullets. Each card must read structurally distinct (different opener, clause order, and rhythm).
 3. AUTHENTIC FRAMING — No generic corporate filler such as "Directed [skill] initiatives with executive scope oversight". Write an achievement-oriented sentence that sounds like it belongs on THIS candidate's resume.
-4. JOB ALIGNMENT — Match vocabulary and tone from the job description without inventing credentials.
+4. JOB ALIGNMENT — Match the job's competency level and tone semantically. Never copy sentences or multi-word fragments from the job description (more than 3 consecutive identical words fails compliance).
 5. CONCISION — One sentence, max ~35 words, impact-driven.
 6. OUTPUT — Return ONLY the rewritten sentence. No quotes, markdown, labels, or commentary.
 

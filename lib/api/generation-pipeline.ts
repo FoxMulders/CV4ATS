@@ -18,6 +18,10 @@ import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { runSkillExtrapolationAndInjection } from '@/lib/resume/pre-scan-preparation'
 import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
 import {
+  auditResumePhrasingCompliance,
+  buildPhrasingComplianceSuggestions,
+} from '@/lib/resume/exact-phrasing-auditor'
+import {
   buildAtsComparison,
   scoreAtsCompliance,
   serializeTailoredResume,
@@ -287,9 +291,28 @@ export async function runGenerationPipeline(
     sanitizeKeywordReport(aiResult.keywordReport).suggestions
   )
 
+  const phrasingAudit = auditResumePhrasingCompliance(
+    [
+      { label: 'Professional summary', text: aiResult.tailoredResume.summary },
+      ...aiResult.tailoredResume.experience.flatMap((entry, index) =>
+        entry.bullets.map((bullet, bulletIndex) => ({
+          label: `Experience ${index + 1} bullet ${bulletIndex + 1}`,
+          text: bullet,
+        }))
+      ),
+      { label: 'Cover letter', text: aiResult.coverLetter },
+    ],
+    jobDescription
+  )
+  const phrasingSuggestions = buildPhrasingComplianceSuggestions(phrasingAudit)
+  const keywordReport = sanitizeKeywordReport({
+    ...comparison.keywordReport,
+    suggestions: [...phrasingSuggestions, ...comparison.keywordReport.suggestions].slice(0, 6),
+  })
+
   const result: GenerationPipelineResult = {
     ...aiResult,
-    keywordReport: comparison.keywordReport,
+    keywordReport,
     baselineKeywordReport,
     refinementPasses,
     targetScoreMet: comparison.keywordReport.matchScore >= TARGET_ATS_SCORE,

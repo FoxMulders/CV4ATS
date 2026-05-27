@@ -3,8 +3,20 @@ import { isStopWord } from '@/lib/resume/stopwords'
 export const MIN_EXACT_PHRASING_MATCH_WORDS = 4
 export const MAX_EXACT_PHRASING_MATCH_WORDS = 16
 
-export const REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION =
-  "CRITICAL DIRECTIVE: The user's current draft relies on an exact copied string from the job description. Rewrite this statement completely. Alter the sentence mechanics, swap out cloned action phrases, and use completely distinct verbs while retaining the underlying technical keyword or core skill requirement."
+/** More than 3 consecutive JD words (4+) fails automated compliance checks. */
+export const PHRASING_COMPLIANCE_WORD_LIMIT = MIN_EXACT_PHRASING_MATCH_WORDS
+
+export const ANTI_COPY_CONSTRAINT = `CRITICAL CONSTRAINT: Do not copy sentences or multi-word fragments directly from the job description. Translate posting language into the candidate's own career context.
+
+Example — if the job description says "stewardship of AQOE-sponsored platforms across their lifecycle", write something like "Managed enterprise software asset lifecycles and platform adoption strategies" grounded in the source resume.
+
+Any output with more than 3 consecutive words identical to the job description text fails compliance checks. Focus on semantic matching (meaning and skill level), not literal keyword duplication.`
+
+export const SEMANTIC_MATCHING_DIRECTIVE = `Match the job's intent and competency level using the candidate's authentic voice. Single proper nouns, tool names, and standard methodology labels (Agile, Kanban, Jira) may appear verbatim when truthful. Never lift multi-word clauses, duty statements, or sentence fragments from the posting.`
+
+export const REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION = `${ANTI_COPY_CONSTRAINT}
+
+The current draft copies job-description phrasing. Rewrite it completely: change sentence mechanics, swap cloned action phrases, and use distinct verbs while preserving the underlying skill or competency requirement.`
 
 export interface PhrasingMatch {
   /** Matched substring as it appears in the input text. */
@@ -207,4 +219,57 @@ export function buildPhrasingHighlightSpans(
   }
 
   return spans.filter((span) => span.text.length > 0)
+}
+
+/** Scan multiple resume fields for job-description copy violations (4+ consecutive words). */
+export function auditResumePhrasingCompliance(
+  sections: Array<{ label: string; text: string }>,
+  jobDescription: string
+): PhrasingAuditResult & { violations: Array<{ label: string; matches: PhrasingMatch[] }> } {
+  const violations: Array<{ label: string; matches: PhrasingMatch[] }> = []
+  const allMatches: PhrasingMatch[] = []
+
+  for (const section of sections) {
+    const trimmed = section.text.trim()
+    if (!trimmed) continue
+
+    const audit = auditExactPhrasingMatch(trimmed, jobDescription)
+    if (audit.matches.length > 0) {
+      violations.push({ label: section.label, matches: audit.matches })
+      allMatches.push(...audit.matches)
+    }
+  }
+
+  allMatches.sort((left, right) => left.startIndex - right.startIndex)
+
+  return {
+    matches: allMatches,
+    hasHighSimilarity: allMatches.length > 0,
+    longestMatch: allMatches.reduce<PhrasingMatch | undefined>(
+      (longest, match) =>
+        !longest || match.wordCount > longest.wordCount ? match : longest,
+      undefined
+    ),
+    violations,
+  }
+}
+
+export function buildPhrasingComplianceSuggestions(
+  audit: PhrasingAuditResult
+): string[] {
+  if (!audit.hasHighSimilarity) return []
+
+  const longest = audit.longestMatch?.phrase
+  const suggestions = [
+    'Rewrite flagged phrases in your own words — do not copy multi-word fragments from the job description.',
+    'Translate posting duties into accomplishments grounded in the candidate\'s employers, scope, and outcomes.',
+  ]
+
+  if (longest) {
+    suggestions.push(
+      `Replace copied phrasing such as "${longest}" with a semantically equivalent statement unique to this resume.`
+    )
+  }
+
+  return suggestions.slice(0, 4)
 }

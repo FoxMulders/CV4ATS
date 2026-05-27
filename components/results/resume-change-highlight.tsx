@@ -145,7 +145,7 @@ export function ResumeChangeHighlight({
       {jobDescription?.trim() ? (
         <p className="rounded-lg border border-amber-200/70 bg-amber-50/40 px-3 py-2 text-sm text-amber-950">
           <span className="font-medium">Exact phrasing auditor</span> flags resume text that repeats
-          four or more consecutive job-description words (stop words excluded).
+          more than 3 consecutive job-description words (4+ word sequences; stop words excluded).
         </p>
       ) : null}
 
