@@ -21,6 +21,7 @@ import { KeywordReportPanel } from '@/components/results/keyword-report'
 import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
 import { EditableResumePreview } from '@/components/results/editable-resume-preview'
 import { ResumeDiffView } from '@/components/results/resume-diff-view'
+import { UndoRedoToolbar } from '@/components/results/undo-redo-toolbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenerateStep } from '@/components/wizard/generate-step'
@@ -35,6 +36,7 @@ import {
 import { formatScorePassLine } from '@/lib/api/generation-config'
 import { useJobPass } from '@/hooks/use-job-pass'
 import { useSavedResume } from '@/hooks/use-saved-resume'
+import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import type { GenerationResult, TailoredResume } from '@/lib/ai/schemas'
@@ -65,7 +67,15 @@ export default function HomePage() {
   const [streamingResume, setStreamingResume] = useState<TailoredResume | null>(null)
   const [streamingCoverLetter, setStreamingCoverLetter] = useState('')
   const [result, setResult] = useState<GenerationResultWithMeta | null>(null)
-  const [editedResume, setEditedResume] = useState<TailoredResume | null>(null)
+  const {
+    resume: editedResume,
+    pushResume: pushEditedResume,
+    resetResume: resetEditedResume,
+    undo: undoResumeEdit,
+    redo: redoResumeEdit,
+    canUndo: canUndoResumeEdit,
+    canRedo: canRedoResumeEdit,
+  } = useUndoableResume(null)
   const [coverLetter, setCoverLetter] = useState('')
   const [fileParse, setFileParse] = useState<ResumeFileParseState>({
     status: 'idle',
@@ -167,7 +177,7 @@ export default function HomePage() {
 
     if (!options.selectedKeywords?.length && !options.customSnippets?.length) {
       setResult(null)
-      setEditedResume(null)
+      resetEditedResume(null)
     }
 
     try {
@@ -221,7 +231,7 @@ export default function HomePage() {
       })
 
       setResult(data)
-      setEditedResume(data.tailoredResume)
+      resetEditedResume(data.tailoredResume)
       setCoverLetter(data.coverLetter)
 
       if (options.customSnippets?.length || options.selectedKeywords?.length) {
@@ -387,18 +397,27 @@ export default function HomePage() {
               />
 
               <Tabs defaultValue="changes">
-                <TabsList>
-                  <TabsTrigger value="resume">Resume</TabsTrigger>
-                  <TabsTrigger value="changes">Changes</TabsTrigger>
-                  <TabsTrigger value="keywords">Keyword report</TabsTrigger>
-                  <TabsTrigger value="cover">Cover letter</TabsTrigger>
-                </TabsList>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <TabsList>
+                    <TabsTrigger value="resume">Resume</TabsTrigger>
+                    <TabsTrigger value="changes">Changes</TabsTrigger>
+                    <TabsTrigger value="keywords">Keyword report</TabsTrigger>
+                    <TabsTrigger value="cover">Cover letter</TabsTrigger>
+                  </TabsList>
+                  <UndoRedoToolbar
+                    canUndo={canUndoResumeEdit}
+                    canRedo={canRedoResumeEdit}
+                    onUndo={undoResumeEdit}
+                    onRedo={redoResumeEdit}
+                    enabled={Boolean(editedResume)}
+                  />
+                </div>
 
                 <TabsContent value="resume" className="mt-4">
                   {editedResume ? (
                     <EditableResumePreview
                       resume={editedResume}
-                      onResumeChange={setEditedResume}
+                      onResumeChange={pushEditedResume}
                       originalText={originalResumeText}
                       jobDescription={jobDescription}
                     />
@@ -410,7 +429,7 @@ export default function HomePage() {
                     <ResumeDiffView
                       originalText={originalResumeText}
                       resume={editedResume}
-                      onResumeChange={setEditedResume}
+                      onResumeChange={pushEditedResume}
                       jobDescription={jobDescription}
                     />
                   ) : null}

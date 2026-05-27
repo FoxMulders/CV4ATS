@@ -26,6 +26,7 @@ import {
   type SkillSnippetSelection,
 } from '@/components/results/editable-skill-snippet-picker'
 import { EditableResumePreview } from '@/components/results/editable-resume-preview'
+import { UndoRedoToolbar } from '@/components/results/undo-redo-toolbar'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -44,6 +45,7 @@ import { GenerationProgress } from '@/components/wizard/generation-progress'
 import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
+import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { formatAppliedDate, type AppliedJobRecord } from '@/lib/jobs/applied-jobs'
 
 export interface JobTailorResult extends GenerationResult {
@@ -95,7 +97,16 @@ export function JobCard({
   const [scorePassLines, setScorePassLines] = useState<string[]>([])
   const [streamingResume, setStreamingResume] = useState<TailoredResume | null>(null)
   const [coverLetter, setCoverLetter] = useState(tailorResult?.coverLetter ?? '')
-  const [editedResume, setEditedResume] = useState<TailoredResume | null>(null)
+  const {
+    resume: editedResume,
+    pushResume: pushEditedResume,
+    replaceResume: replaceEditedResume,
+    resetResume: resetEditedResume,
+    undo: undoResumeEdit,
+    redo: redoResumeEdit,
+    canUndo: canUndoResumeEdit,
+    canRedo: canRedoResumeEdit,
+  } = useUndoableResume(tailorResult?.tailoredResume ?? null)
 
   useEffect(() => {
     if (tailorResult?.coverLetter) {
@@ -105,9 +116,9 @@ export function JobCard({
 
   useEffect(() => {
     if (tailorResult?.tailoredResume) {
-      setEditedResume(tailorResult.tailoredResume)
+      resetEditedResume(tailorResult.tailoredResume)
     }
-  }, [tailorResult?.jobId, tailorResult?.tailoredResume])
+  }, [tailorResult?.jobId, tailorResult?.tailoredResume, resetEditedResume])
 
   async function handleTailor(options: {
     selections?: SkillSnippetSelection[]
@@ -178,7 +189,7 @@ export function JobCard({
           const resumeSnapshot = coalesceStreamingResume(preview)
           if (resumeSnapshot) {
             setStreamingResume(resumeSnapshot)
-            setEditedResume(resumeSnapshot)
+            replaceEditedResume(resumeSnapshot)
           }
         },
       })
@@ -384,12 +395,21 @@ export function JobCard({
                 />
 
                 <Tabs defaultValue="improvements">
-                  <TabsList>
-                    <TabsTrigger value="improvements">Improve score</TabsTrigger>
-                    <TabsTrigger value="resume">Tailored resume</TabsTrigger>
-                    <TabsTrigger value="cover">Cover letter</TabsTrigger>
-                    <TabsTrigger value="keywords">Keyword report</TabsTrigger>
-                  </TabsList>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <TabsList>
+                      <TabsTrigger value="improvements">Improve score</TabsTrigger>
+                      <TabsTrigger value="resume">Tailored resume</TabsTrigger>
+                      <TabsTrigger value="cover">Cover letter</TabsTrigger>
+                      <TabsTrigger value="keywords">Keyword report</TabsTrigger>
+                    </TabsList>
+                    <UndoRedoToolbar
+                      canUndo={canUndoResumeEdit}
+                      canRedo={canRedoResumeEdit}
+                      onUndo={undoResumeEdit}
+                      onRedo={redoResumeEdit}
+                      enabled={Boolean(editedResume)}
+                    />
+                  </div>
 
                   <TabsContent value="improvements" className="mt-4 space-y-4">
                     <Card>
@@ -428,7 +448,7 @@ export function JobCard({
                     {editedResume ? (
                       <EditableResumePreview
                         resume={editedResume}
-                        onResumeChange={setEditedResume}
+                        onResumeChange={pushEditedResume}
                         jobDescription={jobDescriptionForAi}
                       />
                     ) : null}
