@@ -17,6 +17,7 @@ import { injectSelectedKeywords } from '@/lib/resume/inject-selected-keywords'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { runSkillExtrapolationAndInjection } from '@/lib/resume/pre-scan-preparation'
 import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+import { enforceSourceCertifications } from '@/lib/resume/certification-guard'
 import {
   auditResumePhrasingCompliance,
   buildPhrasingComplianceSuggestions,
@@ -84,6 +85,16 @@ function runScoringIntegration(
 
 function scoreResume(resume: AiGenerationResult['tailoredResume'], jobDescription: string): number {
   return scoreAtsCompliance(serializeTailoredResume(resume), jobDescription).matchScore
+}
+
+function applySourceGrounding(
+  aiResult: AiGenerationResult,
+  sourceResumeText: string
+): AiGenerationResult {
+  return {
+    ...aiResult,
+    tailoredResume: enforceSourceCertifications(aiResult.tailoredResume, sourceResumeText),
+  }
 }
 
 export async function runGenerationPipeline(
@@ -167,17 +178,20 @@ export async function runGenerationPipeline(
     await onProgress?.({ type: 'partial', preview })
   }
 
-  let aiResult = await generateTailoredResume(
-    jobDescription,
-    preparedResumeText,
-    {
-      targetSkills: llmTargetSkills,
-      coreCompetencyChecklist: checklistPrompt,
-      missingKeywords: competencyChecklist.missingTerms,
-    },
-    {
-      onPartial: emitPartial,
-    }
+  let aiResult = applySourceGrounding(
+    await generateTailoredResume(
+      jobDescription,
+      preparedResumeText,
+      {
+        targetSkills: llmTargetSkills,
+        coreCompetencyChecklist: checklistPrompt,
+        missingKeywords: competencyChecklist.missingTerms,
+      },
+      {
+        onPartial: emitPartial,
+      }
+    ),
+    resumeText
   )
 
   let integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
@@ -220,13 +234,16 @@ export async function runGenerationPipeline(
 
     await emitStep(2, refinementProgressLabel(pass, currentScore))
 
-    aiResult = await refineTailoredResume(
-      jobDescription,
-      workingResumeText,
-      currentScore,
-      missingKeywords.slice(0, 8),
-      checklistPrompt,
-      { onPartial: emitPartial }
+    aiResult = applySourceGrounding(
+      await refineTailoredResume(
+        jobDescription,
+        workingResumeText,
+        currentScore,
+        missingKeywords.slice(0, 8),
+        checklistPrompt,
+        { onPartial: emitPartial }
+      ),
+      resumeText
     )
 
     integration = runScoringIntegration(aiResult, jobDescription, keywordsToTargetSkills(missingKeywords))
@@ -281,7 +298,10 @@ export async function runGenerationPipeline(
 
   aiResult = {
     ...aiResult,
-    tailoredResume: formatTailoredResume(aiResult.tailoredResume),
+    tailoredResume: enforceSourceCertifications(
+      formatTailoredResume(aiResult.tailoredResume),
+      resumeText
+    ),
   }
 
   comparison = buildAtsComparison(

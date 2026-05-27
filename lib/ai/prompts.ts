@@ -79,6 +79,7 @@ Integration rules:
 - Single tool names and standard methodology labels (Kanban, Jira, Agile) may match verbatim when truthful; sentences and clauses must not.
 - Use lemma variants naturally (manage/managed/managing, automate/automation/automated) — do not repeat the same term in adjacent bullets.
 - Never invent tools, certifications, employers, titles, dates, or achievements not grounded in the source resume.
+- **Certifications are immutable** — copy only credentials already listed in the source resume CERTIFICATIONS section. If the source has no certifications section or it is empty, set certifications to []. Never add credentials because the job description mentions Agile, Scrum, ITIL, PMP, or similar requirements.
 
 ## ATS formatting (mandatory)
 Rebuild every resume for ATS parsing and human hiring managers:
@@ -122,7 +123,7 @@ tailoredResume must use these exact field names:
 - contact.email, contact.phone, contact.location, contact.linkedin: always include every key; use "" when absent.
 - experience.location, education.graduationDate, education.details: use "" when not applicable.
 - education: use [] when the source resume has no education section.
-- certifications: use [] when the candidate has none.
+- certifications: use [] when the candidate has none. Never infer certifications from job requirements — only copy credentials from the source resume CERTIFICATIONS section verbatim (minor formatting cleanup only).
 - coverLetter: a single plain-text string, not a nested object.
 
 ## Response format (mandatory)
@@ -207,6 +208,7 @@ Rules for this pass:
 - Ignore conversational stop-words from the job description entirely.
 - Maintain executive tone for a senior technical leader.
 - Do not invent employers, tools, or achievements.
+- Never add or infer certifications. If the source resume has no CERTIFICATIONS section, keep certifications as [].
 - Stop refining once remaining gaps are posting noise — coherence beats a forced 100% match.
 
 Re-tailor the resume, update the keyword report, and refresh the cover letter.`

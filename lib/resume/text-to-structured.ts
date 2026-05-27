@@ -1,5 +1,6 @@
 import type { Education, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { formatResumeText, formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+import { parseCertificationsFromResumeText } from '@/lib/resume/certification-guard'
 
 const SECTION_HEADING =
   /^(professional summary|summary|skills|technical skills|work experience|experience|employment|education|certifications?)\s*:?\s*$/i
@@ -189,6 +190,6 @@ export function parseResumeTextToTailoredResume(resumeText: string): TailoredRes
     skills: parseSkills(lines),
     experience: parseExperience(lines),
     education: parseEducation(lines),
-    certifications: [],
+    certifications: parseCertificationsFromResumeText(normalizedText),
   })
 }
