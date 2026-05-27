@@ -1,5 +1,4 @@
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
-import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
 import { getScoringKeywordTargets } from '@/lib/resume/scoring-keyword-targets'
 import type { TargetSkill } from '@/lib/resume/skill-extrapolation'
 import { extrapolateTargetSkills } from '@/lib/resume/skill-extrapolation'
@@ -46,10 +45,7 @@ export function buildCoreCompetencyChecklist(
     keywordMatchesResume(jobDescription, term)
   )
 
-  const allTerms = filterAuditedKeywordTerms(
-    [...new Set([...scoringTerms, ...priorityFromJd, ...extractedTerms])],
-    resumeText
-  )
+  const allTerms = [...new Set([...scoringTerms, ...priorityFromJd, ...extractedTerms])]
   const missingTerms = allTerms.filter((term) => !keywordMatchesResume(resumeText, term))
 
   return {

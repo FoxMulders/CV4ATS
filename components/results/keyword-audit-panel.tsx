@@ -12,7 +12,7 @@ import {
   auditKeywordTerms,
   type AuditedKeyword,
 } from '@/lib/resume/keyword-audit'
-import { extractHighValueKeywords } from '@/lib/resume/keyword-extraction'
+import { extrapolateTargetSkills } from '@/lib/resume/skill-extrapolation'
 import {
   buildRestorationsForPurgedKeywords,
   isUserRestorablePurgedKeyword,
@@ -87,8 +87,11 @@ export function KeywordAuditPanel({
   onRestorePurged,
   isRerunning = false,
 }: KeywordAuditPanelProps) {
-  const rawTerms = extractHighValueKeywords(jobDescription)
+  const targetSkills = extrapolateTargetSkills(jobDescription)
+  const rawTerms = targetSkills.map((skill) => skill.term)
   const audit = auditKeywordTerms(rawTerms, resumeText)
+  const activeCount = audit.approved.length + audit.modified.length
+  const evaluatedCount = audit.approved.length + audit.modified.length + audit.purged.length
 
   const restorablePurged = useMemo(
     () =>
@@ -116,11 +119,24 @@ export function KeywordAuditPanel({
     <div className="space-y-4">
       <Card className="border-amber-200/80 bg-amber-50/40">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">ATS compliance auditor</CardTitle>
-          <CardDescription>
-            Keywords extracted from the job description are verified for truthfulness and human
-            readability before they influence your resume. Coherence beats a superficial 100% match.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">ATS compliance auditor</CardTitle>
+              <CardDescription>
+                Keywords extracted from the job description are verified for truthfulness and human
+                readability before they influence your resume. Coherence beats a superficial 100%
+                match.
+              </CardDescription>
+            </div>
+            <Badge variant="default" className="shrink-0">
+              Active · {activeCount}/{targetSkills.length} skills aligned
+            </Badge>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Scoring denominator locked to {targetSkills.length} target skill
+            {targetSkills.length === 1 ? '' : 's'} · {evaluatedCount} evaluated ·{' '}
+            {audit.modified.length} soft-matched for context
+          </p>
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-3">
           <AuditGroup
@@ -135,7 +151,7 @@ export function KeywordAuditPanel({
             title="Modified for context"
             icon="⚠️"
             items={audit.modified}
-            emptyMessage="No bare keywords needed rephrasing."
+            emptyMessage="No semantic or contextual skill matches detected yet."
           />
           <AuditGroup
             title="Approved"

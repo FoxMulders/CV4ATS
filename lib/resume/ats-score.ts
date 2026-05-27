@@ -3,7 +3,7 @@ import { sanitizeKeywordReport } from '@/lib/api/generation-config'
 import { serializeFormattedResume } from '@/lib/resume/ats-resume-formatter'
 import { filterRelevantKeywords } from '@/lib/resume/keyword-filter'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
-import { computeWeightedMatchScore } from '@/lib/resume/weighted-ats-scoring'
+import { computeWeightedMatchScore, type WeightedScoringOptions } from '@/lib/resume/weighted-ats-scoring'
 
 function formatSuggestions(missingKeywords: string[], score: number): string[] {
   const suggestions: string[] = []
@@ -44,8 +44,12 @@ export function serializeTailoredResume(resume: TailoredResume): string {
   return serializeFormattedResume(resume)
 }
 
-export function scoreAtsCompliance(resumeText: string, jobDescription: string): KeywordReport {
-  const weighted = computeWeightedMatchScore(resumeText, jobDescription)
+export function scoreAtsCompliance(
+  resumeText: string,
+  jobDescription: string,
+  options: WeightedScoringOptions = {}
+): KeywordReport {
+  const weighted = computeWeightedMatchScore(resumeText, jobDescription, undefined, options)
 
   return sanitizeKeywordReport({
     matchScore: weighted.matchScore,
@@ -61,8 +65,10 @@ export function buildAtsComparison(
   jobDescription: string,
   aiSuggestions?: string[]
 ): { baselineKeywordReport: KeywordReport; keywordReport: KeywordReport; improvement: number } {
-  const baselineKeywordReport = scoreAtsCompliance(beforeText, jobDescription)
-  const afterReport = scoreAtsCompliance(afterText, jobDescription)
+  const baselineKeywordReport = scoreAtsCompliance(beforeText, jobDescription, {
+    phase: 'baseline',
+  })
+  const afterReport = scoreAtsCompliance(afterText, jobDescription, { phase: 'tailored' })
 
   const keywordReport: KeywordReport = sanitizeKeywordReport({
     ...afterReport,

@@ -1,8 +1,9 @@
 import { auditExactPhrasingMatch } from '@/lib/resume/exact-phrasing-auditor'
-import { extractHighValueKeywords } from '@/lib/resume/keyword-extraction'
-import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
-import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
-import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
+import { applyExperienceScoreFloor } from '@/lib/resume/experience-score-floor'
+import {
+  getFixedScoringTargetTerms,
+  resumeMatchesScoringTarget,
+} from '@/lib/resume/scoring-keyword-targets'
 import {
   filterCompetencyKeywords,
   isNonCompetencyMetadata,
@@ -44,6 +45,11 @@ export interface WeightedScoreResult {
   missingKeywords: string[]
   nearIdenticalProfile: boolean
   breakdown: TermScoreBreakdown[]
+  targetTermCount: number
+}
+
+export interface WeightedScoringOptions {
+  phase?: 'baseline' | 'tailored'
 }
 
 const SECTION_BOUNDARY =
@@ -95,25 +101,29 @@ export function parseScoringSections(resumeText: string): ResumeScoringSections 
 }
 
 function countKeywordOccurrences(text: string, keyword: string): number {
-  if (!keywordMatchesResume(text, keyword)) return 0
+  if (!resumeMatchesScoringTarget(text, keyword)) return 0
 
   const normalized = text.toLowerCase()
   const keywordNorm = keyword.toLowerCase().trim()
   if (!keywordNorm) return 0
 
   if (!keywordNorm.includes(' ')) {
-    const pattern = new RegExp(`\\b${escapeRegExp(keywordNorm)}\\b`, 'gi')
+    const root = keywordNorm.replace(/(?:ing|ed|es|s)$/i, '')
+    const pattern = new RegExp(`\\b${escapeRegExp(root)}\\w*\\b`, 'gi')
     return Math.max(1, (normalized.match(pattern) ?? []).length)
   }
 
-  let count = 0
-  let index = 0
-  while ((index = normalized.indexOf(keywordNorm, index)) !== -1) {
-    count += 1
-    index += keywordNorm.length
+  if (normalized.includes(keywordNorm)) {
+    let count = 0
+    let index = 0
+    while ((index = normalized.indexOf(keywordNorm, index)) !== -1) {
+      count += 1
+      index += keywordNorm.length
+    }
+    return Math.max(1, count)
   }
 
-  return Math.max(1, count)
+  return 1
 }
 
 export function densityMultiplier(occurrenceCount: number): number {
@@ -135,7 +145,7 @@ function keywordInPhrasingViolation(
 ): boolean {
   const scopedText = [sections.summary, sections.experience].filter(Boolean).join('\n')
   const sentences = splitSentences(scopedText).filter((sentence) =>
-    keywordMatchesResume(sentence, keyword)
+    resumeMatchesScoringTarget(sentence, keyword)
   )
 
   return sentences.some(
@@ -146,13 +156,13 @@ function keywordInPhrasingViolation(
 function resolveSectionWeight(keyword: string, sections: ResumeScoringSections): number {
   const weights: number[] = []
 
-  if (sections.experience && keywordMatchesResume(sections.experience, keyword)) {
+  if (sections.experience && resumeMatchesScoringTarget(sections.experience, keyword)) {
     weights.push(SECTION_WEIGHTS.experience)
   }
-  if (sections.summary && keywordMatchesResume(sections.summary, keyword)) {
+  if (sections.summary && resumeMatchesScoringTarget(sections.summary, keyword)) {
     weights.push(SECTION_WEIGHTS.summary)
   }
-  if (sections.skills && keywordMatchesResume(sections.skills, keyword)) {
+  if (sections.skills && resumeMatchesScoringTarget(sections.skills, keyword)) {
     weights.push(SECTION_WEIGHTS.skills)
   }
 
@@ -160,7 +170,7 @@ function resolveSectionWeight(keyword: string, sections: ResumeScoringSections):
     return Math.max(...weights)
   }
 
-  if (keywordMatchesResume(sections.fullText, keyword)) {
+  if (resumeMatchesScoringTarget(sections.fullText, keyword)) {
     return SECTION_WEIGHTS.summary
   }
 
@@ -184,7 +194,7 @@ function isNearIdenticalProfile(
   const matchRatio = matched.length / breakdown.length
   const rawPercent = computeRawPercent(breakdown)
   const experienceBacked = matched.filter((entry) =>
-    keywordMatchesResume(sections.experience, entry.term)
+    resumeMatchesScoringTarget(sections.experience, entry.term)
   ).length
   const experienceRatio = experienceBacked / matched.length
   const penalizedRatio =
@@ -223,13 +233,24 @@ export function normalizeDisplayScore(rawPercent: number, nearIdenticalProfile: 
 function scoreTerms(
   terms: string[],
   sections: ResumeScoringSections,
-  jobDescription: string
+  jobDescription: string,
+  options: WeightedScoringOptions = {}
 ): WeightedScoreResult {
-  const eligibleTerms = filterCompetencyKeywords(terms)
+  const targetTerms = terms.length > 0 ? terms : []
   const breakdown: TermScoreBreakdown[] = []
 
-  for (const term of eligibleTerms) {
-    if (isNonCompetencyMetadata(term)) continue
+  for (const term of targetTerms) {
+    if (isNonCompetencyMetadata(term)) {
+      breakdown.push({
+        term,
+        matched: false,
+        sectionWeight: 0,
+        densityMultiplier: 0,
+        phrasingPenaltyApplied: false,
+        contribution: 0,
+      })
+      continue
+    }
 
     const sectionWeight = resolveSectionWeight(term, sections)
     if (sectionWeight <= 0) {
@@ -262,7 +283,13 @@ function scoreTerms(
 
   const rawScore = computeRawPercent(breakdown)
   const nearIdenticalProfile = isNearIdenticalProfile(breakdown, sections)
-  const matchScore = normalizeDisplayScore(rawScore, nearIdenticalProfile)
+  const normalizedScore = normalizeDisplayScore(rawScore, nearIdenticalProfile)
+  const matchScore = applyExperienceScoreFloor(
+    normalizedScore,
+    rawScore,
+    sections.fullText,
+    options.phase ?? 'tailored'
+  )
 
   const matchedKeywords = breakdown.filter((entry) => entry.matched).map((entry) => entry.term)
   const missingKeywords = breakdown.filter((entry) => !entry.matched).map((entry) => entry.term)
@@ -274,22 +301,19 @@ function scoreTerms(
     missingKeywords,
     nearIdenticalProfile,
     breakdown,
+    targetTermCount: targetTerms.length,
   }
 }
 
 export function computeWeightedMatchScore(
   resumeText: string,
   jobDescription: string,
-  terms?: string[]
+  terms?: string[],
+  options: WeightedScoringOptions = {}
 ): WeightedScoreResult {
   const sections = parseScoringSections(resumeText)
-  const targetTerms = filterCompetencyKeywords(
-    terms ??
-      filterAuditedKeywordTerms(
-        sanitizeKeywordList(extractHighValueKeywords(jobDescription), resumeText),
-        resumeText
-      )
-  )
+  const targetTerms =
+    terms && terms.length > 0 ? filterCompetencyKeywords(terms) : getFixedScoringTargetTerms(jobDescription)
 
-  return scoreTerms(targetTerms, sections, jobDescription)
+  return scoreTerms(targetTerms, sections, jobDescription, options)
 }

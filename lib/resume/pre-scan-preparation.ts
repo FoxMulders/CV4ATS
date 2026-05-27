@@ -1,7 +1,7 @@
 import {
   auditKeywordTerm,
 } from '@/lib/resume/keyword-audit'
-import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
+import { resumeMatchesScoringTarget } from '@/lib/resume/scoring-keyword-targets'
 import {
   buildSuggestedAddition,
   type SuggestedAddition,
@@ -48,7 +48,7 @@ export function runSkillExtrapolationAndInjection(
   const missingSkills: TargetSkill[] = []
 
   for (const skill of targetSkills) {
-    if (keywordMatchesResume(resumeText, skill.term)) {
+    if (resumeMatchesScoringTarget(resumeText, skill.term)) {
       matchedSkills.push(skill)
     } else {
       missingSkills.push(skill)

@@ -134,6 +134,11 @@ export async function runGenerationPipeline(
     incorporatedKeywords = userInjection.injectedSkills
   }
 
+  const baselineKeywordReport = scoreAtsCompliance(workingResumeText, jobDescription, {
+    phase: 'baseline',
+  })
+  const baselineScore = baselineKeywordReport.matchScore
+
   const preScan = runSkillExtrapolationAndInjection(workingResumeText, jobDescription, {
     autoInject: true,
   })
@@ -160,9 +165,6 @@ export async function runGenerationPipeline(
     preScan.missingSkills,
     keywordsToTargetSkills(competencyChecklist.missingTerms)
   )
-
-  const baselineKeywordReport = scoreAtsCompliance(preparedResumeText, jobDescription)
-  const baselineScore = baselineKeywordReport.matchScore
 
   await emitScorePass({
     type: 'score-pass',
@@ -211,7 +213,7 @@ export async function runGenerationPipeline(
   await emitStep(2)
 
   let comparison = buildAtsComparison(
-    preparedResumeText,
+    workingResumeText,
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions
@@ -251,7 +253,7 @@ export async function runGenerationPipeline(
     incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
     comparison = buildAtsComparison(
-      preparedResumeText,
+      workingResumeText,
       serializeTailoredResume(aiResult.tailoredResume),
       jobDescription,
       sanitizeKeywordReport(aiResult.keywordReport).suggestions
@@ -277,7 +279,7 @@ export async function runGenerationPipeline(
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
   comparison = buildAtsComparison(
-    preparedResumeText,
+    workingResumeText,
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions
@@ -305,7 +307,7 @@ export async function runGenerationPipeline(
   }
 
   comparison = buildAtsComparison(
-    preparedResumeText,
+    workingResumeText,
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions

@@ -10,6 +10,10 @@ import { isPostingArtifact, isLikelyPersonName } from '@/lib/resume/posting-arti
 import { isRelevantJobKeyword } from '@/lib/resume/keyword-filter'
 import { isReportableAtsKeyword } from '@/lib/resume/keyword-report-filter'
 import { extractCareerContext } from '@/lib/resume/resume-career-context'
+import {
+  resumeContainsVerbatimTerm,
+  resumeSemanticallyMatchesSkill,
+} from '@/lib/resume/semantic-keyword-match'
 import { phraseWithoutStopWords, tokenize } from '@/lib/resume/stopwords'
 
 export type KeywordAuditStatus = 'approved' | 'modified' | 'purged'
@@ -326,6 +330,28 @@ export function auditKeywordTerm(term: string, resumeText = ''): AuditedKeyword 
     }
   }
 
+  if (resumeText.trim() && resumeSemanticallyMatchesSkill(resumeText, normalized)) {
+    const bareSkill = tokensAreBareSkill(normalized) || !normalized.includes(' ')
+    const expressedInContext =
+      bareSkill || !resumeContainsVerbatimTerm(resumeText, normalized)
+
+    if (expressedInContext) {
+      return {
+        original,
+        term: normalized,
+        status: 'modified',
+        reason: 'Semantically matched in resume — root skill expressed in accomplishment language',
+      }
+    }
+
+    return {
+      original,
+      term: normalized,
+      status: 'approved',
+      reason: 'Approved ATS keyword',
+    }
+  }
+
   const contextual = suggestContextualPhrase(normalized)
   if (contextual && contextual !== normalized) {
     return {
@@ -367,8 +393,8 @@ export function auditKeywordTerms(terms: string[], resumeText = ''): KeywordAudi
 export function filterAuditedKeywordTerms(terms: string[], resumeText = ''): string[] {
   const audit = auditKeywordTerms(terms, resumeText)
   return [
-    ...audit.approved.map((entry) => entry.term),
-    ...audit.modified.map((entry) => entry.term),
+    ...audit.approved.map((entry) => entry.original),
+    ...audit.modified.map((entry) => entry.original),
   ]
 }
 

@@ -1,10 +1,8 @@
-import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 import { computeWeightedMatchScore } from '@/lib/resume/weighted-ats-scoring'
 import {
   getMissingScoringKeywords,
-  getScoringKeywordTargets,
 } from '@/lib/resume/scoring-keyword-targets'
 import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
@@ -39,10 +37,7 @@ export function integrateScoringKeywordsUntilSaturation(
 
   for (let round = 0; round < MAX_INTEGRATION_ROUNDS; round += 1) {
     const serialized = serializeTailoredResume(current)
-    const missingTerms = filterAuditedKeywordTerms(
-      getMissingScoringKeywords(serialized, jobDescription),
-      serialized
-    )
+    const missingTerms = getMissingScoringKeywords(serialized, jobDescription)
     const matchScore = computeMatchScore(serialized, jobDescription)
 
     if (missingTerms.length === 0 || matchScore === previousScore) {
@@ -70,7 +65,9 @@ export function integrateScoringKeywordsUntilSaturation(
 }
 
 function computeMatchScore(resumeText: string, jobDescription: string): number {
-  return computeWeightedMatchScore(resumeText, jobDescription).matchScore
+  return computeWeightedMatchScore(resumeText, jobDescription, undefined, {
+    phase: 'tailored',
+  }).matchScore
 }
 
 function finalize(
