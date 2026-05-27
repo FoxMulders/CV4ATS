@@ -1,4 +1,5 @@
 import { isRecognizedAtsTerm } from '@/lib/resume/ats-term-lexicon'
+import { isNonCompetencyMetadata } from '@/lib/resume/non-competency-metadata-filter'
 import { isRelevantJobKeyword } from '@/lib/resume/keyword-filter'
 import { isReportableAtsKeyword } from '@/lib/resume/keyword-report-filter'
 import { extractCareerContext } from '@/lib/resume/resume-career-context'
@@ -237,6 +238,15 @@ export function auditKeywordTerm(term: string, resumeText = ''): AuditedKeyword 
       term: normalized,
       status: 'purged',
       reason: 'Conversational or posting-admin filler',
+    }
+  }
+
+  if (isNonCompetencyMetadata(normalized)) {
+    return {
+      original,
+      term: normalized,
+      status: 'purged',
+      reason: 'Non-competency posting metadata (compensation, benefits, or salary)',
     }
   }
 

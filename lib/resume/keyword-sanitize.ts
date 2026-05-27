@@ -1,3 +1,4 @@
+import { filterCompetencyKeywords } from '@/lib/resume/non-competency-metadata-filter'
 import { isRecognizedAtsTerm, INDUSTRY_SKILL_TERMS } from '@/lib/resume/ats-term-lexicon'
 import { isHighValueKeyword, pruneRedundantKeywords } from '@/lib/resume/keyword-extraction'
 import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
@@ -45,14 +46,16 @@ export function sanitizeKeywordList(keywords: string[], resumeText = ''): string
 
   const deduped = pruneRedundantKeywords([...byLemma.values()])
 
-  return filterAuditedKeywordTerms(
-    deduped.sort((a, b) => {
-      const aScore = scoreIndustryPriority(a)
-      const bScore = scoreIndustryPriority(b)
-      if (aScore !== bScore) return bScore - aScore
-      return a.localeCompare(b)
-    }),
-    resumeText
+  return filterCompetencyKeywords(
+    filterAuditedKeywordTerms(
+      deduped.sort((a, b) => {
+        const aScore = scoreIndustryPriority(a)
+        const bScore = scoreIndustryPriority(b)
+        if (aScore !== bScore) return bScore - aScore
+        return a.localeCompare(b)
+      }),
+      resumeText
+    )
   )
 }
 

@@ -1,5 +1,9 @@
 import { extractHighValueKeywords, isHighValueKeyword } from '@/lib/resume/keyword-extraction'
 import { stripIrrelevantJobDescriptionText } from '@/lib/resume/keyword-filter'
+import {
+  filterCompetencyKeywords,
+  filterCompetencyTargetSkills,
+} from '@/lib/resume/non-competency-metadata-filter'
 import { tokenize } from '@/lib/resume/stopwords'
 
 export type SkillCategory = 'methodology' | 'competency' | 'domainTech' | 'tool'
@@ -194,11 +198,13 @@ export function extrapolateTargetSkills(jobDescription: string): TargetSkill[] {
     byTerm.set(term, { term, category: categorizeSkill(term) })
   }
 
-  return [...byTerm.values()].sort((a, b) => {
-    const rankDiff = categoryRank(b.category) - categoryRank(a.category)
-    if (rankDiff !== 0) return rankDiff
-    return a.term.localeCompare(b.term)
-  })
+  return filterCompetencyTargetSkills(
+    [...byTerm.values()].sort((a, b) => {
+      const rankDiff = categoryRank(b.category) - categoryRank(a.category)
+      if (rankDiff !== 0) return rankDiff
+      return a.term.localeCompare(b.term)
+    })
+  )
 }
 
 export function targetSkillTerms(skills: TargetSkill[]): string[] {
@@ -208,7 +214,7 @@ export function targetSkillTerms(skills: TargetSkill[]): string[] {
 export function keywordsToTargetSkills(keywords: string[]): TargetSkill[] {
   const byTerm = new Map<string, TargetSkill>()
 
-  for (const keyword of keywords) {
+  for (const keyword of filterCompetencyKeywords(keywords)) {
     const term = normalizeTerm(keyword)
     if (!term || byTerm.has(term)) continue
     byTerm.set(term, { term, category: categorizeSkill(term) })

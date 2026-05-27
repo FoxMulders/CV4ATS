@@ -3,6 +3,10 @@ import { extractHighValueKeywords } from '@/lib/resume/keyword-extraction'
 import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
+import {
+  filterCompetencyKeywords,
+  isNonCompetencyMetadata,
+} from '@/lib/resume/non-competency-metadata-filter'
 
 export const SECTION_WEIGHTS = {
   experience: 1.0,
@@ -221,17 +225,23 @@ function scoreTerms(
   sections: ResumeScoringSections,
   jobDescription: string
 ): WeightedScoreResult {
-  const breakdown: TermScoreBreakdown[] = terms.map((term) => {
+  const eligibleTerms = filterCompetencyKeywords(terms)
+  const breakdown: TermScoreBreakdown[] = []
+
+  for (const term of eligibleTerms) {
+    if (isNonCompetencyMetadata(term)) continue
+
     const sectionWeight = resolveSectionWeight(term, sections)
     if (sectionWeight <= 0) {
-      return {
+      breakdown.push({
         term,
         matched: false,
         sectionWeight: 0,
         densityMultiplier: 0,
         phrasingPenaltyApplied: false,
         contribution: 0,
-      }
+      })
+      continue
     }
 
     const occurrences = countKeywordOccurrences(sections.fullText, term)
@@ -240,15 +250,15 @@ function scoreTerms(
     const penaltyFactor = phrasingPenaltyApplied ? PHRASING_PENALTY_FACTOR : 1
     const contribution = sectionWeight * density * penaltyFactor
 
-    return {
+    breakdown.push({
       term,
       matched: true,
       sectionWeight,
       densityMultiplier: density,
       phrasingPenaltyApplied,
       contribution,
-    }
-  })
+    })
+  }
 
   const rawScore = computeRawPercent(breakdown)
   const nearIdenticalProfile = isNearIdenticalProfile(breakdown, sections)
@@ -273,12 +283,13 @@ export function computeWeightedMatchScore(
   terms?: string[]
 ): WeightedScoreResult {
   const sections = parseScoringSections(resumeText)
-  const targetTerms =
+  const targetTerms = filterCompetencyKeywords(
     terms ??
-    filterAuditedKeywordTerms(
-      sanitizeKeywordList(extractHighValueKeywords(jobDescription), resumeText),
-      resumeText
-    )
+      filterAuditedKeywordTerms(
+        sanitizeKeywordList(extractHighValueKeywords(jobDescription), resumeText),
+        resumeText
+      )
+  )
 
   return scoreTerms(targetTerms, sections, jobDescription)
 }
