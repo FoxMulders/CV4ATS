@@ -29,6 +29,8 @@ const EXPLICIT_TARGET_PATTERNS: Array<{ pattern: RegExp; term: string }> = [
   { pattern: /\bworkflows?\b/gi, term: 'workflows' },
   { pattern: /\bai agents?\b/gi, term: 'ai agents' },
   { pattern: /\bworkflow automation\b/gi, term: 'workflow automation' },
+  { pattern: /\bprocess improvement\b/gi, term: 'process improvement' },
+  { pattern: /\boperational excellence\b/gi, term: 'operational excellence' },
   { pattern: /\bdevops\b/gi, term: 'devops' },
   { pattern: /\bsdlc\b/gi, term: 'sdlc' },
   { pattern: /\bsafe\b/gi, term: 'safe' },
@@ -73,6 +75,8 @@ const COMPETENCY_PATTERNS = [
   /\bbacklog\b/gi,
   /\bstrategy\b/gi,
   /\broadmap\b/gi,
+  /\bprocess improvement\b/gi,
+  /\boperational excellence\b/gi,
 ]
 
 const DOMAIN_PATTERNS = [
@@ -110,7 +114,7 @@ function normalizeTerm(term: string): string {
   return tokenize(term).join(' ')
 }
 
-function categorizeSkill(term: string): SkillCategory {
+export function categorizeSkill(term: string): SkillCategory {
   const normalized = normalizeTerm(term)
   const tokens = tokenize(normalized)
 

@@ -13,6 +13,7 @@ interface KeywordReportPanelProps {
   report: KeywordReport
   label?: string
   onIncorporateKeywords?: (selections: SkillSnippetSelection[]) => void | Promise<void>
+  onRestorePurged?: (selections: SkillSnippetSelection[]) => void | Promise<void>
   isRerunning?: boolean
   jobDescription?: string
   resumeText?: string
@@ -22,6 +23,7 @@ export function KeywordReportPanel({
   report,
   label = 'After tailoring',
   onIncorporateKeywords,
+  onRestorePurged,
   isRerunning = false,
   jobDescription,
   resumeText,
@@ -32,7 +34,12 @@ export function KeywordReportPanel({
   return (
     <div className="space-y-6">
       {jobDescription?.trim() ? (
-        <KeywordAuditPanel jobDescription={jobDescription} resumeText={resumeText} />
+        <KeywordAuditPanel
+          jobDescription={jobDescription}
+          resumeText={resumeText}
+          onRestorePurged={onRestorePurged ?? onIncorporateKeywords}
+          isRerunning={isRerunning}
+        />
       ) : null}
 
       <Card>

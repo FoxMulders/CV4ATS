@@ -1,3 +1,7 @@
+import {
+  getResumeEvidenceAliases,
+  resumeSupportsPurgedTerm,
+} from '@/lib/resume/resume-evidence-aliases'
 import { isRecognizedAtsTerm } from '@/lib/resume/ats-term-lexicon'
 import { isNonCompetencyMetadata } from '@/lib/resume/non-competency-metadata-filter'
 import { isRelevantJobKeyword } from '@/lib/resume/keyword-filter'
@@ -127,6 +131,10 @@ const PM_IT_ALIGNMENT_TERMS = new Set([
   'waterfall',
   'workflow',
   'workflows',
+  'operational',
+  'excellence',
+  'improvement',
+  'process',
 ])
 
 const CONTEXTUAL_PHRASE_HINTS: Record<string, string> = {
@@ -137,6 +145,8 @@ const CONTEXTUAL_PHRASE_HINTS: Record<string, string> = {
   operations: 'IT operations',
   strategy: 'delivery strategy',
   workflows: 'business workflows',
+  'process improvement': 'process improvement through workflow automation',
+  'operational excellence': 'operational excellence across technical operations',
 }
 
 function normalizeTerm(term: string): string {
@@ -192,6 +202,12 @@ function alignsWithPmItBackground(term: string, resumeText: string): boolean {
   const haystack = `${resumeText} ${career.recentRoles.join(' ')} ${career.achievementBullets.join(' ')}`.toLowerCase()
 
   if (haystack.includes(normalized)) return true
+
+  for (const alias of getResumeEvidenceAliases(normalized)) {
+    if (haystack.includes(alias)) return true
+  }
+
+  if (resumeSupportsPurgedTerm(normalized, resumeText)) return true
 
   if (tokens.length === 1 && tokens[0]!.length >= 4) {
     return haystack.includes(tokens[0]!)

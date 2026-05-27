@@ -29,6 +29,7 @@ export interface EditableSkillSnippetItem {
   snippet: string
   category?: string
   placement?: string
+  purgeReason?: string
 }
 
 interface EditableSkillSnippetPickerProps {
@@ -251,6 +252,7 @@ export function EditableSkillSnippetPicker({
                 onSnippetChange={(value) => updateSnippet(keyword, value)}
                 onTailor={() => void handleTailorSnippet(keyword)}
                 onRemove={() => removeKeyword(keyword)}
+                purgeReason={item?.purgeReason}
               />
             )
           })}
@@ -303,6 +305,7 @@ interface SnippetEditorCardProps {
   onSnippetChange: (value: string) => void
   onTailor: () => void
   onRemove: () => void
+  purgeReason?: string
 }
 
 function SnippetEditorCard({
@@ -316,6 +319,7 @@ function SnippetEditorCard({
   onSnippetChange,
   onTailor,
   onRemove,
+  purgeReason,
 }: SnippetEditorCardProps) {
   const similarityAudit = usePhrasingSimilarityAudit(snippet, jobDescription)
 
@@ -332,6 +336,9 @@ function SnippetEditorCard({
         ) : null}
         {item?.placement ? (
           <span className="text-xs text-muted-foreground">→ {item.placement}</span>
+        ) : null}
+        {purgeReason ? (
+          <span className="text-xs text-amber-800">Purged: {purgeReason}</span>
         ) : null}
         <Button
           type="button"
@@ -420,6 +427,53 @@ export function SelectableMissingKeywords({
       onIncorporate={onIncorporate}
       isLoading={isLoading}
       description={description}
+      jobDescription={jobDescription}
+      resumeText={resumeText}
+    />
+  )
+}
+
+interface SelectablePurgedKeywordsProps {
+  items: Array<{
+    skill: string
+    snippet: string
+    category: string
+    placementLabel: string
+    purgeReason: string
+  }>
+  onIncorporate: (selections: SkillSnippetSelection[]) => void | Promise<void>
+  isLoading?: boolean
+  jobDescription?: string
+  resumeText?: string
+}
+
+/** Purged keyword picker with placement preview, edit support, and re-tailor action. */
+export function SelectablePurgedKeywords({
+  items,
+  onIncorporate,
+  isLoading = false,
+  jobDescription,
+  resumeText,
+}: SelectablePurgedKeywordsProps) {
+  const pickerItems = useMemo(
+    () =>
+      items.map((item) => ({
+        keyword: item.skill,
+        snippet: item.snippet,
+        category: item.category,
+        placement: item.placementLabel,
+        purgeReason: item.purgeReason,
+      })),
+    [items]
+  )
+
+  return (
+    <EditableSkillSnippetPicker
+      items={pickerItems}
+      onIncorporate={onIncorporate}
+      isLoading={isLoading}
+      description="Terms the auditor removed — select any you can truthfully claim. Each shows where it will land and a draft bullet you can edit before re-tailoring."
+      actionLabel="Restore selected & re-tailor"
       jobDescription={jobDescription}
       resumeText={resumeText}
     />

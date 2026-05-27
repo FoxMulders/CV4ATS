@@ -1,16 +1,30 @@
 'use client'
 
+import { useMemo } from 'react'
+
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  SelectablePurgedKeywords,
+  type SkillSnippetSelection,
+} from '@/components/results/editable-skill-snippet-picker'
 import {
   auditKeywordTerms,
   type AuditedKeyword,
 } from '@/lib/resume/keyword-audit'
 import { extractHighValueKeywords } from '@/lib/resume/keyword-extraction'
+import {
+  buildRestorationsForPurgedKeywords,
+  isUserRestorablePurgedKeyword,
+  prioritizeRestorablePurgedKeywords,
+  resumeSupportsPurgedTerm,
+} from '@/lib/resume/purged-keyword-restore'
 
 interface KeywordAuditPanelProps {
   jobDescription: string
   resumeText?: string
+  onRestorePurged?: (selections: SkillSnippetSelection[]) => void | Promise<void>
+  isRerunning?: boolean
 }
 
 function AuditGroup({
@@ -18,11 +32,13 @@ function AuditGroup({
   icon,
   items,
   emptyMessage,
+  resumeText = '',
 }: {
   title: string
   icon: string
   items: AuditedKeyword[]
   emptyMessage: string
+  resumeText?: string
 }) {
   return (
     <div className="space-y-2">
@@ -44,6 +60,11 @@ function AuditGroup({
                     <Badge variant="secondary">{item.term}</Badge>
                   </>
                 ) : null}
+                {resumeText && resumeSupportsPurgedTerm(item.original, resumeText) ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    Resume supports
+                  </Badge>
+                ) : null}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
             </li>
@@ -56,43 +77,93 @@ function AuditGroup({
   )
 }
 
-export function KeywordAuditPanel({ jobDescription, resumeText = '' }: KeywordAuditPanelProps) {
+export function KeywordAuditPanel({
+  jobDescription,
+  resumeText = '',
+  onRestorePurged,
+  isRerunning = false,
+}: KeywordAuditPanelProps) {
   const rawTerms = extractHighValueKeywords(jobDescription)
   const audit = auditKeywordTerms(rawTerms, resumeText)
+
+  const restorablePurged = useMemo(
+    () =>
+      prioritizeRestorablePurgedKeywords(
+        audit.purged.filter(isUserRestorablePurgedKeyword),
+        resumeText
+      ),
+    [audit.purged, resumeText]
+  )
+
+  const restorationItems = useMemo(
+    () =>
+      buildRestorationsForPurgedKeywords(restorablePurged, {
+        resumeText,
+        jobDescription,
+      }),
+    [restorablePurged, resumeText, jobDescription]
+  )
 
   if (audit.purged.length === 0 && audit.modified.length === 0 && audit.approved.length === 0) {
     return null
   }
 
   return (
-    <Card className="border-amber-200/80 bg-amber-50/40">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">ATS compliance auditor</CardTitle>
-        <CardDescription>
-          Keywords extracted from the job description are verified for truthfulness and human
-          readability before they influence your resume. Coherence beats a superficial 100% match.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-5 md:grid-cols-3">
-        <AuditGroup
-          title="Purged"
-          icon="❌"
-          items={audit.purged}
-          emptyMessage="No scraper junk or irrelevant domain terms detected."
-        />
-        <AuditGroup
-          title="Modified for context"
-          icon="⚠️"
-          items={audit.modified}
-          emptyMessage="No bare keywords needed rephrasing."
-        />
-        <AuditGroup
-          title="Approved"
-          icon="✅"
-          items={audit.approved}
-          emptyMessage="No approved ATS keywords detected."
-        />
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Card className="border-amber-200/80 bg-amber-50/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">ATS compliance auditor</CardTitle>
+          <CardDescription>
+            Keywords extracted from the job description are verified for truthfulness and human
+            readability before they influence your resume. Coherence beats a superficial 100% match.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5 md:grid-cols-3">
+          <AuditGroup
+            title="Purged"
+            icon="❌"
+            items={audit.purged}
+            emptyMessage="No scraper junk or irrelevant domain terms detected."
+            resumeText={resumeText}
+          />
+          <AuditGroup
+            title="Modified for context"
+            icon="⚠️"
+            items={audit.modified}
+            emptyMessage="No bare keywords needed rephrasing."
+            resumeText={resumeText}
+          />
+          <AuditGroup
+            title="Approved"
+            icon="✅"
+            items={audit.approved}
+            emptyMessage="No approved ATS keywords detected."
+            resumeText={resumeText}
+          />
+        </CardContent>
+      </Card>
+
+      {onRestorePurged && restorationItems.length > 0 ? (
+        <Card className="border-sky-200/80 bg-sky-50/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Restore purged competencies</CardTitle>
+            <CardDescription>
+              Some terms were filtered out automatically — but you can restore competencies you
+              genuinely possess. Select a purged phrase to preview suggested placement, edit the
+              wording, and re-tailor your resume.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SelectablePurgedKeywords
+              items={restorationItems}
+              onIncorporate={onRestorePurged}
+              isLoading={isRerunning}
+              jobDescription={jobDescription}
+              resumeText={resumeText}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
   )
 }
