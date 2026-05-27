@@ -1,5 +1,6 @@
 import { isRecognizedAtsTerm, INDUSTRY_SKILL_TERMS } from '@/lib/resume/ats-term-lexicon'
 import { isHighValueKeyword, pruneRedundantKeywords } from '@/lib/resume/keyword-extraction'
+import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
 import { filterReportableKeywords, isReportableAtsKeyword } from '@/lib/resume/keyword-report-filter'
 import { lemmaKey, lemmaToken } from '@/lib/resume/lemma'
 import { phraseWithoutStopWords, tokenize } from '@/lib/resume/stopwords'
@@ -29,7 +30,7 @@ function pickPreferredKeyword(a: string, b: string): string {
  * Final cleanup for matched/missing keyword arrays:
  * stop-word filter → reportability gate → lemma dedupe → phrase pruning.
  */
-export function sanitizeKeywordList(keywords: string[]): string[] {
+export function sanitizeKeywordList(keywords: string[], resumeText = ''): string[] {
   const relevant = filterReportableKeywords(
     keywords.map(normalizeDisplayKeyword).filter(Boolean)
   ).filter(isReportableAtsKeyword)
@@ -44,12 +45,15 @@ export function sanitizeKeywordList(keywords: string[]): string[] {
 
   const deduped = pruneRedundantKeywords([...byLemma.values()])
 
-  return deduped.sort((a, b) => {
-    const aScore = scoreIndustryPriority(a)
-    const bScore = scoreIndustryPriority(b)
-    if (aScore !== bScore) return bScore - aScore
-    return a.localeCompare(b)
-  })
+  return filterAuditedKeywordTerms(
+    deduped.sort((a, b) => {
+      const aScore = scoreIndustryPriority(a)
+      const bScore = scoreIndustryPriority(b)
+      if (aScore !== bScore) return bScore - aScore
+      return a.localeCompare(b)
+    }),
+    resumeText
+  )
 }
 
 function scoreIndustryPriority(term: string): number {

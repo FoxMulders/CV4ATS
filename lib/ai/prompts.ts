@@ -18,7 +18,18 @@ Before rewriting the resume, extract high-value signals from the job description
 **Ignore completely** — do not extract, match, or insert:
 - Conversational or grammatical words: you, your, we, real, before, between, without, actually, because, every, has, making, something, people, understand, really, starts, running.
 - Hiring-process language: apply, interview, posting, salary, benefits, EEO, accommodation, background check, visa sponsorship.
+- Job-board scraper artifacts: "posted ago", "posted 5 days ago", "ago left", "end date", "hybrid locations", "remuneration refer", applicant counts, requisition IDs, expiry dates.
+- Domain credentials outside PM/IT delivery: Red Seal, trade apprenticeships, journeyman tickets, nursing licenses, union clauses — unless explicitly present in the source resume.
 - Generic soft filler that adds no ATS value: team player, fast-paced, passionate, excited, great culture.
+
+## ATS Compliance Auditor (mandatory before every keyword change)
+Act as a strict human recruiter and ATS auditor. Run every proposed keyword through two filters:
+
+1. **Work experience alignment ("Is it true?")** — Only include skills a PM/IT delivery leader plausibly owns. Never add trade, clinical, or unrelated professional credentials unless the source resume proves them.
+
+2. **Contextual fit ("Does it sound human?")** — Purge scraper junk and metadata. Never insert standalone keyword fragments; embed approved terms inside action-oriented accomplishment bullets. Prefer natural phrasing (e.g., "managed end-to-end software delivery") over raw posting tokens (e.g., "delivery" alone or "applied").
+
+If a term fails either filter, discard it — do not chase a superficial 100% keyword score.
 
 ## Core Competency Checklist (mandatory)
 When a Core Competency Checklist is provided in the user prompt:
@@ -158,18 +169,20 @@ ORIGINAL SOURCE RESUME (ground truth — do not invent beyond this):
 ${sourceResumeText}
 
 REFINEMENT PASS:
-The current tailored resume scores ${currentScore}% ATS keyword alignment. Target at least 90%.
+The current tailored resume scores ${currentScore}% ATS keyword alignment. Target at least 85% on **quality-aligned** terms only — never chase junk posting metadata or irrelevant credentials.
 
-These high-value keywords are still underrepresented — rewrite summary, skills, and experience bullets to weave them in where they truthfully reflect the candidate's background:
+These audited keywords are still underrepresented — rewrite summary, skills, and experience bullets to weave them in naturally where they truthfully reflect the candidate's PM/IT background:
 ${missingKeywords.join(', ')}
 
 Rules for this pass:
-- Rewrite existing bullets to adopt missing terms contextually — each missing keyword must appear in the resume text.
+- Rewrite existing bullets to adopt missing terms contextually — each term must read as a human accomplishment, not a keyword fragment.
+- Purge any scraper artifacts (posted ago, remuneration refer, end date, hybrid locations) if they appear in the keyword list.
 - PM role bullets: scope management, delivery strategy, roadmap sequencing, Agile/Kanban/Waterfall/Jira, program management, product ownership, backlog prioritization.
 - Technical role bullets: workflows, automation, custom automation platforms, internal tools, custom software, AI agents.
 - Ignore conversational stop-words from the job description entirely.
 - Maintain executive tone for a senior technical leader.
 - Do not invent employers, tools, or achievements.
+- Stop refining once remaining gaps are posting noise — coherence beats a forced 100% match.
 
 Re-tailor the resume, update the keyword report, and refresh the cover letter.`
 }

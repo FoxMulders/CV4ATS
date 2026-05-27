@@ -7,6 +7,7 @@ import {
   SelectableMissingKeywords,
   type SkillSnippetSelection,
 } from '@/components/results/editable-skill-snippet-picker'
+import { KeywordAuditPanel } from '@/components/results/keyword-audit-panel'
 
 interface KeywordReportPanelProps {
   report: KeywordReport
@@ -30,6 +31,10 @@ export function KeywordReportPanel({
 
   return (
     <div className="space-y-6">
+      {jobDescription?.trim() ? (
+        <KeywordAuditPanel jobDescription={jobDescription} resumeText={resumeText} />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>{label} — matched keywords</CardTitle>

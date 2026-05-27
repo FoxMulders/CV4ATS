@@ -219,7 +219,7 @@ export async function runGenerationPipeline(
       jobDescription,
       workingResumeText,
       currentScore,
-      missingKeywords.slice(0, 12),
+      missingKeywords.slice(0, 8),
       checklistPrompt,
       { onPartial: emitPartial }
     )

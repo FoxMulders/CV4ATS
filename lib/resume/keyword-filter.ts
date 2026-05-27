@@ -1,3 +1,4 @@
+import { stripJobBoardMetadata } from '@/lib/resume/keyword-audit'
 import { isStopWord, phraseWithoutStopWords, tokenize } from '@/lib/resume/stopwords'
 
 const IRRELEVANT_TERMS = new Set([
@@ -116,6 +117,18 @@ const IRRELEVANT_TERMS = new Set([
   'post',
   'posted',
   'posting',
+  'ago',
+  'left',
+  'refer',
+  'remuneration',
+  'applied',
+  'applicants',
+  'viewed',
+  'requisition',
+  'extension',
+  'extensions',
+  'months',
+  'month',
   'postings',
   'preferred',
   'qualification',
@@ -199,7 +212,12 @@ const IRRELEVANT_PHRASE_PATTERNS = [
   /\bjob description\b/gi,
   /\bcover letter\b/gi,
   /\bsubmit (?:your )?application\b/gi,
-  /\bonly (?:shortlisted|selected) candidates\b/gi,
+  /\bjob\s+id\b/gi,
+  /\bposted\s+(?:\d+\s+)?(?:days?\s+)?ago\b/gi,
+  /\bremuneration\s+refer\b/gi,
+  /\bago\s+left\b/gi,
+  /\bend\s+date\b/gi,
+  /\bhybrid\s+locations?\b/gi,
 ]
 
 function normalizeKeyword(term: string): string {
@@ -249,5 +267,8 @@ export function stripIrrelevantJobDescriptionText(jobDescription: string): strin
     text = text.replace(pattern, ' ')
     pattern.lastIndex = 0
   }
+
+  text = stripJobBoardMetadata(text)
+
   return text.replace(/\s+/g, ' ').trim()
 }

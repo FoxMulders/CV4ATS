@@ -55,7 +55,7 @@ export function serializeTailoredResume(resume: TailoredResume): string {
 }
 
 export function scoreAtsCompliance(resumeText: string, jobDescription: string): KeywordReport {
-  const terms = sanitizeKeywordList(extractHighValueKeywords(jobDescription))
+  const terms = sanitizeKeywordList(extractHighValueKeywords(jobDescription), resumeText)
 
   const matchedKeywords: string[] = []
   const missingKeywords: string[] = []

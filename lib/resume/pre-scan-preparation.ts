@@ -1,3 +1,6 @@
+import {
+  auditKeywordTerm,
+} from '@/lib/resume/keyword-audit'
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
 import {
   buildSuggestedAddition,
@@ -37,7 +40,9 @@ export function runSkillExtrapolationAndInjection(
 ): PreScanResult {
   const { autoInject = true } = options
 
-  const targetSkills = extrapolateTargetSkills(jobDescription)
+  const targetSkills = extrapolateTargetSkills(jobDescription).filter(
+    (skill) => auditKeywordTerm(skill.term, resumeText).status !== 'purged'
+  )
 
   const matchedSkills: TargetSkill[] = []
   const missingSkills: TargetSkill[] = []
@@ -67,7 +72,7 @@ export function runSkillExtrapolationAndInjection(
   let modifiedBulletCount = 0
 
   if (autoInject && missingSkills.length > 0) {
-    const injection = injectMissingSkills(resumeText, targetSkills)
+    const injection = injectMissingSkills(resumeText, missingSkills)
     preparedResumeText = injection.text
     autoInjectedSkills = injection.injectedSkills
     modifiedBulletCount = injection.modifiedBulletCount

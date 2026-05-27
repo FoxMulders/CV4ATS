@@ -2,7 +2,7 @@ import type { KeywordReport } from '@/lib/ai/schemas'
 import type { ScorePassEvent } from '@/lib/api/progress-stream'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
 
-export const TARGET_ATS_SCORE = 90
+export const TARGET_ATS_SCORE = 85
 export const MAX_GENERATION_PASSES = 3
 export const EDGE_MAX_GENERATION_PASSES = 1
 

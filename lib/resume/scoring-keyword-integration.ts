@@ -1,3 +1,4 @@
+import { filterAuditedKeywordTerms } from '@/lib/resume/keyword-audit'
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
@@ -38,7 +39,10 @@ export function integrateScoringKeywordsUntilSaturation(
 
   for (let round = 0; round < MAX_INTEGRATION_ROUNDS; round += 1) {
     const serialized = serializeTailoredResume(current)
-    const missingTerms = getMissingScoringKeywords(serialized, jobDescription)
+    const missingTerms = filterAuditedKeywordTerms(
+      getMissingScoringKeywords(serialized, jobDescription),
+      serialized
+    )
     const matchScore = computeMatchScore(serialized, jobDescription)
 
     if (missingTerms.length === 0 || matchScore === previousScore) {
@@ -66,7 +70,7 @@ export function integrateScoringKeywordsUntilSaturation(
 }
 
 function computeMatchScore(resumeText: string, jobDescription: string): number {
-  const terms = getScoringKeywordTargets(jobDescription)
+  const terms = getScoringKeywordTargets(jobDescription, resumeText)
   if (terms.length === 0) return 0
   const matched = terms.filter((term) => keywordMatchesResume(resumeText, term)).length
   return Math.round((matched / terms.length) * 100)
