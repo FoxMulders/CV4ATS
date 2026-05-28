@@ -5,11 +5,12 @@ import { addExperienceToResume } from '@/lib/resume/experience-utils'
 
 import { AddExperiencePanel } from '@/components/resume/add-experience-panel'
 import { ProposedSkillAdditions } from '@/components/resume/proposed-skill-additions'
+import { EditableParsedResumeForm } from '@/components/results/editable-parsed-resume-form'
 import { ResumeChangeHighlight } from '@/components/results/resume-change-highlight'
-import { ResumePreview } from '@/components/results/resume-preview'
 
 interface EditableResumePreviewProps {
   resume: TailoredResume
+  baselineResume: TailoredResume
   onResumeChange: (resume: TailoredResume) => void
   originalText?: string | null
   jobDescription?: string
@@ -17,6 +18,7 @@ interface EditableResumePreviewProps {
 
 export function EditableResumePreview({
   resume,
+  baselineResume,
   onResumeChange,
   originalText,
   jobDescription,
@@ -35,6 +37,12 @@ export function EditableResumePreview({
           onResumeChange(addExperienceToResume(resume, experience))
         }}
       />
+      <EditableParsedResumeForm
+        resume={resume}
+        baseline={baselineResume}
+        onChange={onResumeChange}
+        jobDescription={jobDescription}
+      />
       {originalText?.trim() ? (
         <ResumeChangeHighlight
           originalText={originalText}
@@ -42,9 +50,7 @@ export function EditableResumePreview({
           onResumeChange={onResumeChange}
           jobDescription={jobDescription}
         />
-      ) : (
-        <ResumePreview resume={resume} jobDescription={jobDescription} />
-      )}
+      ) : null}
     </div>
   )
 }

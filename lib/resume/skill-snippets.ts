@@ -19,6 +19,7 @@ export interface SuggestedAddition {
   bulletIndex?: number
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
   domainLabel?: string
+  siblingBullets?: string[]
 }
 
 export interface SnippetGenerationContext {
@@ -79,6 +80,7 @@ export function buildSuggestedAddition(
     bulletIndex: anchor.targetBulletIndex,
     modificationType: anchor.modificationType,
     domainLabel: anchor.position?.domainLabel,
+    siblingBullets: anchor.siblingBullets,
   }
 }
 

@@ -6,14 +6,14 @@ const FEATURES: Array<{
 }> = [
   {
     icon: '🧠',
-    title: 'Context-Aware Tailoring',
+    title: 'AI-Powered ATS Resume Tailoring',
     badge: 'Our Core Moat',
     description:
       'Instead of using rigid templates, our system reads your authentic career history and seamlessly blends missing skills into your natural writing style.',
   },
   {
     icon: '🚫',
-    title: 'Anti-Plagiarism Guardrails',
+    title: 'AI Resume Scanner with Anti-Plagiarism Guardrails',
     description:
       'Our built-in Exact Phrasing Auditor actively flags sequences of 4+ identical words from the job posting, protecting you from automated similarity filters and cynical recruiters.',
   },
@@ -53,12 +53,12 @@ export function CompetitiveAdvantagesSection() {
             id="competitive-advantages-heading"
             className="font-heading text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl"
           >
-            The Smartest Way to Align with Corporate Scanners—Without Sounding Like a Robot.
+            The Smartest Way to Build an ATS-Compliant Resume—Without Sounding Like a Robot.
           </h2>
           <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Traditional resume tailoring tools trap you into copy-pasting generic keywords that human
-            recruiters flag instantly. ATS4CV uses context-aware contextual intelligence to write
-            natural, distinct achievements tailored to your specific target role.
+            Traditional resume builders trap you into copy-pasting generic keywords that human
+            recruiters flag instantly. ATS4CV uses AI-powered resume tailoring to write natural,
+            distinct achievements aligned to your specific target role.
           </p>
         </div>
 
@@ -69,7 +69,7 @@ export function CompetitiveAdvantagesSection() {
               className="group rounded-xl border border-border/70 bg-card/90 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-brand-gold/40 hover:shadow-md"
             >
               <div className="mb-3 flex items-center gap-2">
-                <span aria-hidden="true" className="text-xl">
+                <span aria-hidden="true" className="text-xl" role="img">
                   {feature.icon}
                 </span>
                 <h3 className="text-sm font-semibold leading-snug text-foreground">

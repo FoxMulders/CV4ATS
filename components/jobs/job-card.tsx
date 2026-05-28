@@ -10,7 +10,7 @@ import {
   MapPin,
   Sparkles,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
@@ -21,6 +21,7 @@ import { CoverLetterPreview } from '@/components/results/cover-letter-preview'
 import { DownloadActions } from '@/components/results/download-actions'
 import { AtsComplianceComparison } from '@/components/results/ats-compliance-comparison'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
+import { RecalculateScoreToolbar } from '@/components/results/recalculate-score-toolbar'
 import {
   SelectableMissingKeywords,
   type SkillSnippetSelection,
@@ -31,7 +32,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { GenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import type { JobListing } from '@/lib/jobs/types'
 import { formatJobDescriptionForAi } from '@/lib/jobs/types'
@@ -46,6 +47,7 @@ import { StreamingResumePreview } from '@/components/wizard/streaming-resume-pre
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
+import { useAtsScoreRecalculation } from '@/hooks/use-ats-score-recalculation'
 import { formatAppliedDate, type AppliedJobRecord } from '@/lib/jobs/applied-jobs'
 
 export interface JobTailorResult extends GenerationResult {
@@ -97,6 +99,12 @@ export function JobCard({
   const [scorePassLines, setScorePassLines] = useState<string[]>([])
   const [streamingResume, setStreamingResume] = useState<TailoredResume | null>(null)
   const [coverLetter, setCoverLetter] = useState(tailorResult?.coverLetter ?? '')
+  const [editedKeywordReport, setEditedKeywordReport] = useState<KeywordReport | null>(
+    tailorResult?.keywordReport ?? null
+  )
+  const [baselineKeywordReport, setBaselineKeywordReport] = useState<KeywordReport | null>(
+    tailorResult?.keywordReport ?? null
+  )
   const {
     resume: editedResume,
     pushResume: pushEditedResume,
@@ -118,7 +126,11 @@ export function JobCard({
     if (tailorResult?.tailoredResume) {
       resetEditedResume(tailorResult.tailoredResume)
     }
-  }, [tailorResult?.jobId, tailorResult?.tailoredResume, resetEditedResume])
+    if (tailorResult?.keywordReport) {
+      setEditedKeywordReport(tailorResult.keywordReport)
+      setBaselineKeywordReport(tailorResult.keywordReport)
+    }
+  }, [tailorResult?.jobId, tailorResult?.tailoredResume, tailorResult?.keywordReport, resetEditedResume])
 
   async function handleTailor(options: {
     selections?: SkillSnippetSelection[]
@@ -241,12 +253,34 @@ export function JobCard({
     await handleTailor({ selections, resumeOverride })
   }
 
-  const afterScore = tailorResult?.keywordReport.matchScore
+  const jobDescriptionForAi = formatJobDescriptionForAi(job)
+
+  const resumeHasManualEdits = useMemo(() => {
+    if (!editedResume || !tailorResult?.tailoredResume) return false
+    return (
+      serializeTailoredResume(editedResume) !==
+      serializeTailoredResume(tailorResult.tailoredResume)
+    )
+  }, [editedResume, tailorResult?.tailoredResume])
+
+  const handleKeywordReportUpdate = useCallback((report: KeywordReport) => {
+    setEditedKeywordReport(report)
+  }, [])
+
+  const scoreRecalculation = useAtsScoreRecalculation({
+    autoRecalculate: Boolean(tailorResult && resumeHasManualEdits),
+    resume: editedResume,
+    jobDescription: jobDescriptionForAi,
+    baselineScore: baselineKeywordReport?.matchScore,
+    seedScore: tailorResult?.keywordReport.matchScore ?? null,
+    onReportUpdate: handleKeywordReportUpdate,
+  })
+
+  const afterScore = editedKeywordReport?.matchScore ?? tailorResult?.keywordReport.matchScore
   const beforeScore = tailorResult?.baselineKeywordReport.matchScore
   const priorityEmployerName = job.targetEmployerId
     ? getEmployerDisplayName(job.targetEmployerId)
     : undefined
-  const jobDescriptionForAi = formatJobDescriptionForAi(job)
   const resumeContextText =
     editedResume != null
       ? serializeTailoredResume(editedResume)
@@ -396,9 +430,24 @@ export function JobCard({
 
             {tailorResult ? (
               <>
+                <RecalculateScoreToolbar
+                  onRecalculate={scoreRecalculation.recalculateNow}
+                  isRecalculating={scoreRecalculation.isRecalculating}
+                  isStale={scoreRecalculation.isStale}
+                  lastScoreDelta={scoreRecalculation.lastScoreDelta}
+                  matchScore={afterScore ?? 0}
+                  baselineScore={
+                    baselineKeywordReport?.matchScore ?? tailorResult.keywordReport.matchScore
+                  }
+                />
+
                 <AtsComplianceComparison
                   before={tailorResult.baselineKeywordReport}
-                  after={tailorResult.keywordReport}
+                  after={editedKeywordReport ?? tailorResult.keywordReport}
+                  tailoredBaselineScore={
+                    baselineKeywordReport?.matchScore ?? tailorResult.keywordReport.matchScore
+                  }
+                  isAfterUpdating={scoreRecalculation.isRecalculating}
                   refinementPasses={tailorResult.refinementPasses}
                   targetScoreMet={tailorResult.targetScoreMet}
                 />
@@ -454,9 +503,10 @@ export function JobCard({
                   </TabsContent>
 
                   <TabsContent value="resume" className="mt-4">
-                    {editedResume ? (
+                    {editedResume && tailorResult?.tailoredResume ? (
                       <EditableResumePreview
                         resume={editedResume}
+                        baselineResume={tailorResult.tailoredResume}
                         onResumeChange={pushEditedResume}
                         jobDescription={jobDescriptionForAi}
                       />
@@ -473,9 +523,12 @@ export function JobCard({
 
                   <TabsContent value="keywords" className="mt-4">
                     <KeywordReportPanel
-                      report={tailorResult.keywordReport}
+                      report={editedKeywordReport ?? tailorResult.keywordReport}
+                      baselineReport={baselineKeywordReport ?? tailorResult.keywordReport}
+                      onReportChange={handleKeywordReportUpdate}
                       onIncorporateKeywords={handleIncorporateKeywords}
                       isRerunning={isTailoring}
+                      isRecalculatingScore={scoreRecalculation.isRecalculating}
                       jobDescription={jobDescriptionForAi}
                       resumeText={resumeContextText}
                     />

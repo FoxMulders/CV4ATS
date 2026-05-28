@@ -1,10 +1,30 @@
+import { guideWorkspaceFocusAfterJobPaste } from '@/lib/wizard/workspace-focus-guide'
+
 /** After a large paste, reset textarea view so users see the start of the content. */
 export function handlePasteScrollToTop(event: React.ClipboardEvent<HTMLTextAreaElement>) {
   const textarea = event.currentTarget
   window.setTimeout(() => {
     textarea.scrollTop = 0
     textarea.setSelectionRange(0, 0)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, 0)
+}
+
+/** After job-description paste completes, route focus to the next workspace step. */
+export function handleJobDescriptionPaste(
+  event: React.ClipboardEvent<HTMLTextAreaElement>,
+  options: {
+    resumePopulated: boolean
+    onFocusTarget?: (target: 'resume' | 'generate') => void
+  }
+) {
+  handlePasteScrollToTop(event)
+
+  const pastedText = event.clipboardData.getData('text')
+  if (!pastedText.trim()) return
+
+  window.setTimeout(() => {
+    const target = guideWorkspaceFocusAfterJobPaste(options.resumePopulated)
+    options.onFocusTarget?.(target)
   }, 0)
 }
 

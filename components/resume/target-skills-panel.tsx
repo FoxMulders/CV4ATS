@@ -2,14 +2,19 @@
 
 import { Sparkles } from 'lucide-react'
 
+import { EditableFieldShell } from '@/components/form/editable-field-shell'
+import { EditableTagList } from '@/components/form/editable-tag-list'
+import { EditedFieldBadge } from '@/components/form/edited-field-badge'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   EditableSkillSnippetPicker,
   type SkillSnippetSelection,
 } from '@/components/results/editable-skill-snippet-picker'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import type { TargetSkill } from '@/lib/resume/skill-extrapolation'
+import { isFieldEdited } from '@/lib/form/field-diff'
 
 const CATEGORY_LABELS = {
   methodology: 'Methodology',
@@ -20,25 +25,36 @@ const CATEGORY_LABELS = {
 
 interface TargetSkillsPanelProps {
   preScan: PreScanResult | null
+  baselinePreScan?: PreScanResult | null
+  onPreScanChange?: (preScan: PreScanResult) => void
   isLoading?: boolean
   onInsertSelections?: (selections: SkillSnippetSelection[]) => void
   jobDescription?: string
   resumeText?: string
 }
 
-function SkillBadge({ skill }: { skill: TargetSkill }) {
+function SkillBadge({
+  skill,
+  edited = false,
+}: {
+  skill: TargetSkill
+  edited?: boolean
+}) {
   return (
     <Badge variant="secondary" className="gap-1">
       <span className="text-[10px] uppercase tracking-wide opacity-70">
         {CATEGORY_LABELS[skill.category]}
       </span>
       {skill.term}
+      {edited ? <EditedFieldBadge className="ml-1" /> : null}
     </Badge>
   )
 }
 
 export function TargetSkillsPanel({
   preScan,
+  baselinePreScan,
+  onPreScanChange,
   isLoading,
   onInsertSelections,
   jobDescription,
@@ -58,6 +74,11 @@ export function TargetSkillsPanel({
   }
 
   if (!preScan) return null
+
+  const baseline = baselinePreScan ?? preScan
+  const editable = Boolean(onPreScanChange)
+  const targetSkillTerms = preScan.targetSkills.map((skill) => skill.term)
+  const baselineTargetSkillTerms = baseline.targetSkills.map((skill) => skill.term)
 
   const snippetItems = preScan.suggestedAdditions.map((addition) => ({
     keyword: addition.skill,
@@ -85,40 +106,105 @@ export function TargetSkillsPanel({
           High-value industry skills & methodologies
         </CardTitle>
         <CardDescription>
-          Extracted from the job description before ATS scanning. Click missing skills to preview the
-          exact role and bullet being revised before inserting or re-tailoring.
+          Extracted from the job description before ATS scanning. Edit parsed skills and metrics in
+          place — modified fields show an Edited badge.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {preScan.targetSkills.length ? (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Target skills ({preScan.targetSkills.length})
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {preScan.targetSkills.map((skill) => (
-                <SkillBadge key={skill.term} skill={skill} />
-              ))}
+          editable ? (
+            <EditableTagList
+              label={`Target skills (${preScan.targetSkills.length})`}
+              values={targetSkillTerms}
+              baselineValues={baselineTargetSkillTerms}
+              onChange={(terms) =>
+                onPreScanChange?.({
+                  ...preScan,
+                  targetSkills: terms.map((term, index) => ({
+                    term,
+                    category: preScan.targetSkills[index]?.category ?? 'domainTech',
+                  })),
+                })
+              }
+              placeholder="Add target skill…"
+            />
+          ) : (
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Target skills ({preScan.targetSkills.length})
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {preScan.targetSkills.map((skill, index) => (
+                  <SkillBadge
+                    key={`${skill.term}-${index}`}
+                    skill={skill}
+                    edited={isFieldEdited(skill.term, baseline.targetSkills[index]?.term)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )
         ) : null}
 
         {preScan.autoInjectedSkills.length ? (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Auto-injected before scoring
-              {preScan.modifiedBulletCount
-                ? ` · ${preScan.modifiedBulletCount} bullet${preScan.modifiedBulletCount === 1 ? '' : 's'} updated`
-                : ''}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {preScan.autoInjectedSkills.map((skill) => (
-                <Badge key={skill} variant="default">
-                  {skill}
-                </Badge>
-              ))}
+          editable ? (
+            <EditableTagList
+              label={`Auto-injected before scoring${preScan.modifiedBulletCount ? ` · ${preScan.modifiedBulletCount} bullet${preScan.modifiedBulletCount === 1 ? '' : 's'} updated` : ''}`}
+              values={preScan.autoInjectedSkills}
+              baselineValues={baseline.autoInjectedSkills}
+              onChange={(autoInjectedSkills) =>
+                onPreScanChange?.({ ...preScan, autoInjectedSkills })
+              }
+              placeholder="Add auto-injected skill…"
+              variant="default"
+            />
+          ) : (
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Auto-injected before scoring
+                {preScan.modifiedBulletCount
+                  ? ` · ${preScan.modifiedBulletCount} bullet${preScan.modifiedBulletCount === 1 ? '' : 's'} updated`
+                  : ''}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {preScan.autoInjectedSkills.map((skill, index) => (
+                  <Badge
+                    key={skill}
+                    variant="default"
+                    className={
+                      isFieldEdited(skill, baseline.autoInjectedSkills[index])
+                        ? 'ring-1 ring-amber-400/70'
+                        : undefined
+                    }
+                  >
+                    {skill}
+                    {isFieldEdited(skill, baseline.autoInjectedSkills[index]) ? (
+                      <EditedFieldBadge className="ml-1" />
+                    ) : null}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </div>
+          )
+        ) : null}
+
+        {editable ? (
+          <EditableFieldShell
+            label="Modified bullet count"
+            edited={isFieldEdited(preScan.modifiedBulletCount, baseline.modifiedBulletCount)}
+          >
+            <Input
+              type="number"
+              min={0}
+              value={preScan.modifiedBulletCount}
+              onChange={(event) =>
+                onPreScanChange?.({
+                  ...preScan,
+                  modifiedBulletCount: Math.max(0, Number(event.target.value) || 0),
+                })
+              }
+            />
+          </EditableFieldShell>
         ) : null}
 
         {snippetItems.length ? (

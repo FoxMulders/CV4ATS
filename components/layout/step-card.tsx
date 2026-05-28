@@ -10,13 +10,27 @@ interface StepCardProps {
   children: ReactNode
   className?: string
   id?: string
+  /** Stretch card to fill grid row height (symmetric workspace columns). */
+  fillHeight?: boolean
 }
 
-export function StepCard({ step, title, description, children, className, id }: StepCardProps) {
+export function StepCard({
+  step,
+  title,
+  description,
+  children,
+  className,
+  id,
+  fillHeight = false,
+}: StepCardProps) {
   return (
     <Card
       id={id}
-      className={cn('border-border/80 shadow-sm transition-shadow hover:shadow-md', className)}
+      className={cn(
+        'border-border/80 shadow-sm transition-shadow hover:shadow-md',
+        fillHeight && 'flex h-full flex-col',
+        className
+      )}
     >
       <CardHeader>
         <div className="flex items-start gap-3">
@@ -29,7 +43,9 @@ export function StepCard({ step, title, description, children, className, id }: 
           </div>
         </div>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className={cn(fillHeight && 'flex min-h-0 flex-1 flex-col')}>
+        {children}
+      </CardContent>
     </Card>
   )
 }

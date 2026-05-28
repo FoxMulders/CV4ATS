@@ -1,15 +1,22 @@
+'use client'
+
 import { ArrowRight, TrendingUp } from 'lucide-react'
 
+import { AnimatedAtsScoreGauge } from '@/components/results/animated-ats-score-gauge'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { useAnimatedNumber } from '@/hooks/use-animated-number'
 import type { KeywordReport } from '@/lib/ai/schemas'
 
 interface AtsComplianceComparisonProps {
   before: KeywordReport
   after: KeywordReport
+  /** Initial post-generation score — used for live baseline variance on the after panel. */
+  tailoredBaselineScore?: number
   refinementPasses?: number
   targetScoreMet?: boolean
+  isAfterUpdating?: boolean
 }
 
 function scoreLabel(score: number): string {
@@ -30,10 +37,14 @@ function scoreVariant(score: number): 'default' | 'secondary' | 'outline' | 'des
 export function AtsComplianceComparison({
   before,
   after,
+  tailoredBaselineScore,
   refinementPasses = 0,
   targetScoreMet,
+  isAfterUpdating = false,
 }: AtsComplianceComparisonProps) {
   const improvement = after.matchScore - before.matchScore
+  const beforeAnimated = useAnimatedNumber(before.matchScore, 500)
+  const liveBaseline = tailoredBaselineScore ?? after.matchScore
 
   return (
     <Card className="border-brand-gold/30 bg-gradient-to-br from-primary/5 via-background to-brand-gold/5 shadow-sm">
@@ -56,8 +67,8 @@ export function AtsComplianceComparison({
               <p className="text-sm font-medium text-muted-foreground">Before tailoring</p>
               <Badge variant={scoreVariant(before.matchScore)}>{scoreLabel(before.matchScore)}</Badge>
             </div>
-            <p className="text-3xl font-bold">{before.matchScore}%</p>
-            <Progress value={before.matchScore} />
+            <p className="text-3xl font-bold tabular-nums">{beforeAnimated}%</p>
+            <Progress value={beforeAnimated} />
             <p className="text-xs text-muted-foreground">
               {before.matchedKeywords.length} matched · {before.missingKeywords.length} missing
             </p>
@@ -68,16 +79,22 @@ export function AtsComplianceComparison({
             <Badge variant={improvement > 0 ? 'default' : improvement < 0 ? 'destructive' : 'secondary'}>
               {improvement > 0 ? `+${improvement}` : improvement} pts
             </Badge>
+            <span className="text-[10px] text-muted-foreground">tailoring lift</span>
           </div>
 
-          <div className="space-y-2 rounded-lg border border-primary/30 bg-background p-4">
+          <div className="space-y-3 rounded-lg border border-primary/30 bg-background p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-muted-foreground">After tailoring</p>
               <Badge variant={scoreVariant(after.matchScore)}>{scoreLabel(after.matchScore)}</Badge>
             </div>
-            <p className="text-3xl font-bold">{after.matchScore}%</p>
-            <Progress value={after.matchScore} />
-            <p className="text-xs text-muted-foreground">
+            <AnimatedAtsScoreGauge
+              score={after.matchScore}
+              baselineScore={liveBaseline}
+              label=""
+              isUpdating={isAfterUpdating}
+              size="compact"
+            />
+            <p className="text-xs text-muted-foreground transition-all duration-500">
               {after.matchedKeywords.length} matched · {after.missingKeywords.length} missing
             </p>
           </div>

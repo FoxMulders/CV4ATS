@@ -26,23 +26,60 @@ function extractJobTitle(jobDescription: string): string {
   return firstLine?.trim().slice(0, 80) ?? 'this role'
 }
 
+function formatContactHeader(resume: TailoredResume): string[] {
+  const lines: string[] = [resume.contact.name]
+  const contactParts = [
+    resume.contact.location,
+    resume.contact.phone,
+    resume.contact.email,
+    resume.contact.linkedin,
+  ].filter((part) => part?.trim())
+
+  if (contactParts.length > 0) {
+    lines.push(contactParts.join(' | '))
+  }
+
+  return lines
+}
+
 function buildLocalCoverLetter(
   resume: TailoredResume,
   jobDescription: string,
   matchedKeywords: string[]
 ): string {
   const role = extractJobTitle(jobDescription)
-  const highlights = matchedKeywords.slice(0, 6).join(', ') || 'delivery leadership and technical program execution'
+  const recentRole = resume.experience[0]
+  const topBullet = recentRole?.bullets[0]?.trim()
+  const proofKeywords =
+    matchedKeywords.slice(0, 5).join(', ') ||
+    'delivery leadership, technical program execution, and process optimization'
+
+  const hook =
+    `Most candidates for ${role} can recite methodology labels. Fewer can walk into a blocked release, read the architecture, eliminate the bottleneck, and keep stakeholders aligned to outcomes.`
+
+  const proofOne =
+    `My background spans ${recentRole?.title ?? 'senior technical delivery leadership'} at ${recentRole?.company ?? 'enterprise organizations'} — with a track record of driving delivery through strategic ownership, not checklist execution.${topBullet ? ` A recent example: ${topBullet}` : ''}`
+
+  const proofTwo =
+    `Across recent roles, I have focused on ${proofKeywords} — consistently unblocking teams, refining operational workflows, and converting manual drag into durable automation where it saves cycles. I evaluate capacity with engineering fluency, spot architectural risk before it hits the roadmap, and take ownership of outcomes end to end.`
+
+  const close =
+    `I would welcome a conversation about how that execution-first approach can help your team deliver on ${role} priorities with fewer surprises.`
 
   return [
-    `Dear Hiring Manager,`,
+    ...formatContactHeader(resume),
     '',
-    `I am writing to express my interest in the ${role} opportunity. With a background spanning ${resume.experience[0]?.title ?? 'senior technical delivery'} at ${resume.experience[0]?.company ?? 'enterprise organizations'}, I bring proven experience aligning teams, scope, and outcomes to business priorities.`,
+    'Dear Hiring Manager,',
     '',
-    `My recent work emphasizes ${highlights}. I am confident this experience maps directly to your requirements and would allow me to contribute quickly to delivery momentum, stakeholder alignment, and measurable results.`,
+    hook,
     '',
-    `Thank you for your consideration. I welcome the opportunity to discuss how my background supports your team's goals.`,
+    proofOne,
     '',
+    proofTwo,
+    '',
+    close,
+    '',
+    'Sincerely,',
     resume.contact.name,
   ].join('\n')
 }

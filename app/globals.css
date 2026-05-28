@@ -176,3 +176,17 @@
   text-align: center;
   box-shadow: 0 10px 30px oklch(0.24 0.04 260 / 0.12);
 }
+
+@keyframes workspace-focus-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--ring) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--ring) 50%, transparent);
+  }
+}
+
+.workspace-focus-pulse {
+  animation: workspace-focus-pulse 1.1s ease-in-out 2;
+}

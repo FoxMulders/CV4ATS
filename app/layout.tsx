@@ -29,20 +29,21 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'ATS4CV | 24-Hour Job Pass Resume Tailoring',
+    default: 'ATS Resume Builder & Cover Letter Tailoring Tool | ATS4CV',
     template: '%s | ATS4CV',
   },
   description:
-    'Tailor your resume to beat ATS scanners without sounding like a robot. Unlock a 24-Hour Job Pass per role for unlimited edits, anti-plagiarism checks, and re-downloads. Secure Square checkout for $4.99 CAD.',
+    'Tailor your resume and generate cover letters to beat automated tracking systems. Scan your resume against job descriptions using context-aware AI. Start for free.',
   keywords: [
-    'ATS resume',
+    'ATS resume builder',
     'resume tailoring',
-    '24 hour job pass',
-    'job description keywords',
-    'anti-plagiarism resume',
     'cover letter generator',
-    'ATS compliance score',
-    'resume download pass',
+    'ATS resume scanner',
+    'tailor resume to job description',
+    'ATS-compliant resume',
+    'AI resume optimization',
+    'keyword match report',
+    'anti-plagiarism resume',
   ],
   authors: [{ name: 'ATS4CV' }],
   creator: 'ATS4CV',
@@ -65,15 +66,15 @@ export const metadata: Metadata = {
     locale: 'en_CA',
     url: siteUrl,
     siteName: 'ATS4CV',
-    title: 'ATS4CV | 24-Hour Job Pass Resume Tailoring',
+    title: 'ATS Resume Builder & Cover Letter Tailoring Tool | ATS4CV',
     description:
-      'Context-aware resume tailoring with Exact Phrasing Auditor guardrails. One $4.99 CAD 24-Hour Job Pass unlocks unlimited edits and downloads for each target role.',
+      'Tailor your resume and generate cover letters to beat automated tracking systems. Scan your resume against job descriptions using context-aware AI. Start for free.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ATS4CV | 24-Hour Job Pass Resume Tailoring',
+    title: 'ATS Resume Builder & Cover Letter Tailoring Tool | ATS4CV',
     description:
-      'Beat corporate scanners without copy-paste keyword stuffing. Unlimited tweaks and re-downloads for 24 hours per job description.',
+      'Tailor your resume and generate cover letters to beat automated tracking systems. Context-aware AI with anti-plagiarism guardrails. Start for free.',
   },
 }
 

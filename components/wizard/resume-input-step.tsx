@@ -15,7 +15,18 @@ import { MAX_RESUME_TEXT_LENGTH } from '@/lib/ai/schemas'
 import type { Experience } from '@/lib/ai/schemas'
 import { prependExperienceToResumeText } from '@/lib/resume/experience-utils'
 import { getExtension, validateResumeFileBytes } from '@/lib/resume/file-signature'
+import {
+  RESUME_PASTE_TAB_ID,
+  RESUME_TEXT_INPUT_ID,
+} from '@/lib/wizard/workspace-focus-guide'
+import { WorkspaceEditorViewport } from '@/components/wizard/workspace-editor-viewport'
 import { handlePasteScrollToBottom } from '@/components/wizard/paste-scroll'
+import {
+  WORKSPACE_COUNTER_AT_LIMIT_CLASS,
+  WORKSPACE_COUNTER_CLASS,
+  WORKSPACE_STEP_CONTENT_CLASS,
+  WORKSPACE_TEXTAREA_CLASS,
+} from '@/lib/wizard/workspace-panel-styles'
 import { cn } from '@/lib/utils'
 
 export type ResumeFileParseStatus = 'idle' | 'parsing' | 'ready' | 'error'
@@ -164,37 +175,43 @@ export function ResumeInputStep({
   }
 
   return (
-    <div className="space-y-4">
+    <div className={cn('space-y-2', WORKSPACE_STEP_CONTENT_CLASS)}>
       <Label>Your resume</Label>
-      <Tabs defaultValue="paste">
+      <Tabs defaultValue="paste" className="flex min-h-0 flex-1 flex-col">
         <TabsList>
-          <TabsTrigger value="paste">Paste</TabsTrigger>
+          <TabsTrigger id={RESUME_PASTE_TAB_ID} value="paste">
+            Paste
+          </TabsTrigger>
           <TabsTrigger value="upload">Upload</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="paste" className="space-y-2">
-          <Textarea
-            placeholder="Paste your resume text here..."
-            value={resumeText}
-            onChange={(event) => {
-              onResumeTextChange(
-                event.target.value.slice(0, MAX_RESUME_TEXT_LENGTH)
-              )
-              if (event.target.value.trim()) {
-                onResumeFileChange(null)
-              }
-            }}
-            onPaste={(event) => handlePasteScrollToBottom(event, pasteScrollTargetId)}
-            rows={14}
-            className="min-h-[220px] resize-y font-mono text-sm"
-          />
+        <TabsContent value="paste" className="mt-3 flex min-h-0 flex-1 flex-col space-y-2">
+          <WorkspaceEditorViewport
+            aria-label="Resume text editor"
+            className="min-h-0 flex-1"
+          >
+            <Textarea
+              id={RESUME_TEXT_INPUT_ID}
+              placeholder="Paste your resume text here..."
+              value={resumeText}
+              onChange={(event) => {
+                onResumeTextChange(
+                  event.target.value.slice(0, MAX_RESUME_TEXT_LENGTH)
+                )
+                if (event.target.value.trim()) {
+                  onResumeFileChange(null)
+                }
+              }}
+              onPaste={(event) => handlePasteScrollToBottom(event, pasteScrollTargetId)}
+              className={cn(WORKSPACE_TEXTAREA_CLASS, 'font-mono')}
+            />
+          </WorkspaceEditorViewport>
           <p
-            className={cn(
-              'text-xs',
+            className={
               resumeText.length >= MAX_RESUME_TEXT_LENGTH
-                ? 'font-medium text-destructive'
-                : 'text-muted-foreground'
-            )}
+                ? WORKSPACE_COUNTER_AT_LIMIT_CLASS
+                : WORKSPACE_COUNTER_CLASS
+            }
           >
             {resumeText.length.toLocaleString()} / {MAX_RESUME_TEXT_LENGTH.toLocaleString()}{' '}
             characters
@@ -202,7 +219,7 @@ export function ResumeInputStep({
           </p>
         </TabsContent>
 
-        <TabsContent value="upload" className="space-y-2">
+        <TabsContent value="upload" className="mt-3 flex min-h-0 flex-1 flex-col space-y-2">
           <input
             ref={inputRef}
             type="file"
@@ -210,34 +227,39 @@ export function ResumeInputStep({
             className="sr-only"
             onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
           />
-          <div
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                inputRef.current?.click()
-              }
-            }}
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(event) => {
-              event.preventDefault()
-              setDragOver(true)
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            className={cn(
-              'flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors',
-              dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
-            )}
+          <WorkspaceEditorViewport
+            aria-label="Resume file upload"
+            className="min-h-0 flex-1"
           >
-            <Upload className="size-8 text-muted-foreground" />
-            <div className="text-center">
-              <p className="font-medium">Drop your resume here or click to browse</p>
-              <p className="text-sm text-muted-foreground">PDF, DOCX, or TXT up to 5 MB</p>
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  inputRef.current?.click()
+                }
+              }}
+              onClick={() => inputRef.current?.click()}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setDragOver(true)
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              className={cn(
+                'flex h-full min-h-full cursor-pointer flex-col items-center justify-center gap-3 p-6 transition-colors',
+                dragOver ? 'bg-primary/5' : 'hover:bg-muted/40'
+              )}
+            >
+              <Upload className="size-8 text-muted-foreground" />
+              <div className="text-center">
+                <p className="font-medium">Drop your resume here or click to browse</p>
+                <p className="text-sm text-muted-foreground">PDF, DOCX, or TXT up to 5 MB</p>
+              </div>
             </div>
-          </div>
+          </WorkspaceEditorViewport>
           {resumeFile ? (
-            <p className="text-sm text-muted-foreground">Selected: {resumeFile.name}</p>
+            <p className={WORKSPACE_COUNTER_CLASS}>Selected: {resumeFile.name}</p>
           ) : null}
           {isParsing ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

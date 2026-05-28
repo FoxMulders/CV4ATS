@@ -19,6 +19,10 @@ import {
   parseListedSkillTerms,
   parseProposedSkillsField,
 } from '@/lib/resume/resume-skill-proposals'
+import {
+  WORKSPACE_TAG_REGION_CLASS,
+} from '@/lib/wizard/workspace-panel-styles'
+import { cn } from '@/lib/utils'
 
 interface ProposedSkillAdditionsProps {
   resumeText: string
@@ -186,7 +190,7 @@ export function ProposedSkillAdditions({
       </CardHeader>
       <CardContent className="space-y-4">
         {extrapolated.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className={cn(WORKSPACE_TAG_REGION_CLASS, 'rounded-lg border border-border/80')}>
             {extrapolated.map((skill) => {
               const selected = isTermSelected(skill.term)
               return (

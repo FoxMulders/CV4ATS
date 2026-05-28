@@ -6,7 +6,31 @@ const organizationJsonLd = {
   name: 'ATS4CV',
   url: siteUrl,
   description:
-    'Context-aware ATS resume tailoring with anti-plagiarism guardrails and 24-Hour Job Pass premium access.',
+    'AI-powered ATS resume builder and cover letter tailoring tool with anti-plagiarism guardrails.',
+}
+
+const webApplicationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'ATS4CV',
+  url: siteUrl,
+  operatingSystem: 'All',
+  applicationCategory: 'BusinessApplication',
+  description:
+    'Tailor your resume and generate cover letters to beat automated tracking systems. Scan your resume against job descriptions using context-aware AI.',
+  offers: {
+    '@type': 'Offer',
+    price: '4.99',
+    priceCurrency: 'CAD',
+    description: '24-Hour Job Pass with unlimited edits and re-downloads for one target role',
+  },
+  featureList: [
+    'AI-powered ATS resume tailoring',
+    'AI resume scanner with anti-plagiarism guardrails',
+    'Cover letter generation',
+    'Keyword match and ATS compliance scoring',
+    'Exact Phrasing Auditor',
+  ],
 }
 
 const softwareJsonLd = {
@@ -23,8 +47,8 @@ const softwareJsonLd = {
     description: '24-Hour Job Pass with unlimited edits and re-downloads for one target role',
   },
   featureList: [
-    'Context-aware resume tailoring',
-    'Exact Phrasing Auditor anti-plagiarism checks',
+    'AI-powered ATS resume tailoring',
+    'AI resume scanner with anti-plagiarism guardrails',
     'Adaptive phrase diversification',
     '24-Hour Job Pass per role',
     'Square secure checkout',
@@ -49,6 +73,10 @@ export function SiteJsonLd() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplicationJsonLd) }}
       />
       <script
         type="application/ld+json"

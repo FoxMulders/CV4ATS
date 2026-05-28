@@ -4,6 +4,7 @@ import { Loader2, Sparkles } from 'lucide-react'
 
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { Button } from '@/components/ui/button'
+import { GENERATE_ACTION_ID } from '@/lib/wizard/workspace-focus-guide'
 import { GenerationProgress } from '@/components/wizard/generation-progress'
 import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 
@@ -31,6 +32,7 @@ export function GenerateStep({
   return (
     <div className="space-y-4">
       <Button
+        id={GENERATE_ACTION_ID}
         type="button"
         size="lg"
         className="w-full bg-primary shadow-sm sm:w-auto"
