@@ -1,17 +1,21 @@
 import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
-import {
-  extractCareerContext,
-  pickContextEmployer,
-  pickContextRole,
-  variationSeedFor,
-} from '@/lib/resume/resume-career-context'
+import { buildSkillAnchor } from '@/lib/resume/thematic-skill-anchor'
+import { variationSeedFor } from '@/lib/resume/resume-career-context'
 
 export interface SuggestedAddition {
   skill: string
   category: SkillCategory
+  /** Modified bullet/summary text — not a freestanding sentence. */
   snippet: string
   placement: 'summary' | 'skills' | 'experience'
+  originalBullet?: string
+  targetRoleTitle?: string
+  targetCompany?: string
+  placementLabel?: string
+  bulletLineIndex?: number
+  modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+  domainLabel?: string
 }
 
 export interface SnippetGenerationContext {
@@ -21,165 +25,54 @@ export interface SnippetGenerationContext {
   variationIndex?: number
 }
 
-const BANNED_OPENERS = [
-  'directed',
-  'led cross-functional delivery utilizing',
-  'delivered',
-  'led',
-]
-
-type TemplateBuilder = (
-  term: string,
-  context: ReturnType<typeof extractCareerContext>,
-  seed: number
-) => string
-
-const METHODOLOGY_TEMPLATES: TemplateBuilder[] = [
-  (term, context, seed) => {
-    const employer = pickContextEmployer(context, seed)
-    return employer
-      ? `Standardized ${term} cadences at ${employer} to tighten release predictability across dependent teams.`
-      : `Institutionalized ${term} practices that shortened feedback loops between planning and delivery.`
-  },
-  (term, context, seed) => {
-    const role = pickContextRole(context, seed + 1)
-    return role
-      ? `As ${role}, operationalized ${term} ceremonies that clarified ownership and reduced delivery friction.`
-      : `Coached teams through ${term} adoption while preserving executive visibility into milestone health.`
-  },
-  (term) =>
-    `Synchronized backlog, sprint, and release rhythms using ${term} to keep multi-workstream programs aligned.`,
-  (term, context, seed) => {
-    const employer = pickContextEmployer(context, seed + 2)
-    return employer
-      ? `Embedded ${term} governance at ${employer} so roadmap trade-offs were resolved before build cycles slipped.`
-      : `Applied ${term} to translate strategy into sequenced delivery with fewer late-stage scope surprises.`
-  },
-]
-
-const COMPETENCY_TEMPLATES: TemplateBuilder[] = [
-  (term, context, seed) => {
-    const employer = pickContextEmployer(context, seed)
-    return employer
-      ? `At ${employer}, exercised ${term} to coordinate dependencies across business and engineering stakeholders.`
-      : `Used ${term} to keep complex programs on track when priorities shifted mid-quarter.`
-  },
-  (term, context, seed) => {
-    const role = pickContextRole(context, seed + 1)
-    return role
-      ? `In a ${role} capacity, strengthened ${term} by tying milestone plans to measurable business outcomes.`
-      : `Strengthened ${term} by converting executive objectives into sequenced, accountable workstreams.`
-  },
-  (term) =>
-    `Balanced competing priorities through ${term}, preserving delivery momentum without sacrificing quality gates.`,
-  (term, context, seed) => {
-    const employer = pickContextEmployer(context, seed + 3)
-    return employer
-      ? `While at ${employer}, expanded ${term} coverage so cross-functional handoffs stayed visible to leadership.`
-      : `Expanded ${term} discipline so risk, scope, and resourcing decisions were resolved earlier in the cycle.`
-  },
-]
-
-const DOMAIN_TEMPLATES: TemplateBuilder[] = [
-  (term, context, seed) => {
-    const employer = pickContextEmployer(context, seed)
-    return employer
-      ? `At ${employer}, applied ${term} to modernize internal workflows and reduce manual handoffs.`
-      : `Applied ${term} to streamline operational workflows and improve throughput across delivery teams.`
-  },
-  (term, context, seed) => {
-    if (context.achievementBullets.length === 0) {
-      return `Translated platform improvements into ${term} capabilities that supported faster, safer releases.`
-    }
-    const bullet = context.achievementBullets[seed % context.achievementBullets.length]!
-    return `Built on delivery experience such as "${bullet.slice(0, 60)}…" by deepening ${term} across the stack.`
-  },
-  (term) =>
-    `Connected engineering output to business value by embedding ${term} into day-to-day delivery practices.`,
-  (term, context, seed) => {
-    const role = pickContextRole(context, seed + 2)
-    return role
-      ? `From a ${role} perspective, leveraged ${term} to reduce rework and improve operational reliability.`
-      : `Leveraged ${term} to reduce rework while keeping architecture decisions pragmatic and incremental.`
-  },
-]
-
-function templatesForCategory(category: SkillCategory): TemplateBuilder[] {
-  switch (category) {
-    case 'methodology':
-      return METHODOLOGY_TEMPLATES
-    case 'competency':
-      return COMPETENCY_TEMPLATES
-    case 'tool':
-      return []
-    default:
-      return DOMAIN_TEMPLATES
-  }
-}
-
-function openingPhrase(snippet: string): string {
-  return snippet
-    .trim()
-    .split(/\s+/)
-    .slice(0, 4)
-    .join(' ')
-    .toLowerCase()
-}
-
-function isTooSimilar(candidate: string, existing: string[]): boolean {
-  const opener = openingPhrase(candidate)
-
-  const matchedBanned = BANNED_OPENERS.find((banned) => opener.startsWith(banned))
-  if (matchedBanned) {
-    return existing.some((snippet) => openingPhrase(snippet).startsWith(matchedBanned))
-  }
-
-  return existing.some((snippet) => {
-    const other = openingPhrase(snippet)
-    return other === opener || snippet.toLowerCase() === candidate.toLowerCase()
-  })
-}
-
-function buildDiversifiedSnippet(
+function diversifyIntegratedBullet(
+  anchorSnippet: string,
   skill: TargetSkill,
-  context: SnippetGenerationContext = {}
+  context: SnippetGenerationContext
 ): string {
-  const { term, category } = skill
-  if (category === 'tool') {
-    return term.charAt(0).toUpperCase() + term.slice(1)
+  const siblings = context.siblingSnippets ?? []
+  if (!siblings.some((entry) => entry.toLowerCase() === anchorSnippet.toLowerCase())) {
+    return anchorSnippet
   }
 
-  const career = extractCareerContext(context.resumeText ?? '')
-  const templates = templatesForCategory(category)
-  const siblings = context.siblingSnippets ?? []
-  const baseSeed = variationSeedFor(term, context.variationIndex ?? 0)
+  const seed = variationSeedFor(skill.term, context.variationIndex ?? 0)
+  const base = anchorSnippet.endsWith('.') ? anchorSnippet.slice(0, -1) : anchorSnippet
+  const alternates = [
+    `${base}, with measurable ${skill.term} outcomes.`,
+    `${base} to advance ${skill.term} across the organization.`,
+    `${base} while strengthening ${skill.term} in daily execution.`,
+  ]
 
-  for (let offset = 0; offset < templates.length * 2; offset += 1) {
-    const seed = baseSeed + offset
-    const template = templates[seed % templates.length]
-    if (!template) continue
-    const candidate = template(term, career, seed)
-    if (!isTooSimilar(candidate, siblings)) {
+  for (let offset = 0; offset < alternates.length; offset += 1) {
+    const candidate = alternates[(seed + offset) % alternates.length]!
+    if (!siblings.some((entry) => entry.toLowerCase() === candidate.toLowerCase())) {
       return candidate
     }
   }
 
-  const fallback = templates[baseSeed % templates.length]
-  return fallback ? fallback(term, career, baseSeed) : term
+  return anchorSnippet
 }
 
 export function buildSuggestedAddition(
   skill: TargetSkill,
   context: SnippetGenerationContext = {}
 ): SuggestedAddition {
-  const { term, category } = skill
-  const placement: SuggestedAddition['placement'] = category === 'tool' ? 'skills' : 'experience'
+  const resumeText = context.resumeText ?? ''
+  const anchor = buildSkillAnchor(skill, resumeText)
+  const snippet = diversifyIntegratedBullet(anchor.modifiedBullet, skill, context)
 
   return {
-    skill: term,
-    category,
-    placement,
-    snippet: buildDiversifiedSnippet(skill, context),
+    skill: skill.term,
+    category: skill.category,
+    placement: anchor.placement,
+    snippet,
+    originalBullet: anchor.originalBullet,
+    targetRoleTitle: anchor.position?.title,
+    targetCompany: anchor.position?.company,
+    placementLabel: anchor.placementLabel,
+    bulletLineIndex: anchor.bulletLineIndex,
+    modificationType: anchor.modificationType,
+    domainLabel: anchor.position?.domainLabel,
   }
 }
 
@@ -211,6 +104,7 @@ export function buildSnippetsForKeywords(
   })
 }
 
+/** @deprecated Use applyAnchoredSkillModifications for inline bullet updates. */
 export function appendSnippetsToResume(resumeText: string, snippets: string[]): string {
   return snippets
     .map((snippet) => snippet.trim())

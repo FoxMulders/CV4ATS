@@ -13,6 +13,7 @@ import {
   formatChecklistForPrompt,
 } from '@/lib/resume/core-competency-checklist'
 import { appendSnippetsToResume } from '@/lib/resume/skill-snippets'
+import { applyAnchoredSkillModifications } from '@/lib/resume/apply-skill-modifications'
 import { injectSelectedKeywords } from '@/lib/resume/inject-selected-keywords'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { runSkillExtrapolationAndInjection } from '@/lib/resume/pre-scan-preparation'
@@ -48,6 +49,13 @@ export type ProgressCallback = (update: ProgressUpdate) => void | Promise<void>
 export type GenerationPipelineOptions = {
   selectedKeywords?: string[]
   customSnippets?: string[]
+  /** Inline bullet/summary revisions with placement metadata. */
+  anchoredModifications?: Array<{
+    snippet: string
+    originalBullet?: string
+    bulletLineIndex?: number
+    modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+  }>
 }
 
 export type GenerationPipelineResult = GenerationResult & {
@@ -131,10 +139,14 @@ export async function runGenerationPipeline(
 
   const selectedKeywords = options.selectedKeywords ?? []
   const customSnippets = options.customSnippets ?? []
+  const anchoredModifications = options.anchoredModifications ?? []
   let workingResumeText = resumeText
   let incorporatedKeywords: string[] = []
 
-  if (customSnippets.length > 0) {
+  if (anchoredModifications.length > 0) {
+    workingResumeText = applyAnchoredSkillModifications(workingResumeText, anchoredModifications)
+    incorporatedKeywords = selectedKeywords.length > 0 ? selectedKeywords : []
+  } else if (customSnippets.length > 0) {
     workingResumeText = appendSnippetsToResume(workingResumeText, customSnippets)
     incorporatedKeywords = selectedKeywords.length > 0 ? selectedKeywords : []
   } else if (selectedKeywords.length > 0) {

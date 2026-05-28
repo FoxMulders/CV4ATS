@@ -11,10 +11,9 @@ import {
   buildSnippetForKeyword,
   type SnippetGenerationContext,
 } from '@/lib/resume/skill-snippets'
-import {
-  extractCareerContext,
-} from '@/lib/resume/resume-career-context'
 import { REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION } from '@/lib/resume/exact-phrasing-auditor'
+import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
+import { buildSkillAnchor } from '@/lib/resume/thematic-skill-anchor'
 
 export interface TailorSnippetInput {
   jobDescription: string
@@ -26,21 +25,27 @@ export interface TailorSnippetInput {
   previousVariations?: string[]
   rephraseJobDescriptionMatch?: boolean
   matchedJobDescriptionPhrases?: string[]
+  originalBullet?: string
+  targetRoleTitle?: string
+  targetCompany?: string
+  placementLabel?: string
+  domainLabel?: string
+  modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
 }
 
-const TAILOR_SNIPPET_SYSTEM = `You are an executive resume writer specializing in ATS-optimized, non-repetitive resume bullet additions.
+const TAILOR_SNIPPET_SYSTEM = `You are an executive resume writer specializing in ATS-optimized resume edits.
 
-Rewrite exactly ONE addition sentence for a single target skill/keyword.
+Rewrite exactly ONE existing resume line by gracefully integrating a target skill into the candidate's real history.
 
 STRICT RULES:
-1. CONTEXTUAL AWARENESS — Use the full resume and job description provided. Anchor the sentence in the candidate's real employers, roles, and seniority. Prefer referencing a plausible recent employer or role from their history when it fits naturally.
-2. DIVERSIFICATION — Never reuse sentence structures, opening verbs, or filler phrases used in other pending additions or existing resume bullets. Each card must read structurally distinct (different opener, clause order, and rhythm).
-3. AUTHENTIC FRAMING — No generic corporate filler such as "Directed [skill] initiatives with executive scope oversight". Write an achievement-oriented sentence that sounds like it belongs on THIS candidate's resume.
-4. JOB ALIGNMENT — Match the job's competency level and tone semantically. Never copy sentences or multi-word fragments from the job description (more than 3 consecutive identical words fails compliance).
-5. CONCISION — One sentence, max ~35 words, impact-driven.
-6. OUTPUT — Return ONLY the rewritten sentence. No quotes, markdown, labels, or commentary.
+1. IN-LINE MODIFICATION — Do not create a brand-new bullet. Modify the provided original bullet/summary so the target skill is woven into the existing achievement naturally.
+2. CONTEXTUAL AWARENESS — Preserve the employer, role, metrics, tools, and facts from the original line. Never invent employers, dates, or outcomes that are not supported by the resume.
+3. TENSE & FLOW — Keep past tense for experience bullets and maintain the original sentence rhythm. The result must read like a polished revision, not an appended fragment.
+4. JOB ALIGNMENT — Match the job's competency level semantically. Never copy multi-word fragments from the job description (more than 3 consecutive identical words fails compliance).
+5. CONCISION — One sentence, max ~45 words, impact-driven.
+6. OUTPUT — Return ONLY the rewritten line (no bullet symbol, quotes, markdown, labels, or commentary).
 
-When a VARIATION instruction is present, produce wording clearly different from every listed previous version.`
+When a VARIATION instruction is present, produce wording clearly different from every listed previous version while keeping the same factual anchor.`
 
 function truncateForPrompt(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
@@ -62,16 +67,17 @@ function openingPatterns(texts: string[]): string {
 }
 
 function buildTailorSnippetPrompt(input: TailorSnippetInput): string {
-  const career = extractCareerContext(input.resumeText)
   const pending = (input.otherSnippets ?? []).filter(Boolean).slice(0, 12)
   const previous = (input.previousVariations ?? []).filter(Boolean).slice(-6)
   const variationIndex = input.variationIndex ?? 0
   const matchedPhrases = (input.matchedJobDescriptionPhrases ?? []).filter(Boolean).slice(0, 6)
+  const originalLine = input.originalBullet?.trim() || input.currentSnippet.trim()
 
   const bannedOpeners = openingPatterns([
     ...pending,
     ...previous,
     input.currentSnippet,
+    originalLine,
   ])
 
   return `JOB DESCRIPTION (match tone and vocabulary):
@@ -80,17 +86,23 @@ ${truncateForPrompt(input.jobDescription.trim(), 6000)}
 FULL RESUME TEXT (ground truth — do not invent beyond this):
 ${truncateForPrompt(input.resumeText.trim(), 12000)}
 
-CAREER ANCHORS EXTRACTED FROM RESUME:
-- Employers: ${career.employers.length ? career.employers.join(', ') : '(none detected)'}
-- Recent roles: ${career.recentRoles.length ? career.recentRoles.join(', ') : '(none detected)'}
-
-TARGET KEYWORD / SKILL TO WEAVE IN:
+TARGET KEYWORD / SKILL TO INTEGRATE:
 ${input.keyword.trim()}
 
-CURRENT DRAFT (rewrite — do not copy its structure if variation is requested):
+THEMATIC PLACEMENT:
+${input.placementLabel?.trim() || 'Most relevant historical role'}
+${input.targetRoleTitle ? `- Role: ${input.targetRoleTitle}` : ''}
+${input.targetCompany ? `- Company: ${input.targetCompany}` : ''}
+${input.domainLabel ? `- Professional domain: ${input.domainLabel}` : ''}
+${input.modificationType ? `- Edit type: ${input.modificationType}` : 'inline-bullet'}
+
+ORIGINAL LINE TO REVISE (preserve facts, tense, and impact):
+${originalLine}
+
+CURRENT DRAFT REVISION (rewrite — do not copy its structure if variation is requested):
 ${input.currentSnippet.trim()}
 
-OTHER PENDING ADDITIONS FOR OTHER CARDS (must use different structures and openers):
+OTHER PENDING REVISIONS FOR OTHER SKILLS (must use different structures and openers):
 ${pending.length > 0 ? pending.map((line) => `- ${line}`).join('\n') : '(none)'}
 
 PREVIOUS VERSIONS OF THIS SAME CARD (do NOT repeat phrasing or structure):
@@ -100,7 +112,7 @@ OPENING PATTERNS TO AVOID (already used above):
 ${bannedOpeners || '(none)'}
 
 VARIATION INDEX: ${variationIndex}
-${variationIndex > 0 ? 'VARIATION MODE: Rephrase completely differently from the current draft and every previous version. Change the opening verb, clause order, and framing.' : 'INITIAL MODE: Produce the first distinct phrasing for this card.'}
+${variationIndex > 0 ? 'VARIATION MODE: Rephrase completely differently from the current draft and every previous version. Change the opening verb, clause order, and framing.' : 'INITIAL MODE: Produce the first distinct in-line revision for this card.'}
 ${
   input.rephraseJobDescriptionMatch
     ? `
@@ -114,12 +126,13 @@ ${
 }
 
 TASK:
-Write one new sentence that weaves "${input.keyword.trim()}" into an achievement grounded in the candidate's actual career context, aligned to the job description, and structurally distinct from every bullet and pending addition above.`
+Revise the ORIGINAL LINE so "${input.keyword.trim()}" is integrated naturally into the existing achievement for ${input.targetRoleTitle ? `${input.targetRoleTitle} at ${input.targetCompany ?? 'the listed employer'}` : 'the best-matched historical role'}. Return only the revised line.`
 }
 
 function normalizeSnippetOutput(text: string): string {
   return text
     .trim()
+    .replace(/^[\s•\-*–—]+/, '')
     .replace(/^["'`]+|["'`]+$/g, '')
     .replace(/^```[\s\S]*?\n|```$/g, '')
     .replace(/\s+/g, ' ')
@@ -132,6 +145,17 @@ function temperatureForVariation(variationIndex: number): number {
 }
 
 function tailorSnippetLocally(input: TailorSnippetInput): string {
+  const skill =
+    keywordsToTargetSkills([input.keyword])[0] ?? {
+      term: input.keyword,
+      category: 'domainTech' as const,
+    }
+
+  if (input.originalBullet?.trim()) {
+    const anchor = buildSkillAnchor(skill, input.resumeText)
+    return anchor.modifiedBullet
+  }
+
   const context: SnippetGenerationContext = {
     resumeText: input.resumeText,
     jobDescription: input.jobDescription,

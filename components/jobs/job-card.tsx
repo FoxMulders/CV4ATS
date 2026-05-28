@@ -163,8 +163,15 @@ export function JobCard({
           JSON.stringify(options.selections.map((item) => item.keyword))
         )
         formData.append(
-          'customSnippets',
-          JSON.stringify(options.selections.map((item) => item.snippet))
+          'anchoredModifications',
+          JSON.stringify(
+            options.selections.map((item) => ({
+              snippet: item.snippet,
+              originalBullet: item.originalBullet,
+              bulletLineIndex: item.bulletLineIndex,
+              modificationType: item.modificationType,
+            }))
+          )
         )
       }
 

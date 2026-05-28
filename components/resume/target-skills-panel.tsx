@@ -64,6 +64,13 @@ export function TargetSkillsPanel({
     snippet: addition.snippet,
     category: CATEGORY_LABELS[addition.category],
     placement: addition.placement,
+    placementLabel: addition.placementLabel,
+    originalBullet: addition.originalBullet,
+    bulletLineIndex: addition.bulletLineIndex,
+    modificationType: addition.modificationType,
+    targetRoleTitle: addition.targetRoleTitle,
+    targetCompany: addition.targetCompany,
+    domainLabel: addition.domainLabel,
   }))
 
   return (
@@ -74,8 +81,8 @@ export function TargetSkillsPanel({
           High-value industry skills & methodologies
         </CardTitle>
         <CardDescription>
-          Extracted from the job description before ATS scanning. Click missing skills to preview and
-          edit the full sentence before inserting or re-tailoring.
+          Extracted from the job description before ATS scanning. Click missing skills to preview the
+          exact role and bullet being revised before inserting or re-tailoring.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -115,8 +122,8 @@ export function TargetSkillsPanel({
             items={snippetItems}
             onInsert={onInsertSelections}
             isLoading={isLoading}
-            description="Click a missing skill to see the full sentence it will add. Edit the wording, then insert into your resume."
-            insertLabel="Insert selected into resume"
+            description="Click a missing skill to see where it will be woven into your existing resume. Edit the revised line, then insert into your resume."
+            insertLabel="Apply selected revisions to resume"
             jobDescription={jobDescription}
             resumeText={resumeText}
           />

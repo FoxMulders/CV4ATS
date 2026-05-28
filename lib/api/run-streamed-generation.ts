@@ -10,6 +10,12 @@ import {
 type PipelineOptions = {
   selectedKeywords?: string[]
   customSnippets?: string[]
+  anchoredModifications?: Array<{
+    snippet: string
+    originalBullet?: string
+    bulletLineIndex?: number
+    modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+  }>
 }
 
 export async function runStreamedGeneration(

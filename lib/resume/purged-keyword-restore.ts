@@ -11,6 +11,7 @@ import {
   type SnippetGenerationContext,
   type SuggestedAddition,
 } from '@/lib/resume/skill-snippets'
+import { buildSkillAnchor } from '@/lib/resume/thematic-skill-anchor'
 
 export interface ExperienceAnchor {
   title: string
@@ -45,15 +46,6 @@ const TERM_SNIPPET_OVERRIDES: Array<{
       const company = anchor?.company ?? 'Alberta Motor Association'
       const tenure = hasLongOpsTenure ? '12+ years of' : ''
       return `Delivered operational excellence across ${tenure} technical operations at ${company}, improving SLA adherence, release reliability, and cross-functional coordination.`
-    },
-  },
-  {
-    match: /\binformation technology\b/i,
-    build: (_anchor, resumeText) => {
-      const tenure = /30\+?\s*years?|years of it|years of technical/i.test(resumeText)
-        ? '30+ years of'
-        : 'Extensive'
-      return `Brings ${tenure} information technology experience spanning software delivery, application development, infrastructure operations, and cross-functional technical leadership.`
     },
   },
 ]
@@ -170,7 +162,7 @@ export function formatPlacementLabel(
   if (section === 'skills') return 'Skills section'
 
   if (anchor) {
-    return `${anchor.company} · ${anchor.title} → Work experience bullet`
+    return `Suggested adjustment for ${anchor.title} at ${anchor.company}`
   }
 
   return 'Most relevant work experience bullet'
@@ -196,53 +188,42 @@ export function buildPurgedKeywordRestoration(
 ): PurgedKeywordRestoration {
   const keyword = item.original.trim()
   const resumeText = context.resumeText ?? ''
-  const anchor = pickBestExperienceAnchor(keyword, resumeText)
+  const legacyAnchor = pickBestExperienceAnchor(keyword, resumeText)
   const skill =
     keywordsToTargetSkills([keyword])[0] ?? {
       term: keyword,
       category: categorizeSkill(keyword) as SkillCategory,
     }
 
-  const overrideSnippet = buildOverrideSnippet(keyword, anchor, resumeText)
+  const anchor = buildSkillAnchor(skill, resumeText)
+  const overrideSnippet = buildOverrideSnippet(keyword, legacyAnchor, resumeText)
   const base = buildSnippetForKeyword(keyword, context)
-  const placement: SuggestedAddition['placement'] =
-    /\binformation technology\b/i.test(keyword)
-      ? 'summary'
-      : skill.category === 'tool'
-        ? 'skills'
-        : anchor
-          ? 'experience'
-          : base.placement
 
-  const snippet =
-    overrideSnippet ??
-    (anchor && placement === 'experience'
-      ? tailorSnippetToAnchor(base.snippet, anchor, keyword)
-      : base.snippet)
+  const placement = overrideSnippet && /\binformation technology\b/i.test(keyword)
+    ? 'summary'
+    : anchor.placement
+
+  const snippet = overrideSnippet ?? anchor.modifiedBullet ?? base.snippet
+  const placementLabel =
+    placement === 'summary'
+      ? 'Professional summary'
+      : anchor.placementLabel ??
+        formatPlacementLabel(placement, legacyAnchor)
 
   return {
     skill: keyword,
     category: skill.category,
     placement,
     snippet,
+    originalBullet: anchor.originalBullet,
+    targetRoleTitle: anchor.position?.title,
+    targetCompany: anchor.position?.company,
+    placementLabel,
+    bulletLineIndex: anchor.bulletLineIndex,
+    modificationType: anchor.modificationType,
+    domainLabel: anchor.position?.domainLabel,
     purgeReason: item.reason,
-    placementLabel: formatPlacementLabel(placement, anchor),
   }
-}
-
-function tailorSnippetToAnchor(
-  snippet: string,
-  anchor: ExperienceAnchor,
-  keyword: string
-): string {
-  if (snippet.toLowerCase().includes(anchor.company.toLowerCase())) {
-    return snippet
-  }
-
-  return `At ${anchor.company}, ${snippet.charAt(0).toLowerCase()}${snippet.slice(1)}`.replace(
-    new RegExp(`\\b${keyword}\\b`, 'i'),
-    keyword
-  )
 }
 
 export function buildRestorationsForPurgedKeywords(

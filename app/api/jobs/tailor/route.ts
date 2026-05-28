@@ -6,7 +6,7 @@ import {
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_RESUME_TEXT_LENGTH,
 } from '@/lib/ai/schemas'
-import { parseCustomSnippets, parseSelectedKeywords } from '@/lib/api/parse-selected-keywords'
+import { parseAnchoredModifications, parseCustomSnippets, parseSelectedKeywords } from '@/lib/api/parse-selected-keywords'
 import { createNdjsonStream, ndjsonStreamResponse } from '@/lib/api/progress-stream'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { runStreamedGeneration } from '@/lib/api/run-streamed-generation'
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     let resumeText = ''
     let selectedKeywords: string[] = []
     let customSnippets: string[] = []
+    let anchoredModifications: ReturnType<typeof parseAnchoredModifications> = []
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
       resumeText = String(formData.get('resumeText') ?? '').trim()
       selectedKeywords = parseSelectedKeywords(formData.get('selectedKeywords'))
       customSnippets = parseCustomSnippets(formData.get('customSnippets'))
+      anchoredModifications = parseAnchoredModifications(formData.get('anchoredModifications'))
       const file = formData.get('file')
 
       if (typeof jobRaw !== 'string') {
@@ -107,6 +109,7 @@ export async function POST(request: Request) {
       runStreamedGeneration(emit, jobDescription, resumeText, {
         selectedKeywords,
         customSnippets,
+        anchoredModifications,
       }, (result) => ({
         ...result,
         jobId: job.id,

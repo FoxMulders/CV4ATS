@@ -10,6 +10,12 @@ export interface TailorSnippetRequest {
   previousVariations?: string[]
   rephraseJobDescriptionMatch?: boolean
   matchedJobDescriptionPhrases?: string[]
+  originalBullet?: string
+  targetRoleTitle?: string
+  targetCompany?: string
+  placementLabel?: string
+  domainLabel?: string
+  modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
 }
 
 export async function requestTailorSnippet(input: TailorSnippetRequest): Promise<string> {

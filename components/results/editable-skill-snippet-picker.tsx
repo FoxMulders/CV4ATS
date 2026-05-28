@@ -19,16 +19,23 @@ import {
   usePhrasingSimilarityAudit,
 } from '@/components/results/phrasing-similarity-preview'
 
-export interface SkillSnippetSelection {
-  keyword: string
-  snippet: string
-}
+import type { AnchoredSkillSelection } from '@/lib/resume/apply-skill-modifications'
+import { applyAnchoredSkillModifications, selectionsToAnchoredModifications } from '@/lib/resume/apply-skill-modifications'
+
+export type SkillSnippetSelection = AnchoredSkillSelection
 
 export interface EditableSkillSnippetItem {
   keyword: string
   snippet: string
   category?: string
   placement?: string
+  placementLabel?: string
+  originalBullet?: string
+  bulletLineIndex?: number
+  modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+  targetRoleTitle?: string
+  targetCompany?: string
+  domainLabel?: string
   purgeReason?: string
 }
 
@@ -49,7 +56,7 @@ export function EditableSkillSnippetPicker({
   onIncorporate,
   onInsert,
   isLoading = false,
-  description = 'Click a skill to preview the full sentence it will add. Edit the wording, then incorporate or insert.',
+  description = 'Click a skill to preview where it will be woven into your existing resume. Edit the revised line, then incorporate or insert.',
   actionLabel = 'Incorporate selected & re-tailor',
   insertLabel = 'Insert selected into resume',
   jobDescription = '',
@@ -126,6 +133,13 @@ export function EditableSkillSnippetPicker({
       return {
         keyword,
         snippet: editedSnippets[keyword] ?? item?.snippet ?? keyword,
+        originalBullet: item?.originalBullet,
+        bulletLineIndex: item?.bulletLineIndex,
+        modificationType: item?.modificationType,
+        placementLabel: item?.placementLabel,
+        targetRoleTitle: item?.targetRoleTitle,
+        targetCompany: item?.targetCompany,
+        domainLabel: item?.domainLabel,
       }
     })
   }
@@ -181,6 +195,12 @@ export function EditableSkillSnippetPicker({
         previousVariations,
         rephraseJobDescriptionMatch: similarityAudit.hasHighSimilarity,
         matchedJobDescriptionPhrases: similarityAudit.matches.map((match) => match.phrase),
+        originalBullet: item?.originalBullet,
+        targetRoleTitle: item?.targetRoleTitle,
+        targetCompany: item?.targetCompany,
+        placementLabel: item?.placementLabel,
+        domainLabel: item?.domainLabel,
+        modificationType: item?.modificationType,
       })
       updateSnippet(keyword, snippet)
       setVariationCounts((current) => ({ ...current, [keyword]: variationIndex }))
@@ -322,23 +342,32 @@ function SnippetEditorCard({
   purgeReason,
 }: SnippetEditorCardProps) {
   const similarityAudit = usePhrasingSimilarityAudit(snippet, jobDescription)
+  const placementLabel =
+    item?.placementLabel ??
+    (item?.targetRoleTitle && item?.targetCompany
+      ? `Suggested adjustment for ${item.targetRoleTitle} at ${item.targetCompany}`
+      : undefined)
+  const showInlineComparison =
+    Boolean(item?.originalBullet?.trim()) && item?.modificationType === 'inline-bullet'
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor={`snippet-${keyword}`} className="font-medium">
-          {keyword}
-        </Label>
+    <div className="space-y-3 rounded-lg border border-amber-200/70 bg-amber-50/20 p-3">
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <Label htmlFor={`snippet-${keyword}`} className="font-medium">
+            {keyword}
+          </Label>
+          {placementLabel ? (
+            <p className="text-sm font-medium text-amber-950">{placementLabel}</p>
+          ) : null}
+          {item?.domainLabel ? (
+            <p className="text-xs text-muted-foreground">Domain: {item.domainLabel}</p>
+          ) : null}
+        </div>
         {item?.category ? (
           <Badge variant="secondary" className="text-[10px] uppercase">
             {item.category}
           </Badge>
-        ) : null}
-        {item?.placement ? (
-          <span className="text-xs text-muted-foreground">→ {item.placement}</span>
-        ) : null}
-        {purgeReason ? (
-          <span className="text-xs text-amber-800">Purged: {purgeReason}</span>
         ) : null}
         <Button
           type="button"
@@ -370,14 +399,44 @@ function SnippetEditorCard({
           Remove
         </Button>
       </div>
-      <Textarea
-        id={`snippet-${keyword}`}
-        value={snippet}
-        onChange={(event) => onSnippetChange(event.target.value)}
-        rows={3}
-        disabled={isLoading || isTailoring}
-        className="text-sm"
-      />
+
+      {purgeReason ? (
+        <p className="text-xs text-amber-800">Purged: {purgeReason}</p>
+      ) : null}
+
+      {showInlineComparison ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm leading-relaxed text-muted-foreground">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em]">
+              Original bullet
+            </span>
+            {item?.originalBullet}
+          </div>
+          <div className="rounded-md border border-amber-200/80 bg-background px-3 py-2">
+            <Label htmlFor={`snippet-${keyword}`} className="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
+              Revised bullet
+            </Label>
+            <Textarea
+              id={`snippet-${keyword}`}
+              value={snippet}
+              onChange={(event) => onSnippetChange(event.target.value)}
+              rows={4}
+              disabled={isLoading || isTailoring}
+              className="min-h-[96px] border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+            />
+          </div>
+        </div>
+      ) : (
+        <Textarea
+          id={`snippet-${keyword}`}
+          value={snippet}
+          onChange={(event) => onSnippetChange(event.target.value)}
+          rows={3}
+          disabled={isLoading || isTailoring}
+          className="text-sm"
+        />
+      )}
+
       {jobDescription.trim() ? (
         <PhrasingSimilarityPreview
           text={snippet}
@@ -417,6 +476,13 @@ export function SelectableMissingKeywords({
         snippet: addition.snippet,
         category: addition.category,
         placement: addition.placement,
+        placementLabel: addition.placementLabel,
+        originalBullet: addition.originalBullet,
+        bulletLineIndex: addition.bulletLineIndex,
+        modificationType: addition.modificationType,
+        targetRoleTitle: addition.targetRoleTitle,
+        targetCompany: addition.targetCompany,
+        domainLabel: addition.domainLabel,
       })),
     [keywords, resumeText, jobDescription]
   )
@@ -440,6 +506,12 @@ interface SelectablePurgedKeywordsProps {
     category: string
     placementLabel: string
     purgeReason: string
+    originalBullet?: string
+    bulletLineIndex?: number
+    modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+    targetRoleTitle?: string
+    targetCompany?: string
+    domainLabel?: string
   }>
   onIncorporate: (selections: SkillSnippetSelection[]) => void | Promise<void>
   isLoading?: boolean
@@ -462,6 +534,13 @@ export function SelectablePurgedKeywords({
         snippet: item.snippet,
         category: item.category,
         placement: item.placementLabel,
+        placementLabel: item.placementLabel,
+        originalBullet: item.originalBullet,
+        bulletLineIndex: item.bulletLineIndex,
+        modificationType: item.modificationType,
+        targetRoleTitle: item.targetRoleTitle,
+        targetCompany: item.targetCompany,
+        domainLabel: item.domainLabel,
         purgeReason: item.purgeReason,
       })),
     [items]
@@ -472,7 +551,7 @@ export function SelectablePurgedKeywords({
       items={pickerItems}
       onIncorporate={onIncorporate}
       isLoading={isLoading}
-      description="Terms the auditor removed — select any you can truthfully claim. Each shows where it will land and a draft bullet you can edit before re-tailoring."
+      description="Terms the auditor removed — select any you can truthfully claim. Each card shows the targeted role and the existing bullet being revised before re-tailoring."
       actionLabel="Restore selected & re-tailor"
       jobDescription={jobDescription}
       resumeText={resumeText}

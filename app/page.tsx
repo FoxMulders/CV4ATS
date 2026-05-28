@@ -19,6 +19,7 @@ import {
 } from '@/components/results/download-actions'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
 import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
+import { applyAnchoredSkillModifications, selectionsToAnchoredModifications } from '@/lib/resume/apply-skill-modifications'
 import { EditableResumePreview } from '@/components/results/editable-resume-preview'
 import { ResumeDiffView } from '@/components/results/resume-diff-view'
 import { UndoRedoToolbar } from '@/components/results/undo-redo-toolbar'
@@ -53,6 +54,7 @@ type GenerationResultWithMeta = GenerationResult & {
 type GenerateOptions = {
   selectedKeywords?: string[]
   customSnippets?: string[]
+  anchoredModifications?: ReturnType<typeof selectionsToAnchoredModifications>
   resumeOverride?: string
 }
 
@@ -142,13 +144,10 @@ export default function HomePage() {
     setResumeFile(null)
     setResumeText((current) => {
       const base = current.trim() || activeResumeText
-      return selections
-        .map((item) => item.snippet.trim())
-        .filter(Boolean)
-        .reduce((text, snippet) => `${text.trim()}\n\n${snippet}`, base)
+      return applyAnchoredSkillModifications(base, selectionsToAnchoredModifications(selections))
     })
     toast.success(
-      `Inserted ${selections.length} sentence${selections.length === 1 ? '' : 's'} into resume`
+      `Updated ${selections.length} resume line${selections.length === 1 ? '' : 's'} with selected skills`
     )
   }
 
@@ -175,7 +174,7 @@ export default function HomePage() {
       setOriginalResumeText(capturedResumeText.trim())
     }
 
-    if (!options.selectedKeywords?.length && !options.customSnippets?.length) {
+    if (!options.selectedKeywords?.length && !options.customSnippets?.length && !options.anchoredModifications?.length) {
       setResult(null)
       resetEditedResume(null)
     }
@@ -200,6 +199,9 @@ export default function HomePage() {
       }
       if (options.customSnippets?.length) {
         formData.append('customSnippets', JSON.stringify(options.customSnippets))
+      }
+      if (options.anchoredModifications?.length) {
+        formData.append('anchoredModifications', JSON.stringify(options.anchoredModifications))
       }
 
       const response = await fetch('/api/generate', {
@@ -234,8 +236,12 @@ export default function HomePage() {
       resetEditedResume(data.tailoredResume)
       setCoverLetter(data.coverLetter)
 
-      if (options.customSnippets?.length || options.selectedKeywords?.length) {
-        const count = options.customSnippets?.length ?? options.selectedKeywords?.length ?? 0
+      if (options.anchoredModifications?.length || options.customSnippets?.length || options.selectedKeywords?.length) {
+        const count =
+          options.anchoredModifications?.length ??
+          options.customSnippets?.length ??
+          options.selectedKeywords?.length ??
+          0
         toast.success(
           `Re-tailored with ${count} addition${count === 1 ? '' : 's'} incorporated`
         )
@@ -265,7 +271,7 @@ export default function HomePage() {
 
     await handleGenerate({
       selectedKeywords: selections.map((item) => item.keyword),
-      customSnippets: selections.map((item) => item.snippet),
+      anchoredModifications: selectionsToAnchoredModifications(selections),
       resumeOverride,
     })
   }

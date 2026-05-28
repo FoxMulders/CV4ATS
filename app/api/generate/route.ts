@@ -5,7 +5,7 @@ import {
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_RESUME_TEXT_LENGTH,
 } from '@/lib/ai/schemas'
-import { parseCustomSnippets, parseSelectedKeywords } from '@/lib/api/parse-selected-keywords'
+import { parseAnchoredModifications, parseCustomSnippets, parseSelectedKeywords } from '@/lib/api/parse-selected-keywords'
 import { createNdjsonStream, ndjsonStreamResponse } from '@/lib/api/progress-stream'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { runStreamedGeneration } from '@/lib/api/run-streamed-generation'
@@ -73,11 +73,13 @@ export async function POST(request: Request) {
 
     const selectedKeywords = parseSelectedKeywords(formData.get('selectedKeywords'))
     const customSnippets = parseCustomSnippets(formData.get('customSnippets'))
+    const anchoredModifications = parseAnchoredModifications(formData.get('anchoredModifications'))
 
     const stream = createNdjsonStream((emit) =>
       runStreamedGeneration(emit, jobDescription, resumeText, {
         selectedKeywords,
         customSnippets,
+        anchoredModifications,
       })
     )
 
