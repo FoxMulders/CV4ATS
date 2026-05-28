@@ -1,3 +1,4 @@
+import { polishBulletLocally, runLocalBulletQa } from '@/lib/ai/bullet-qa-validation'
 import { getResumeEvidenceAliases } from '@/lib/resume/resume-evidence-aliases'
 import {
   mapResumeDomains,
@@ -27,6 +28,7 @@ export interface SkillAnchor {
   targetBulletIndex?: number
   bulletLineIndex?: number
   modificationType: 'inline-bullet' | 'skills-section' | 'summary'
+  siblingBullets?: string[]
 }
 
 const DOMAIN_AFFINITY: Record<SkillCategory, Partial<Record<ProfessionalDomain, number>>> = {
@@ -164,7 +166,8 @@ function formatPlacementLabel(position: MappedPosition | null, placement: SkillA
 
 export function integrateSkillIntoBulletLocal(
   bulletText: string,
-  skill: TargetSkill
+  skill: TargetSkill,
+  variantIndex = 0
 ): string {
   const content = bulletText.trim()
   if (!content) return bulletText
@@ -174,18 +177,51 @@ export function integrateSkillIntoBulletLocal(
 
   const base = content.endsWith('.') ? content.slice(0, -1) : content
 
-  switch (skill.category) {
-    case 'methodology':
-      return `${base}, applying ${term} to strengthen delivery rhythm and cross-team alignment.`
-    case 'competency':
-      return `${base} while exercising ${term} across stakeholders, milestones, and measurable outcomes.`
-    case 'domainTech':
-      return `${base}, leveraging ${term} to improve operational reliability and business impact.`
-    case 'tool':
-      return `${base} using ${term} in production workflows.`
-    default:
-      return `${base}, incorporating ${term} into established delivery practices.`
+  const variants: Record<SkillCategory, string[]> = {
+    methodology: [
+      `${base}, applying ${term} to strengthen delivery rhythm and cross-team alignment.`,
+      `${base} through ${term} practices that improved milestone predictability.`,
+      `${base}; institutionalized ${term} to reduce handoff friction across teams.`,
+    ],
+    competency: [
+      `${base} while exercising ${term} across stakeholders, milestones, and measurable outcomes.`,
+      `${base}, demonstrating ${term} through sequenced delivery and accountable ownership.`,
+      `${base} and applied ${term} to keep cross-functional work aligned to business outcomes.`,
+    ],
+    domainTech: [
+      `${base}, leveraging ${term} to improve operational reliability and business impact.`,
+      `${base} and extended ${term} capabilities into production workflows with measurable gains.`,
+      `${base}; advanced ${term} adoption to reduce rework and improve service reliability.`,
+    ],
+    tool: [
+      `${base} using ${term} in production workflows.`,
+      `${base}, incorporating ${term} into daily execution with consistent quality gates.`,
+    ],
   }
+
+  const options = variants[skill.category] ?? variants.domainTech
+  return options[variantIndex % options.length] ?? options[0]!
+}
+
+function integrateSkillIntoBulletWithQa(
+  bulletText: string,
+  skill: TargetSkill,
+  qaContext: Omit<Parameters<typeof runLocalBulletQa>[0], 'candidateBullet'>
+): string {
+  for (let variant = 0; variant < 4; variant += 1) {
+    const candidate = integrateSkillIntoBulletLocal(bulletText, skill, variant)
+    const evaluation = runLocalBulletQa({
+      ...qaContext,
+      candidateBullet: candidate,
+      keyword: skill.term,
+      modificationType: 'inline-bullet',
+    })
+    if (evaluation.passed) {
+      return polishBulletLocally(candidate)
+    }
+  }
+
+  return polishBulletLocally(integrateSkillIntoBulletLocal(bulletText, skill, 0))
 }
 
 function integrateSkillIntoSummaryLocal(summary: string, skill: TargetSkill): string {
@@ -260,13 +296,25 @@ export function buildSkillAnchor(
     }
   }
 
+  const siblingBullets = position.bullets
+    .filter((entry) => entry.bulletIndex !== bullet.bulletIndex)
+    .map((entry) => entry.text)
+
+  const modifiedBullet = integrateSkillIntoBulletWithQa(bullet.text, skill, {
+    originalBullet: bullet.text,
+    siblingBullets,
+    targetRoleTitle: position.title,
+    targetCompany: position.company,
+    domainLabel: position.domainLabel,
+  })
+
   return {
     skill: skill.term,
     category: skill.category,
     position,
     bullet,
     originalBullet: bullet.text,
-    modifiedBullet: integrateSkillIntoBulletLocal(bullet.text, skill),
+    modifiedBullet,
     placement: 'experience',
     placementLabel: formatPlacementLabel(position, 'experience'),
     placementBreadcrumb: buildPlacementBreadcrumb('experience', position.company),
@@ -274,6 +322,7 @@ export function buildSkillAnchor(
     targetBulletIndex: bullet.bulletIndex,
     bulletLineIndex: bullet.lineIndex,
     modificationType: 'inline-bullet',
+    siblingBullets,
   }
 }
 

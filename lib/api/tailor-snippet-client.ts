@@ -15,6 +15,7 @@ export interface TailorSnippetRequest {
   targetCompany?: string
   placementLabel?: string
   domainLabel?: string
+  siblingBullets?: string[]
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
 }
 

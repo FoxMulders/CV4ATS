@@ -39,6 +39,7 @@ export interface EditableSkillSnippetItem {
   targetRoleTitle?: string
   targetCompany?: string
   domainLabel?: string
+  siblingBullets?: string[]
   purgeReason?: string
 }
 
@@ -207,6 +208,7 @@ export function EditableSkillSnippetPicker({
         placementLabel: item?.placementLabel,
         domainLabel: item?.domainLabel,
         modificationType: item?.modificationType,
+        siblingBullets: item?.siblingBullets,
       })
       updateSnippet(keyword, snippet)
       setVariationCounts((current) => ({ ...current, [keyword]: variationIndex }))
@@ -496,6 +498,7 @@ export function SelectableMissingKeywords({
         bulletLineIndex: addition.bulletLineIndex,
         positionId: addition.positionId,
         bulletIndex: addition.bulletIndex,
+        siblingBullets: addition.siblingBullets,
         modificationType: addition.modificationType,
         targetRoleTitle: addition.targetRoleTitle,
         targetCompany: addition.targetCompany,

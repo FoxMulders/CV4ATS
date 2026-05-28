@@ -25,6 +25,7 @@ const tailorSnippetSchema = z.object({
   placementLabel: z.string().optional(),
   domainLabel: z.string().optional(),
   modificationType: z.enum(['inline-bullet', 'skills-section', 'summary']).optional(),
+  siblingBullets: z.array(z.string()).optional(),
 })
 
 export async function POST(request: Request) {
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
       placementLabel,
       domainLabel,
       modificationType,
+      siblingBullets,
     } = parsed.data
 
     if (jobDescription.length > MAX_JOB_DESCRIPTION_LENGTH) {
@@ -85,6 +87,7 @@ export async function POST(request: Request) {
       placementLabel,
       domainLabel,
       modificationType,
+      siblingBullets,
     })
 
     return NextResponse.json({ snippet })

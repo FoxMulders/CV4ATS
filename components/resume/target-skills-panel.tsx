@@ -70,6 +70,7 @@ export function TargetSkillsPanel({
     bulletLineIndex: addition.bulletLineIndex,
     positionId: addition.positionId,
     bulletIndex: addition.bulletIndex,
+    siblingBullets: addition.siblingBullets,
     modificationType: addition.modificationType,
     targetRoleTitle: addition.targetRoleTitle,
     targetCompany: addition.targetCompany,

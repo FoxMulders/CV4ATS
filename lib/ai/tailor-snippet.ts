@@ -1,5 +1,12 @@
 import { generateText } from 'ai'
 
+import {
+  buildQaFeedbackPromptSection,
+  polishBulletLocally,
+  runBulletQaPipeline,
+  runLocalBulletQa,
+  type BulletQaEvaluation,
+} from '@/lib/ai/bullet-qa-validation'
 import { shouldUseLocalFallback, unwrapAiError } from '@/lib/ai/errors'
 import {
   AI_GENERATION_TEMPERATURE,
@@ -13,7 +20,7 @@ import {
 } from '@/lib/resume/skill-snippets'
 import { REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION } from '@/lib/resume/exact-phrasing-auditor'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
-import { buildSkillAnchor } from '@/lib/resume/thematic-skill-anchor'
+import { buildSkillAnchor, integrateSkillIntoBulletLocal } from '@/lib/resume/thematic-skill-anchor'
 import {
   buildSanitizedTailoringContext,
   parseStructuredResumeDocument,
@@ -35,6 +42,7 @@ export interface TailorSnippetInput {
   placementLabel?: string
   domainLabel?: string
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+  siblingBullets?: string[]
 }
 
 const TAILOR_SNIPPET_SYSTEM = `You are an executive resume writer specializing in ATS-optimized resume edits.
@@ -71,7 +79,7 @@ function openingPatterns(texts: string[]): string {
     .join('\n')
 }
 
-function buildTailorSnippetPrompt(input: TailorSnippetInput): string {
+function buildTailorSnippetPrompt(input: TailorSnippetInput, qaFeedback?: string): string {
   const pending = (input.otherSnippets ?? []).filter(Boolean).slice(0, 12)
   const previous = (input.previousVariations ?? []).filter(Boolean).slice(-6)
   const variationIndex = input.variationIndex ?? 0
@@ -79,6 +87,16 @@ function buildTailorSnippetPrompt(input: TailorSnippetInput): string {
   const originalLine = input.originalBullet?.trim() || input.currentSnippet.trim()
   const structured = parseStructuredResumeDocument(input.resumeText)
   const sanitizedExperience = buildSanitizedTailoringContext(structured)
+  const roleSiblingBullets =
+    input.siblingBullets ??
+    structured.experience
+      .find(
+        (position) =>
+          (input.targetCompany && position.company === input.targetCompany) ||
+          (input.targetRoleTitle && position.title === input.targetRoleTitle)
+      )
+      ?.bullets.map((bullet) => bullet.text) ??
+    []
 
   const bannedOpeners = openingPatterns([
     ...pending,
@@ -105,6 +123,9 @@ ${input.targetRoleTitle ? `- Role: ${input.targetRoleTitle}` : ''}
 ${input.targetCompany ? `- Company: ${input.targetCompany}` : ''}
 ${input.domainLabel ? `- Professional domain: ${input.domainLabel}` : ''}
 ${input.modificationType ? `- Edit type: ${input.modificationType}` : 'inline-bullet'}
+
+OTHER BULLETS IN THIS ROLE (do not duplicate their opening verbs or rhythm):
+${roleSiblingBullets.length ? roleSiblingBullets.map((line) => `- ${line}`).join('\n') : '(none)'}
 
 ORIGINAL LINE TO REVISE (preserve facts, tense, and impact):
 ${originalLine}
@@ -134,6 +155,7 @@ ${
 }`
     : ''
 }
+${qaFeedback ? `\n${qaFeedback}` : ''}
 
 TASK:
 Revise the ORIGINAL LINE so "${input.keyword.trim()}" is integrated naturally into the existing achievement for ${input.targetRoleTitle ? `${input.targetRoleTitle} at ${input.targetCompany ?? 'the listed employer'}` : 'the best-matched historical role'}. Return only the revised line.`
@@ -161,27 +183,66 @@ function tailorSnippetLocally(input: TailorSnippetInput): string {
       category: 'domainTech' as const,
     }
 
+  let snippet: string
   if (input.originalBullet?.trim()) {
     const anchor = buildSkillAnchor(skill, input.resumeText)
-    return anchor.modifiedBullet
+    snippet = anchor.modifiedBullet
+  } else {
+    const context: SnippetGenerationContext = {
+      resumeText: input.resumeText,
+      jobDescription: input.jobDescription,
+      siblingSnippets: [...(input.otherSnippets ?? []), ...(input.previousVariations ?? [])],
+      variationIndex: input.variationIndex ?? 0,
+    }
+    snippet = buildSnippetForKeyword(input.keyword, context).snippet
   }
 
-  const context: SnippetGenerationContext = {
-    resumeText: input.resumeText,
-    jobDescription: input.jobDescription,
-    siblingSnippets: [...(input.otherSnippets ?? []), ...(input.previousVariations ?? [])],
-    variationIndex: input.variationIndex ?? 0,
+  const qa = runLocalBulletQa({
+    candidateBullet: snippet,
+    originalBullet: input.originalBullet,
+    siblingBullets: input.siblingBullets,
+    targetRoleTitle: input.targetRoleTitle,
+    targetCompany: input.targetCompany,
+    domainLabel: input.domainLabel,
+    keyword: input.keyword,
+    modificationType: input.modificationType,
+  })
+
+  if (!qa.passed && input.originalBullet?.trim()) {
+    const skill =
+      keywordsToTargetSkills([input.keyword])[0] ?? {
+        term: input.keyword,
+        category: 'domainTech' as const,
+      }
+    for (let variant = 1; variant < 4; variant += 1) {
+      const alternate = integrateSkillIntoBulletLocal(input.originalBullet, skill, variant)
+      const alternateQa = runLocalBulletQa({
+        candidateBullet: alternate,
+        originalBullet: input.originalBullet,
+        siblingBullets: input.siblingBullets,
+        targetRoleTitle: input.targetRoleTitle,
+        targetCompany: input.targetCompany,
+        domainLabel: input.domainLabel,
+        keyword: input.keyword,
+        modificationType: input.modificationType,
+      })
+      if (alternateQa.passed) {
+        return polishBulletLocally(alternate)
+      }
+    }
   }
 
-  return buildSnippetForKeyword(input.keyword, context).snippet
+  return polishBulletLocally(snippet)
 }
 
-export async function tailorSnippetWithAi(input: TailorSnippetInput): Promise<string> {
-  assertDirectAiProviderConfigured()
-
+async function generateTailorSnippetDraft(
+  input: TailorSnippetInput,
+  qaFeedback: string | undefined,
+  variationBump: number
+): Promise<string> {
   const chain = buildFreeProviderChain()
-  const prompt = buildTailorSnippetPrompt(input)
-  const variationIndex = input.variationIndex ?? 0
+  const prompt = buildTailorSnippetPrompt(input, qaFeedback)
+  const variationIndex = (input.variationIndex ?? 0) + variationBump
   let lastError: unknown
 
   for (let index = 0; index < chain.length; index += 1) {
@@ -222,4 +283,44 @@ export async function tailorSnippetWithAi(input: TailorSnippetInput): Promise<st
   }
 
   throw lastError instanceof Error ? lastError : new Error('Failed to tailor snippet.')
+}
+
+export async function tailorSnippetWithAi(input: TailorSnippetInput): Promise<string> {
+  assertDirectAiProviderConfigured()
+
+  if (input.modificationType === 'skills-section') {
+    return polishBulletLocally(normalizeSnippetOutput(input.currentSnippet))
+  }
+
+  let initialDraft: string
+  try {
+    initialDraft = await generateTailorSnippetDraft(input, undefined, 0)
+  } catch {
+    initialDraft = tailorSnippetLocally(input)
+  }
+
+  const qaContext = {
+    candidateBullet: initialDraft,
+    originalBullet: input.originalBullet,
+    siblingBullets: input.siblingBullets,
+    targetRoleTitle: input.targetRoleTitle,
+    targetCompany: input.targetCompany,
+    domainLabel: input.domainLabel,
+    keyword: input.keyword,
+    modificationType: input.modificationType,
+  }
+
+  const { bullet } = await runBulletQaPipeline(
+    qaContext,
+    async (feedback: BulletQaEvaluation | null, attempt) => {
+      const qaSection = feedback ? buildQaFeedbackPromptSection(feedback) : undefined
+      try {
+        return await generateTailorSnippetDraft(input, qaSection, attempt)
+      } catch {
+        return polishBulletLocally(tailorSnippetLocally(input))
+      }
+    }
+  )
+
+  return bullet
 }
