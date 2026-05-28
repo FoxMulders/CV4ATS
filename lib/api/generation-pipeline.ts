@@ -52,6 +52,8 @@ export type GenerationPipelineOptions = {
   /** Inline bullet/summary revisions with placement metadata. */
   anchoredModifications?: Array<{
     snippet: string
+    positionId?: string
+    bulletIndex?: number
     originalBullet?: string
     bulletLineIndex?: number
     modificationType?: 'inline-bullet' | 'skills-section' | 'summary'

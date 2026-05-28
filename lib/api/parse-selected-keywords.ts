@@ -36,6 +36,8 @@ export function parseAnchoredModifications(
   raw: FormDataEntryValue | null | undefined
 ): Array<{
   snippet: string
+  positionId?: string
+  bulletIndex?: number
   originalBullet?: string
   bulletLineIndex?: number
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
@@ -61,6 +63,8 @@ export function parseAnchoredModifications(
 
         return {
           snippet: typeof entry.snippet === 'string' ? entry.snippet.trim() : '',
+          positionId: typeof entry.positionId === 'string' ? entry.positionId.trim() : undefined,
+          bulletIndex: typeof entry.bulletIndex === 'number' ? entry.bulletIndex : undefined,
           originalBullet:
             typeof entry.originalBullet === 'string' ? entry.originalBullet.trim() : undefined,
           bulletLineIndex:

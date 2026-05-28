@@ -12,6 +12,7 @@ import {
   type SuggestedAddition,
 } from '@/lib/resume/skill-snippets'
 import { buildSkillAnchor } from '@/lib/resume/thematic-skill-anchor'
+import { buildPlacementBreadcrumb } from '@/lib/resume/structured-resume-document'
 
 export interface ExperienceAnchor {
   title: string
@@ -209,6 +210,9 @@ export function buildPurgedKeywordRestoration(
       ? 'Professional summary'
       : anchor.placementLabel ??
         formatPlacementLabel(placement, legacyAnchor)
+  const placementBreadcrumb =
+    anchor.placementBreadcrumb ??
+    buildPlacementBreadcrumb(placement, anchor.position?.company ?? legacyAnchor?.company)
 
   return {
     skill: keyword,
@@ -217,9 +221,12 @@ export function buildPurgedKeywordRestoration(
     snippet,
     originalBullet: anchor.originalBullet,
     targetRoleTitle: anchor.position?.title,
-    targetCompany: anchor.position?.company,
+    targetCompany: anchor.position?.company ?? legacyAnchor?.company,
     placementLabel,
+    placementBreadcrumb,
     bulletLineIndex: anchor.bulletLineIndex,
+    positionId: anchor.positionId,
+    bulletIndex: anchor.targetBulletIndex,
     modificationType: anchor.modificationType,
     domainLabel: anchor.position?.domainLabel,
     purgeReason: item.reason,

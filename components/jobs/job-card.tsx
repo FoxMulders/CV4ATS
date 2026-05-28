@@ -167,6 +167,8 @@ export function JobCard({
           JSON.stringify(
             options.selections.map((item) => ({
               snippet: item.snippet,
+              positionId: item.positionId,
+              bulletIndex: item.bulletIndex,
               originalBullet: item.originalBullet,
               bulletLineIndex: item.bulletLineIndex,
               modificationType: item.modificationType,

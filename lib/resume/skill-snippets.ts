@@ -13,7 +13,10 @@ export interface SuggestedAddition {
   targetRoleTitle?: string
   targetCompany?: string
   placementLabel?: string
+  placementBreadcrumb?: string
   bulletLineIndex?: number
+  positionId?: string
+  bulletIndex?: number
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
   domainLabel?: string
 }
@@ -70,7 +73,10 @@ export function buildSuggestedAddition(
     targetRoleTitle: anchor.position?.title,
     targetCompany: anchor.position?.company,
     placementLabel: anchor.placementLabel,
+    placementBreadcrumb: anchor.placementBreadcrumb,
     bulletLineIndex: anchor.bulletLineIndex,
+    positionId: anchor.positionId,
+    bulletIndex: anchor.targetBulletIndex,
     modificationType: anchor.modificationType,
     domainLabel: anchor.position?.domainLabel,
   }

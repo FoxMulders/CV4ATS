@@ -14,6 +14,10 @@ import {
 import { REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION } from '@/lib/resume/exact-phrasing-auditor'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
 import { buildSkillAnchor } from '@/lib/resume/thematic-skill-anchor'
+import {
+  buildSanitizedTailoringContext,
+  parseStructuredResumeDocument,
+} from '@/lib/resume/structured-resume-document'
 
 export interface TailorSnippetInput {
   jobDescription: string
@@ -40,10 +44,11 @@ Rewrite exactly ONE existing resume line by gracefully integrating a target skil
 STRICT RULES:
 1. IN-LINE MODIFICATION — Do not create a brand-new bullet. Modify the provided original bullet/summary so the target skill is woven into the existing achievement naturally.
 2. CONTEXTUAL AWARENESS — Preserve the employer, role, metrics, tools, and facts from the original line. Never invent employers, dates, or outcomes that are not supported by the resume.
-3. TENSE & FLOW — Keep past tense for experience bullets and maintain the original sentence rhythm. The result must read like a polished revision, not an appended fragment.
-4. JOB ALIGNMENT — Match the job's competency level semantically. Never copy multi-word fragments from the job description (more than 3 consecutive identical words fails compliance).
-5. CONCISION — One sentence, max ~45 words, impact-driven.
-6. OUTPUT — Return ONLY the rewritten line (no bullet symbol, quotes, markdown, labels, or commentary).
+3. EMPLOYER SANITIZATION — Use only the company name provided in THEMATIC PLACEMENT. Never use contact headers, email addresses, phone numbers, or raw date strings (e.g. "07/2024") as an employer.
+4. TENSE & FLOW — Keep past tense for experience bullets with human-written action verbs (Led, Built, Delivered, Improved, Automated). The result must read like a polished revision, not an appended fragment.
+5. JOB ALIGNMENT — Match the job's competency level semantically. Never copy multi-word fragments from the job description (more than 3 consecutive identical words fails compliance).
+6. CONCISION — One sentence, max ~45 words, impact-driven.
+7. OUTPUT — Return ONLY the rewritten line (no bullet symbol, quotes, markdown, labels, or commentary).
 
 When a VARIATION instruction is present, produce wording clearly different from every listed previous version while keeping the same factual anchor.`
 
@@ -72,6 +77,8 @@ function buildTailorSnippetPrompt(input: TailorSnippetInput): string {
   const variationIndex = input.variationIndex ?? 0
   const matchedPhrases = (input.matchedJobDescriptionPhrases ?? []).filter(Boolean).slice(0, 6)
   const originalLine = input.originalBullet?.trim() || input.currentSnippet.trim()
+  const structured = parseStructuredResumeDocument(input.resumeText)
+  const sanitizedExperience = buildSanitizedTailoringContext(structured)
 
   const bannedOpeners = openingPatterns([
     ...pending,
@@ -83,8 +90,11 @@ function buildTailorSnippetPrompt(input: TailorSnippetInput): string {
   return `JOB DESCRIPTION (match tone and vocabulary):
 ${truncateForPrompt(input.jobDescription.trim(), 6000)}
 
-FULL RESUME TEXT (ground truth — do not invent beyond this):
-${truncateForPrompt(input.resumeText.trim(), 12000)}
+SANITIZED EXPERIENCE CONTEXT (use these employers and bullets only — contact headers and date tokens excluded):
+${truncateForPrompt(sanitizedExperience, 9000)}
+
+CANDIDATE NAME (reference only — do not inject into bullet text):
+${structured.contact.name}
 
 TARGET KEYWORD / SKILL TO INTEGRATE:
 ${input.keyword.trim()}

@@ -30,8 +30,11 @@ export interface EditableSkillSnippetItem {
   category?: string
   placement?: string
   placementLabel?: string
+  placementBreadcrumb?: string
   originalBullet?: string
   bulletLineIndex?: number
+  positionId?: string
+  bulletIndex?: number
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
   targetRoleTitle?: string
   targetCompany?: string
@@ -137,9 +140,12 @@ export function EditableSkillSnippetPicker({
         bulletLineIndex: item?.bulletLineIndex,
         modificationType: item?.modificationType,
         placementLabel: item?.placementLabel,
+        placementBreadcrumb: item?.placementBreadcrumb,
         targetRoleTitle: item?.targetRoleTitle,
         targetCompany: item?.targetCompany,
         domainLabel: item?.domainLabel,
+        positionId: item?.positionId,
+        bulletIndex: item?.bulletIndex,
       }
     })
   }
@@ -347,6 +353,9 @@ function SnippetEditorCard({
     (item?.targetRoleTitle && item?.targetCompany
       ? `Suggested adjustment for ${item.targetRoleTitle} at ${item.targetCompany}`
       : undefined)
+  const placementBreadcrumb =
+    item?.placementBreadcrumb ??
+    (item?.targetCompany ? `→ experience [${item.targetCompany}]` : item?.placement ? `→ ${item.placement}` : undefined)
   const showInlineComparison =
     Boolean(item?.originalBullet?.trim()) && item?.modificationType === 'inline-bullet'
 
@@ -359,6 +368,11 @@ function SnippetEditorCard({
           </Label>
           {placementLabel ? (
             <p className="text-sm font-medium text-amber-950">{placementLabel}</p>
+          ) : null}
+          {placementBreadcrumb ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+              {placementBreadcrumb}
+            </p>
           ) : null}
           {item?.domainLabel ? (
             <p className="text-xs text-muted-foreground">Domain: {item.domainLabel}</p>
@@ -477,8 +491,11 @@ export function SelectableMissingKeywords({
         category: addition.category,
         placement: addition.placement,
         placementLabel: addition.placementLabel,
+        placementBreadcrumb: addition.placementBreadcrumb,
         originalBullet: addition.originalBullet,
         bulletLineIndex: addition.bulletLineIndex,
+        positionId: addition.positionId,
+        bulletIndex: addition.bulletIndex,
         modificationType: addition.modificationType,
         targetRoleTitle: addition.targetRoleTitle,
         targetCompany: addition.targetCompany,

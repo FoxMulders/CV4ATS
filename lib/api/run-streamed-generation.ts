@@ -12,6 +12,8 @@ type PipelineOptions = {
   customSnippets?: string[]
   anchoredModifications?: Array<{
     snippet: string
+    positionId?: string
+    bulletIndex?: number
     originalBullet?: string
     bulletLineIndex?: number
     modificationType?: 'inline-bullet' | 'skills-section' | 'summary'

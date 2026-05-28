@@ -6,8 +6,12 @@ import {
   type ProfessionalDomain,
   type ResumeDomainMap,
 } from '@/lib/resume/resume-domain-mapping'
-import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
 import { extractOriginalSummary } from '@/lib/resume/resume-diff'
+import {
+  buildPlacementBreadcrumb,
+  parseStructuredResumeDocument,
+} from '@/lib/resume/structured-resume-document'
+import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
 
 export interface SkillAnchor {
   skill: string
@@ -18,6 +22,9 @@ export interface SkillAnchor {
   modifiedBullet: string
   placement: 'summary' | 'skills' | 'experience'
   placementLabel: string
+  placementBreadcrumb: string
+  positionId?: string
+  targetBulletIndex?: number
   bulletLineIndex?: number
   modificationType: 'inline-bullet' | 'skills-section' | 'summary'
 }
@@ -97,10 +104,10 @@ function scoreBulletForSkill(bullet: MappedBullet, skill: TargetSkill): number {
     if (haystack.includes(word)) score += 2
   }
 
-  if (skill.category === 'domainTech' && /\b(build|develop|implement|automate|deliver|design|engineer)\b/i.test(haystack)) {
+  if (skill.category === 'domainTech' && /\b(build|developed|implemented|automated|delivered|designed|engineered)\b/i.test(haystack)) {
     score += 6
   }
-  if (skill.category === 'methodology' && /\b(lead|manage|coordinate|deliver|stakeholder|milestone)\b/i.test(haystack)) {
+  if (skill.category === 'methodology' && /\b(led|managed|coordinated|delivered|stakeholder|milestone)\b/i.test(haystack)) {
     score += 5
   }
 
@@ -191,9 +198,9 @@ function integrateSkillIntoSummaryLocal(summary: string, skill: TargetSkill): st
   return `${trimmed}, with proven ${skill.term} experience aligned to complex technical and operational environments.`
 }
 
-function shouldUseSummaryPlacement(skill: TargetSkill, resumeText: string): boolean {
+function shouldUseSummaryPlacement(skill: TargetSkill, documentSummary: string): boolean {
   if (/\binformation technology\b/i.test(skill.term)) return true
-  if (skill.category === 'competency' && resumeText.length < 1200) return false
+  if (skill.category === 'competency' && documentSummary.length < 1200) return false
   return false
 }
 
@@ -202,6 +209,9 @@ export function buildSkillAnchor(
   resumeText: string,
   domainMap: ResumeDomainMap = mapResumeDomains(resumeText)
 ): SkillAnchor {
+  const structured = parseStructuredResumeDocument(resumeText)
+  const summarySource = structured.summary || extractOriginalSummary(resumeText) || ''
+
   if (skill.category === 'tool') {
     return {
       skill: skill.term,
@@ -212,28 +222,29 @@ export function buildSkillAnchor(
       modifiedBullet: skill.term.charAt(0).toUpperCase() + skill.term.slice(1),
       placement: 'skills',
       placementLabel: 'Skills section',
+      placementBreadcrumb: buildPlacementBreadcrumb('skills'),
       modificationType: 'skills-section',
     }
   }
 
-  if (shouldUseSummaryPlacement(skill, resumeText)) {
-    const originalSummary = extractOriginalSummary(resumeText) || ''
+  if (shouldUseSummaryPlacement(skill, summarySource)) {
     return {
       skill: skill.term,
       category: skill.category,
       position: null,
       bullet: null,
-      originalBullet: originalSummary,
-      modifiedBullet: integrateSkillIntoSummaryLocal(originalSummary, skill),
+      originalBullet: summarySource,
+      modifiedBullet: integrateSkillIntoSummaryLocal(summarySource, skill),
       placement: 'summary',
       placementLabel: 'Professional summary',
+      placementBreadcrumb: buildPlacementBreadcrumb('summary'),
       modificationType: 'summary',
     }
   }
 
   const { position, bullet } = pickBestAnchor(domainMap, skill)
 
-  if (!bullet) {
+  if (!bullet || !position) {
     const fallbackSnippet = integrateSkillIntoSummaryLocal('', skill)
     return {
       skill: skill.term,
@@ -244,6 +255,7 @@ export function buildSkillAnchor(
       modifiedBullet: fallbackSnippet,
       placement: 'experience',
       placementLabel: formatPlacementLabel(position, 'experience'),
+      placementBreadcrumb: buildPlacementBreadcrumb('experience', position?.company),
       modificationType: 'inline-bullet',
     }
   }
@@ -257,6 +269,9 @@ export function buildSkillAnchor(
     modifiedBullet: integrateSkillIntoBulletLocal(bullet.text, skill),
     placement: 'experience',
     placementLabel: formatPlacementLabel(position, 'experience'),
+    placementBreadcrumb: buildPlacementBreadcrumb('experience', position.company),
+    positionId: position.id,
+    targetBulletIndex: bullet.bulletIndex,
     bulletLineIndex: bullet.lineIndex,
     modificationType: 'inline-bullet',
   }
