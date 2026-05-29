@@ -14,6 +14,7 @@ interface HiringPanelStepProps {
   loadingLabel?: string | null
   disabled: boolean
   result: HiringPanelResult | null
+  onApplyCoverLetter?: () => void
 }
 
 export function HiringPanelStep({
@@ -23,14 +24,15 @@ export function HiringPanelStep({
   loadingLabel,
   disabled,
   result,
+  onApplyCoverLetter,
 }: HiringPanelStepProps) {
   return (
     <div className="space-y-4 border-t border-border/60 pt-4">
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">Elite Hiring Manager Panel</p>
         <p className="text-xs text-muted-foreground">
-          Simulate 10 senior recruiters critiquing your resume against the job description, then
-          receive rewritten bullets and a cover letter hook.
+          All 10 managers critique your materials, rewrite bullets and a full cover letter, then
+          return to the table to react to whether their concerns were fixed.
         </p>
       </div>
 
@@ -59,7 +61,9 @@ export function HiringPanelStep({
         <HiringPanelProgress loadingStep={loadingStep} activeLabel={loadingLabel} />
       ) : null}
 
-      {result && !isLoading ? <HiringPanelResults result={result} /> : null}
+      {result && !isLoading ? (
+        <HiringPanelResults result={result} onApplyCoverLetter={onApplyCoverLetter} />
+      ) : null}
     </div>
   )
 }

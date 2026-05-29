@@ -1,7 +1,7 @@
 import { generateText, NoObjectGeneratedError, Output } from 'ai'
 
 import { unwrapAiError } from '@/lib/ai/errors'
-import { createGeminiModel, geminiProviderOptions } from '@/lib/ai/gemini'
+import { createGeminiModel, GEMINI_MODEL_ID, geminiProviderOptions } from '@/lib/ai/gemini'
 import {
   buildHiringPanelUserPrompt,
   HIRING_PANEL_SYSTEM_PROMPT,
@@ -13,15 +13,15 @@ import {
 import { parseJsonFromModelText } from '@/lib/ai/normalize-output'
 import { AI_GENERATION_MAX_TOKENS, AI_STREAM_MAX_RETRIES } from '@/lib/ai/provider'
 
-/** Complex reasoning model for multi-step panel simulation. Override via HIRING_PANEL_MODEL_ID. */
+/** Panel simulation model. Defaults to GEMINI_MODEL_ID (gemini-flash-latest). Override via HIRING_PANEL_MODEL_ID. */
 export const HIRING_PANEL_MODEL_ID =
-  process.env.HIRING_PANEL_MODEL_ID?.trim() || 'gemini-1.5-pro'
+  process.env.HIRING_PANEL_MODEL_ID?.trim() || GEMINI_MODEL_ID
 
 const STRUCTURED_OUTPUT = Output.object({
   schema: hiringPanelResultSchema,
   name: 'HiringPanelResult',
   description:
-    'Elite hiring manager panel output with critiquesSummary, rewrittenBullets, and coverLetterHook.',
+    'Elite hiring manager panel with 10 round-table critiques, rewritten bullets, full cover letter, and panel verdict.',
 })
 
 function tryRecoverHiringPanelOutput(error: unknown): HiringPanelResult | undefined {
@@ -38,10 +38,11 @@ function tryRecoverHiringPanelOutput(error: unknown): HiringPanelResult | undefi
 
 export async function runHiringPanelSimulation(
   jobDescription: string,
-  resumeText: string
+  resumeText: string,
+  coverLetter?: string
 ): Promise<HiringPanelResult> {
   const model = createGeminiModel(HIRING_PANEL_MODEL_ID)
-  const prompt = buildHiringPanelUserPrompt(jobDescription, resumeText)
+  const prompt = buildHiringPanelUserPrompt(jobDescription, resumeText, coverLetter)
 
   try {
     const response = await generateText({

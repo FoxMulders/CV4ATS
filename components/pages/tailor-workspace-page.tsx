@@ -316,6 +316,7 @@ export function TailorWorkspacePage({
         body: JSON.stringify({
           jobDescription: jobDescription.trim(),
           resumeText: activeResumeText,
+          coverLetter: coverLetter.trim() || undefined,
         }),
       })
 
@@ -329,7 +330,8 @@ export function TailorWorkspacePage({
       })
 
       setHiringPanelResult(panelResult)
-      toast.success('Elite Hiring Manager Panel review complete')
+      setCoverLetter(panelResult.coverLetter)
+      toast.success('Panel complete — cover letter updated from panel rewrite')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Hiring panel failed')
     } finally {
@@ -486,6 +488,14 @@ export function TailorWorkspacePage({
           loadingLabel={hiringPanelLabel}
           disabled={!canGenerate || isLoading}
           result={hiringPanelResult}
+          onApplyCoverLetter={
+            hiringPanelResult
+              ? () => {
+                  setCoverLetter(hiringPanelResult.coverLetter)
+                  toast.success('Cover letter updated from panel rewrite')
+                }
+              : undefined
+          }
         />
       </WorkspaceAccordion>
 

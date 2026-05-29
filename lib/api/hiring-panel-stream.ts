@@ -93,7 +93,8 @@ export function hiringPanelStreamResponse(stream: ReadableStream<Uint8Array>): R
 export async function runStreamedHiringPanel(
   emit: (event: HiringPanelStreamEvent) => void,
   jobDescription: string,
-  resumeText: string
+  resumeText: string,
+  coverLetter?: string
 ): Promise<void> {
   emit({
     type: 'progress',
@@ -115,7 +116,7 @@ export async function runStreamedHiringPanel(
 
   try {
     const result = await withGenerationTimeout(
-      runHiringPanelSimulation(jobDescription, resumeText)
+      runHiringPanelSimulation(jobDescription, resumeText, coverLetter)
     )
     emit({ type: 'complete', result })
   } finally {

@@ -28,6 +28,17 @@ export const COVER_LETTER_BANNED_PHRASES = [
   'Hit the ground running',
   'Perfect fit for',
   'Unique opportunity',
+  'Dear Hiring Team',
+  'bridge this gap',
+  'builder-leader duality',
+  'I welcome the opportunity to discuss',
+  'Complex technical initiatives often stall',
+  'high-value outcomes',
+  'enterprise standards',
+  'matrixed teams',
+  'Throughout my tenure',
+  'friction between high-level product vision',
+  'execution-level reality',
 ] as const
 
 /** Stylistic blacklist — generic AI corporate buzzwords (resume + summary). */
@@ -198,21 +209,22 @@ Apply the same standard of **Adaptive Phrase Diversification** used for resume b
 Do **not** use generic templates, passive introductory phrases, or robotic keyword stuffing. Craft a **strategic pitch** that positions the candidate as a high-impact solution to the employer's specific needs.
 
 ### 1. Identify the candidate's "Core Moat"
-Before writing, analyze the intersection of the candidate's distinct experiences. Find their unique professional edge — cross-functional skill blend, deep technical domain knowledge, builder-leader duality, operational automation expertise, or similar — and make it the **central theme** of the letter.
+Before writing, analyze the intersection of the candidate's distinct experiences. Find their unique professional edge — cross-functional skill blend, deep technical domain knowledge, operational automation expertise, or similar — and make it the **central theme** of the letter. Do not label this edge with template phrases like "builder-leader duality" — demonstrate it through specific proof.
 
 ### 2. The Hook (Paragraph 1)
 - Immediately establish the core moat in the opening lines.
 - The hook must be **distinct** and directly address a **specific problem, constraint, or context** implied by the job description — not a generic boilerplate opening.
-- Name a common operational pain point inherent to the target role (e.g., PM–engineering disconnect, release friction, capacity mis-estimation, stakeholder misalignment).
-- Position the candidate as the strategic bridge who resolves that pain — not as a generic applicant listing qualifications.
-- **Never** open with banned patterns such as: "I am writing to express…", "I am applying for…", "With my background in…", "Throughout my career…", "Passionate about…", "Thrilled to apply…", or "In today's dynamic world…".
+- **Name the target role title or team domain from the job description** in the first paragraph (e.g., the posted title, security program, platform squad, or stated mandate).
+- Name a common operational pain point **specific to this posting** (cite a responsibility or requirement from the JD — not a universal PM cliché like "vision vs execution friction").
+- Position the candidate as the strategic bridge who resolves that pain — with one concrete resume proof point, not abstract qualifications.
+- **Never** open with banned patterns such as: "I am writing to express…", "I am applying for…", "With my background in…", "Throughout my career…", "Passionate about…", "Thrilled to apply…", "In today's dynamic world…", "Complex technical initiatives often stall…", or "Dear Hiring Team".
 
 ### 3. Proof Points (Paragraphs 2 & 3)
 - Connect **specific, quantified achievements** from the resume directly to the job's core responsibilities — expressed semantically, not as a keyword list.
 - **Contextual tailoring over phrasing copying:** Seamlessly blend the candidate's authentic career achievements with target skills from the job description. Convey competency through outcomes and edge — never by lifting posting clauses.
 - Emphasize how the candidate optimizes efficiency, eliminates bottlenecks, automates manual drag, and takes strategic ownership of outcomes.
 - Use at least one concrete metric or scale indicator when the source resume supports it (time saved, throughput, team size, budget, release cycles, etc.).
-- Paragraph 3 may close with a concise role-fit statement and invitation to discuss — still peer-to-peer, never subservient.
+- Paragraph 3 may close with a concise role-fit statement — still peer-to-peer, never subservient. **Do not** end with "I welcome the opportunity to discuss…" or similar template closings.
 
 ### 4. Sentence mechanics & structural diversification (strict)
 Mirror the resume bullet diversification standard for cover letter prose:

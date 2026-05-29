@@ -14,4 +14,6 @@ export const HIRING_PANEL_PROGRESS_LABELS = [
   'Validating revisions against critiques…',
   'Iterating draft for maximum impact…',
   'Finalizing polished output…',
+  'Panel returning to the table…',
+  'Managers reacting to the rewrite…',
 ] as const

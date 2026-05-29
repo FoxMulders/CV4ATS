@@ -18,6 +18,7 @@ export const maxDuration = 300
 const hiringPanelRequestSchema = z.object({
   jobDescription: z.string().min(1),
   resumeText: z.string().min(1),
+  coverLetter: z.string().optional(),
 })
 
 export async function POST(request: Request) {
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
     }
 
-    const { jobDescription, resumeText } = parsed.data
+    const { jobDescription, resumeText, coverLetter } = parsed.data
 
     if (jobDescription.length > MAX_JOB_DESCRIPTION_LENGTH) {
       return NextResponse.json({ error: 'Job description is too long.' }, { status: 400 })
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     const stream = createHiringPanelNdjsonStream((emit) =>
-      runStreamedHiringPanel(emit, jobDescription.trim(), resumeText.trim())
+      runStreamedHiringPanel(emit, jobDescription.trim(), resumeText.trim(), coverLetter?.trim())
     )
 
     return hiringPanelStreamResponse(stream)
