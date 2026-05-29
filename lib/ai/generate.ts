@@ -45,7 +45,7 @@ const STRUCTURED_OUTPUT = Output.object({
   schema: aiGenerationResultSchema,
   name: 'TailoredApplication',
   description:
-    'Structured ATS resume package with keywordReport, tailoredResume, and coverLetter.',
+    'Structured ATS resume package with keywordReport, tailoredResume, and coverLetter. tailoredResume.summary and experience bullets must follow Resume Narrative Engine rules (hook-first summary, impact-first bullets). coverLetter must follow Cover Letter Generation Engine rules.',
 })
 
 function parseStructuredResult(raw: unknown): AiGenerationResult {

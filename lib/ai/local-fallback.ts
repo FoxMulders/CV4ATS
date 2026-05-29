@@ -55,16 +55,16 @@ function buildLocalCoverLetter(
     'delivery leadership, technical program execution, and process optimization'
 
   const hook =
-    `Most candidates for ${role} can recite methodology labels. Fewer can walk into a blocked release, read the architecture, eliminate the bottleneck, and keep stakeholders aligned to outcomes.`
+    `Delivering on ${role} commitments rarely fails in the planning deck—it fails when teams cannot translate scope into shippable work under real constraints.`
 
   const proofOne =
-    `My background spans ${recentRole?.title ?? 'senior technical delivery leadership'} at ${recentRole?.company ?? 'enterprise organizations'} — with a track record of driving delivery through strategic ownership, not checklist execution.${topBullet ? ` A recent example: ${topBullet}` : ''}`
+    `${recentRole?.title ?? 'Senior delivery leadership'} at ${recentRole?.company ?? 'enterprise organizations'} sharpened that instinct: strategic ownership over checklist execution.${topBullet ? ` One concrete win: ${topBullet}` : ''}`
 
   const proofTwo =
-    `Across recent roles, I have focused on ${proofKeywords} — consistently unblocking teams, refining operational workflows, and converting manual drag into durable automation where it saves cycles. I evaluate capacity with engineering fluency, spot architectural risk before it hits the roadmap, and take ownership of outcomes end to end.`
+    `Recent work maps directly to ${proofKeywords}. Bottlenecks get removed, workflows tightened, and manual drag replaced with durable automation when cycles are at stake. Capacity gets evaluated with engineering fluency; architectural risk gets surfaced before it hits the roadmap.`
 
   const close =
-    `I would welcome a conversation about how that execution-first approach can help your team deliver on ${role} priorities with fewer surprises.`
+    `A brief conversation on how that execution-first approach supports your ${role} priorities would be worth the time.`
 
   return [
     ...formatContactHeader(resume),
