@@ -1,4 +1,5 @@
-import { runWritingCouncilPass } from '@/lib/ai/writing-council'
+import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
+import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'
 import { refineTailoredResume, generateTailoredResume } from '@/lib/ai/generate'
 import {
@@ -67,6 +68,7 @@ export type GenerationPipelineResult = GenerationResult & {
   preScan: PreScanResult
   incorporatedKeywords: string[]
   passHistory: ScorePassEvent[]
+  hiringPanel?: HiringPanelSessionResult | null
 }
 
 function runScoringIntegration(
@@ -324,16 +326,7 @@ export async function runGenerationPipeline(
     })
   }
 
-  await emitStep(3, 'Strengthening cover letter narrative…')
-
-  const councilResult = await runWritingCouncilPass(
-    jobDescription,
-    resumeText,
-    aiResult.coverLetter
-  )
-  if (councilResult?.coverLetter.trim()) {
-    aiResult = { ...aiResult, coverLetter: councilResult.coverLetter.trim() }
-  }
+  await emitStep(3, 'Hiring panel review…')
 
   aiResult = {
     ...aiResult,
@@ -342,6 +335,21 @@ export async function runGenerationPipeline(
       resumeText
     ),
   }
+
+  const panelRun = await runHiringPanelWithRevisions(
+    jobDescription,
+    resumeText,
+    aiResult,
+    async (label) => emitStep(3, label)
+  )
+  aiResult = panelRun.aiResult
+  aiResult = applySourceGrounding(
+    {
+      ...aiResult,
+      tailoredResume: formatTailoredResume(aiResult.tailoredResume),
+    },
+    resumeText
+  )
 
   comparison = buildAtsComparison(
     workingResumeText,
@@ -381,6 +389,7 @@ export async function runGenerationPipeline(
       ...new Set([...preScan.autoInjectedSkills, ...incorporatedKeywords, ...selectedKeywords]),
     ],
     passHistory,
+    hiringPanel: panelRun.panel,
   }
 
   await emitStep(4)

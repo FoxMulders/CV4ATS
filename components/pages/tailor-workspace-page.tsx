@@ -10,6 +10,7 @@ import { TrustBanner } from '@/components/layout/trust-banner'
 import { SeoFaqSection } from '@/components/marketing/seo-faq-section'
 import { TargetSkillsPanel } from '@/components/resume/target-skills-panel'
 import { CoverLetterPreview } from '@/components/results/cover-letter-preview'
+import { HiringPanelReviewPanel } from '@/components/results/hiring-panel-review-panel'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
 import { RecalculateScoreToolbar } from '@/components/results/recalculate-score-toolbar'
 import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
@@ -39,6 +40,7 @@ import { RESUME_STEP_ANCHOR_ID } from '@/lib/wizard/workspace-focus-guide'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
+import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
@@ -48,6 +50,7 @@ type GenerationResultWithMeta = GenerationResult & {
   targetScoreMet?: boolean
   preScan?: PreScanResult
   incorporatedKeywords?: string[]
+  hiringPanel?: HiringPanelSessionResult | null
 }
 
 type GenerateOptions = {
@@ -505,6 +508,17 @@ export function TailorWorkspacePage({
               onChange={setCoverLetter}
             />
           </WorkspaceAccordion>
+
+          {result.hiringPanel ? (
+            <WorkspaceAccordion
+              id="hiring-panel-section"
+              title="Hiring panel review"
+              description={`${result.hiringPanel.aggregateScore}% panel score · ${result.hiringPanel.managers.filter((m) => m.approved).length}/10 approved`}
+              defaultOpen
+            >
+              <HiringPanelReviewPanel panel={result.hiringPanel} />
+            </WorkspaceAccordion>
+          ) : null}
         </>
       ) : null}
 

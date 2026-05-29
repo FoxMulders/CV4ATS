@@ -1,0 +1,25 @@
+import { z } from 'zod'
+
+export const hiringManagerReviewSchema = z.object({
+  managerRole: z.string().min(1),
+  score: z.number().min(0).max(100),
+  approved: z.boolean(),
+  comment: z.string().min(1),
+})
+
+export const hiringPanelReviewSchema = z.object({
+  managers: z.array(hiringManagerReviewSchema).length(10),
+  revisionRecommendations: z.array(z.string()),
+  finalVerdict: z.string().min(1),
+})
+
+export type HiringManagerReview = z.infer<typeof hiringManagerReviewSchema>
+export type HiringPanelReview = z.infer<typeof hiringPanelReviewSchema>
+
+export type HiringPanelSessionResult = {
+  unanimousApproval: boolean
+  aggregateScore: number
+  revisionRounds: number
+  managers: HiringManagerReview[]
+  finalVerdict: string
+}
