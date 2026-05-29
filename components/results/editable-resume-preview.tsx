@@ -14,6 +14,7 @@ interface EditableResumePreviewProps {
   onResumeChange: (resume: TailoredResume) => void
   originalText?: string | null
   jobDescription?: string
+  layout?: 'card' | 'accordion'
 }
 
 export function EditableResumePreview({
@@ -22,28 +23,41 @@ export function EditableResumePreview({
   onResumeChange,
   originalText,
   jobDescription,
+  layout = 'card',
 }: EditableResumePreviewProps) {
+  const isAccordion = layout === 'accordion'
+
   return (
-    <div className="space-y-4">
-      {originalText?.trim() ? (
+    <div className="space-y-3">
+      {originalText?.trim() && !isAccordion ? (
         <ProposedSkillAdditions
           resumeText={originalText}
           tailoredResume={resume}
           onTailoredResumeChange={onResumeChange}
         />
       ) : null}
-      <AddExperiencePanel
-        onAdd={(experience) => {
-          onResumeChange(addExperienceToResume(resume, experience))
-        }}
-      />
+      {!isAccordion ? (
+        <AddExperiencePanel
+          onAdd={(experience) => {
+            onResumeChange(addExperienceToResume(resume, experience))
+          }}
+        />
+      ) : null}
       <EditableParsedResumeForm
         resume={resume}
         baseline={baselineResume}
         onChange={onResumeChange}
         jobDescription={jobDescription}
+        layout={layout}
       />
-      {originalText?.trim() ? (
+      {isAccordion ? (
+        <AddExperiencePanel
+          onAdd={(experience) => {
+            onResumeChange(addExperienceToResume(resume, experience))
+          }}
+        />
+      ) : null}
+      {originalText?.trim() && !isAccordion ? (
         <ResumeChangeHighlight
           originalText={originalText}
           resume={resume}

@@ -17,6 +17,8 @@ interface GenerateStepProps {
   streamingResume?: TailoredResume | null
   streamingCoverLetter?: string
   disabled: boolean
+  /** Hide inline streaming preview (e.g. when preview lives in a split pane). */
+  hideStreamingPreview?: boolean
 }
 
 export function GenerateStep({
@@ -28,6 +30,7 @@ export function GenerateStep({
   streamingResume,
   streamingCoverLetter,
   disabled,
+  hideStreamingPreview = false,
 }: GenerateStepProps) {
   return (
     <div className="space-y-4">
@@ -59,7 +62,9 @@ export function GenerateStep({
             activeLabel={loadingLabel}
             scorePassLines={scorePassLines}
           />
-          {streamingResume ? <StreamingResumePreview resume={streamingResume} /> : null}
+          {streamingResume && !hideStreamingPreview ? (
+            <StreamingResumePreview resume={streamingResume} />
+          ) : null}
           {streamingCoverLetter ? (
             <p className="text-xs text-muted-foreground">
               Cover letter streaming… ({streamingCoverLetter.length.toLocaleString()} characters)

@@ -17,6 +17,8 @@ interface DownloadActionsProps {
   isPremiumUnlocked?: boolean
   passExpiryLabel?: string | null
   onCheckoutRequest?: () => void
+  /** Compact inline buttons for the preview pane banner. */
+  variant?: 'default' | 'banner'
 }
 
 async function downloadFile(
@@ -71,6 +73,7 @@ export function DownloadActions({
   isPremiumUnlocked = true,
   passExpiryLabel,
   onCheckoutRequest,
+  variant = 'default',
 }: DownloadActionsProps) {
   const [downloading, setDownloading] = useState<string | null>(null)
   const baseName = safeName(resume.contact.name)
@@ -112,6 +115,46 @@ export function DownloadActions({
     } finally {
       setDownloading(null)
     }
+  }
+
+  if (variant === 'banner') {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant={isPremiumUnlocked ? 'default' : 'outline'}
+          disabled={!!downloading}
+          onClick={() =>
+            handleDownload('pdf', '/api/export/pdf', resume, `${baseName}-resume.pdf`)
+          }
+        >
+          {downloading === 'pdf' ? <Loader2 className="animate-spin" /> : isPremiumUnlocked ? <Download /> : <Lock />}
+          PDF
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!downloading}
+          onClick={() =>
+            handleDownload('docx', '/api/export/docx', resume, `${baseName}-resume.docx`)
+          }
+        >
+          {downloading === 'docx' ? <Loader2 className="animate-spin" /> : <FileText />}
+          DOCX
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!downloading}
+          onClick={() =>
+            handleTextDownload('txt', `${baseName}-resume.txt`, serializeTailoredResume(resume))
+          }
+        >
+          {downloading === 'txt' ? <Loader2 className="animate-spin" /> : <FileText />}
+          TXT
+        </Button>
+      </div>
+    )
   }
 
   return (

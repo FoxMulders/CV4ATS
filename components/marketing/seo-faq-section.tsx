@@ -36,25 +36,24 @@ function buildFaqJsonLd() {
   }
 }
 
-export function SeoFaqSection() {
-  return (
-    <section
-      aria-labelledby="seo-faq-heading"
-      className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm sm:p-8"
-    >
+export function SeoFaqSection({ embedded = false }: { embedded?: boolean }) {
+  const content = (
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqJsonLd()) }}
       />
-      <div className="mb-6 max-w-3xl space-y-2">
-        <h2 id="seo-faq-heading" className="font-heading text-2xl font-semibold text-foreground">
-          ATS resume tailoring FAQ
-        </h2>
-        <p className="text-sm text-muted-foreground sm:text-base">
-          Answers to common questions about ATS-compliant resumes, job-description tailoring, and
-          AI cover letter quality.
-        </p>
-      </div>
+      {!embedded ? (
+        <div className="mb-6 max-w-3xl space-y-2">
+          <h2 id="seo-faq-heading" className="font-heading text-2xl font-semibold text-foreground">
+            ATS resume tailoring FAQ
+          </h2>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            Answers to common questions about ATS-compliant resumes, job-description tailoring, and
+            AI cover letter quality.
+          </p>
+        </div>
+      ) : null}
       <div className="space-y-3">
         {FAQ_ITEMS.map((item) => (
           <details
@@ -76,6 +75,19 @@ export function SeoFaqSection() {
           </details>
         ))}
       </div>
+    </>
+  )
+
+  if (embedded) {
+    return content
+  }
+
+  return (
+    <section
+      aria-labelledby="seo-faq-heading"
+      className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm sm:p-8"
+    >
+      {content}
     </section>
   )
 }

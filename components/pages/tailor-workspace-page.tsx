@@ -3,32 +3,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { HiringPanelStep } from '@/components/hiring-panel/hiring-panel-step'
 import { PremiumUnlockBanner } from '@/components/billing/premium-unlock-banner'
 import { SquareCheckoutModal } from '@/components/billing/square-checkout-modal'
-import { PageHero } from '@/components/layout/page-hero'
-import { SiteFooter } from '@/components/layout/site-footer'
 import { SiteHeader } from '@/components/layout/site-header'
-import { StepCard } from '@/components/layout/step-card'
 import { TrustBanner } from '@/components/layout/trust-banner'
-import { CompetitiveAdvantagesSection } from '@/components/marketing/competitive-advantages-section'
 import { SeoFaqSection } from '@/components/marketing/seo-faq-section'
 import { TargetSkillsPanel } from '@/components/resume/target-skills-panel'
-import { AtsComplianceComparison } from '@/components/results/ats-compliance-comparison'
 import { CoverLetterPreview } from '@/components/results/cover-letter-preview'
-import {
-  DownloadActions,
-} from '@/components/results/download-actions'
 import { KeywordReportPanel } from '@/components/results/keyword-report'
 import { RecalculateScoreToolbar } from '@/components/results/recalculate-score-toolbar'
 import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
 import { applyAnchoredSkillModifications, selectionsToAnchoredModifications } from '@/lib/resume/apply-skill-modifications'
 import { EditableResumePreview } from '@/components/results/editable-resume-preview'
 import { ResumeDiffView } from '@/components/results/resume-diff-view'
+import { ResumePreview } from '@/components/results/resume-preview'
 import { UndoRedoToolbar } from '@/components/results/undo-redo-toolbar'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PreviewScoreBanner } from '@/components/workspace/preview-score-banner'
+import { ResumeLetterPage } from '@/components/workspace/resume-letter-page'
+import { SplitWorkspaceLayout } from '@/components/workspace/split-workspace-layout'
+import { WorkspaceAccordion } from '@/components/workspace/workspace-accordion'
 import { GenerateStep } from '@/components/wizard/generate-step'
-import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 import { JobDescriptionStep } from '@/components/wizard/job-description-step'
 import {
   ResumeInputStep,
@@ -43,8 +39,10 @@ import { useSavedResume } from '@/hooks/use-saved-resume'
 import { RESUME_STEP_ANCHOR_ID } from '@/lib/wizard/workspace-focus-guide'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
+import { consumeHiringPanelStream } from '@/lib/api/hiring-panel-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
+import type { HiringPanelResult } from '@/lib/ai/hiring-panel-schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 
@@ -71,13 +69,6 @@ export interface TailorWorkspacePageProps {
   initialJobDescription?: string
   showFaq?: boolean
   coverLetterFieldId?: string
-}
-
-const DEFAULT_HERO = {
-  eyebrow: 'Professional resume services',
-  title: 'Tailor your resume to beat the ATS',
-  description:
-    'Paste a job description and your resume. Receive a keyword-optimized resume, cover letter, and before/after ATS compliance score — the same deliverables a professional resume service provides.',
 }
 
 export function TailorWorkspacePage({
@@ -120,6 +111,11 @@ export function TailorWorkspacePage({
   const [editedKeywordReport, setEditedKeywordReport] = useState<KeywordReport | null>(null)
   const [baselineKeywordReport, setBaselineKeywordReport] = useState<KeywordReport | null>(null)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [previewTab, setPreviewTab] = useState<'tailored' | 'audit'>('tailored')
+  const [hiringPanelLoading, setHiringPanelLoading] = useState(false)
+  const [hiringPanelStep, setHiringPanelStep] = useState(0)
+  const [hiringPanelLabel, setHiringPanelLabel] = useState<string | null>(null)
+  const [hiringPanelResult, setHiringPanelResult] = useState<HiringPanelResult | null>(null)
   const {
     accessToken,
     isUnlocked,
@@ -305,6 +301,42 @@ export function TailorWorkspacePage({
     }
   }
 
+  async function handleRunHiringPanel() {
+    if (!canGenerate || isLoading || hiringPanelLoading) return
+
+    setHiringPanelLoading(true)
+    setHiringPanelStep(0)
+    setHiringPanelLabel(null)
+    setHiringPanelResult(null)
+
+    try {
+      const response = await fetch('/api/hiring-panel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobDescription: jobDescription.trim(),
+          resumeText: activeResumeText,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(await parseApiErrorResponse(response, 'Hiring panel failed'))
+      }
+
+      const panelResult = await consumeHiringPanelStream(response, (step, label) => {
+        setHiringPanelStep(step)
+        setHiringPanelLabel(label)
+      })
+
+      setHiringPanelResult(panelResult)
+      toast.success('Elite Hiring Manager Panel review complete')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Hiring panel failed')
+    } finally {
+      setHiringPanelLoading(false)
+    }
+  }
+
   async function handleIncorporateKeywords(selections: SkillSnippetSelection[]) {
     const resumeOverride =
       editedResume != null ? serializeTailoredResume(editedResume) : activeResumeText || undefined
@@ -354,219 +386,270 @@ export function TailorWorkspacePage({
     onReportUpdate: handleKeywordReportUpdate,
   })
 
-  return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <SiteHeader current="tailor" />
+  const displayResume = editedResume ?? streamingResume
+  const hasPreviewDocument = Boolean(displayResume)
+  const keywordAfter = editedKeywordReport ?? result?.keywordReport
 
-      <PageHero
-        eyebrow={hero?.eyebrow ?? DEFAULT_HERO.eyebrow}
-        title={hero?.title ?? DEFAULT_HERO.title}
-        description={hero?.description ?? DEFAULT_HERO.description}
-      />
-
-      <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10 sm:px-6">
-        <CompetitiveAdvantagesSection />
-
-        <TrustBanner message="Your resume is saved only in this browser for convenience. It is sent to AI providers during generation and is not stored on our servers." />
-
-        <div id="tailor-workspace" className="grid scroll-mt-24 grid-cols-1 items-stretch gap-6 md:grid-cols-2">
-          <StepCard
-            step={1}
-            title="Job description"
-            description="Paste the role you are applying for"
-            fillHeight
-          >
-            <JobDescriptionStep
-              value={jobDescription}
-              onChange={setJobDescription}
-              resumePopulated={isResumeInputReady(resumeText, resumeFile, fileParse)}
-            />
-          </StepCard>
-
-          <StepCard
-            step={2}
-            id={RESUME_STEP_ANCHOR_ID}
-            title="Your resume"
-            description="Paste text or upload a PDF, DOCX, or TXT file"
-            fillHeight
-          >
-            <ResumeInputStep
-              resumeText={resumeText}
-              onResumeTextChange={setResumeText}
-              resumeFile={resumeFile}
-              onResumeFileChange={setResumeFile}
-              onFileParseChange={handleFileParseChange}
-            />
-          </StepCard>
-        </div>
-
-        <StepCard
-          step={3}
-          id="generate-step"
-          title="Generate tailored materials"
-          description="Create an ATS-formatted resume, keyword report, and cover letter"
-        >
-          {(preScanPreview || preScanLoading) && canGenerate ? (
-            <div className="mb-4">
-              <TargetSkillsPanel
-                preScan={editedPreScan ?? preScanPreview}
-                baselinePreScan={baselinePreScan}
-                onPreScanChange={setEditedPreScan}
-                isLoading={preScanLoading}
-                onInsertSelections={handleInsertSkillSelections}
-                jobDescription={jobDescription}
-                resumeText={activeResumeText}
-              />
-            </div>
+  const leftPane = (
+    <>
+      {hero?.title ? (
+        <div className="rounded-lg border border-border/60 bg-card/80 px-4 py-3">
+          {hero.eyebrow ? (
+            <p className="text-xs font-medium uppercase tracking-wide text-brand-gold">{hero.eyebrow}</p>
           ) : null}
-            <GenerateStep
-              onGenerate={() => handleGenerate()}
-              isLoading={isLoading}
-              loadingStep={loadingStep}
-              loadingLabel={loadingLabel}
-              scorePassLines={scorePassLines}
-              streamingResume={streamingResume}
-              streamingCoverLetter={streamingCoverLetter}
-              disabled={!canGenerate}
+          <h1 className="font-heading text-lg font-semibold leading-tight">{hero.title}</h1>
+          {hero.description ? (
+            <p className="mt-1 text-sm text-muted-foreground">{hero.description}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <TrustBanner message="Your resume stays in this browser. It is sent to AI providers during generation and is not stored on our servers." />
+
+      {premiumLocked ? (
+        <PremiumUnlockBanner onUnlockRequest={() => setCheckoutOpen(true)} />
+      ) : null}
+
+      <WorkspaceAccordion
+        id="job-description-section"
+        title="Job description"
+        description="Paste the role you are applying for"
+        defaultOpen
+      >
+        <JobDescriptionStep
+          value={jobDescription}
+          onChange={setJobDescription}
+          resumePopulated={isResumeInputReady(resumeText, resumeFile, fileParse)}
+        />
+      </WorkspaceAccordion>
+
+      {result && editedResume && baselineTailoredResume ? (
+        <EditableResumePreview
+          resume={editedResume}
+          baselineResume={baselineTailoredResume}
+          onResumeChange={pushEditedResume}
+          originalText={originalResumeText}
+          jobDescription={jobDescription}
+          layout="accordion"
+        />
+      ) : (
+        <WorkspaceAccordion
+          id={RESUME_STEP_ANCHOR_ID}
+          title="Your resume"
+          description="Paste text or upload a PDF, DOCX, or TXT file"
+          defaultOpen
+        >
+          <ResumeInputStep
+            resumeText={resumeText}
+            onResumeTextChange={setResumeText}
+            resumeFile={resumeFile}
+            onResumeFileChange={setResumeFile}
+            onFileParseChange={handleFileParseChange}
+          />
+        </WorkspaceAccordion>
+      )}
+
+      <WorkspaceAccordion
+        id="generate-step"
+        title="Generate tailored materials"
+        description="Create an ATS-formatted resume, keyword report, and cover letter"
+        defaultOpen={!result}
+      >
+        {(preScanPreview || preScanLoading) && canGenerate ? (
+          <div className="mb-4">
+            <TargetSkillsPanel
+              preScan={editedPreScan ?? preScanPreview}
+              baselinePreScan={baselinePreScan}
+              onPreScanChange={setEditedPreScan}
+              isLoading={preScanLoading}
+              onInsertSelections={handleInsertSkillSelections}
+              jobDescription={jobDescription}
+              resumeText={activeResumeText}
             />
-        </StepCard>
+          </div>
+        ) : null}
+        <GenerateStep
+          onGenerate={() => handleGenerate()}
+          isLoading={isLoading}
+          loadingStep={loadingStep}
+          loadingLabel={loadingLabel}
+          scorePassLines={scorePassLines}
+          streamingResume={streamingResume}
+          streamingCoverLetter={streamingCoverLetter}
+          disabled={!canGenerate || hiringPanelLoading}
+          hideStreamingPreview
+        />
+        <HiringPanelStep
+          onRun={handleRunHiringPanel}
+          isLoading={hiringPanelLoading}
+          loadingStep={hiringPanelStep}
+          loadingLabel={hiringPanelLabel}
+          disabled={!canGenerate || isLoading}
+          result={hiringPanelResult}
+        />
+      </WorkspaceAccordion>
 
-        {result ? (
-          <Card className="border-brand-gold/30 shadow-md">
-            <CardHeader>
-              <CardTitle className="font-heading text-2xl">Your tailored application</CardTitle>
-              <CardDescription>
-                Review, edit, and download your professional resume package
-                {isUnlocked && passExpiryLabel ? (
-                  <span className="mt-1 block text-xs text-brand-gold">
-                    24-Hour Job Pass active for this role until {passExpiryLabel}
-                  </span>
-                ) : null}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {premiumLocked ? (
-                <PremiumUnlockBanner onUnlockRequest={() => setCheckoutOpen(true)} />
-              ) : null}
+      {result ? (
+        <>
+          {result.preScan ? (
+            <WorkspaceAccordion
+              id="target-skills-section"
+              title="Target skills"
+              description="Keywords aligned to this job description"
+            >
+              <TargetSkillsPanel
+                preScan={editedPreScan ?? result.preScan}
+                baselinePreScan={baselinePreScan ?? result.preScan}
+                onPreScanChange={setEditedPreScan}
+                jobDescription={jobDescription}
+                resumeText={
+                  originalResumeText ??
+                  (editedResume ? serializeTailoredResume(editedResume) : activeResumeText)
+                }
+              />
+            </WorkspaceAccordion>
+          ) : null}
 
-              {result.preScan ? (
-                <TargetSkillsPanel
-                  preScan={editedPreScan ?? result.preScan}
-                  baselinePreScan={baselinePreScan ?? result.preScan}
-                  onPreScanChange={setEditedPreScan}
-                  jobDescription={jobDescription}
-                  resumeText={
-                    originalResumeText ??
-                    (editedResume ? serializeTailoredResume(editedResume) : activeResumeText)
-                  }
-                />
-              ) : null}
-
-              {result && editedResume ? (
-                <RecalculateScoreToolbar
-                  onRecalculate={scoreRecalculation.recalculateNow}
-                  isRecalculating={scoreRecalculation.isRecalculating}
-                  isStale={scoreRecalculation.isStale}
-                  lastScoreDelta={scoreRecalculation.lastScoreDelta}
-                  matchScore={editedKeywordReport?.matchScore ?? result.keywordReport.matchScore}
-                  baselineScore={
-                    baselineKeywordReport?.matchScore ?? result.keywordReport.matchScore
-                  }
-                />
-              ) : null}
-
-              <AtsComplianceComparison
-                before={result.baselineKeywordReport}
-                after={editedKeywordReport ?? result.keywordReport}
-                tailoredBaselineScore={
+          {editedResume ? (
+            <WorkspaceAccordion
+              id="keyword-report-section"
+              title="Keyword report"
+              description="Match score breakdown and missing terms"
+            >
+              <RecalculateScoreToolbar
+                onRecalculate={scoreRecalculation.recalculateNow}
+                isRecalculating={scoreRecalculation.isRecalculating}
+                isStale={scoreRecalculation.isStale}
+                lastScoreDelta={scoreRecalculation.lastScoreDelta}
+                matchScore={editedKeywordReport?.matchScore ?? result.keywordReport.matchScore}
+                baselineScore={
                   baselineKeywordReport?.matchScore ?? result.keywordReport.matchScore
                 }
-                isAfterUpdating={scoreRecalculation.isRecalculating}
-                refinementPasses={result.refinementPasses}
-                targetScoreMet={result.targetScoreMet}
               />
+              <div className="mt-4">
+                <KeywordReportPanel
+                  report={editedKeywordReport ?? result.keywordReport}
+                  baselineReport={baselineKeywordReport ?? result.keywordReport}
+                  onReportChange={handleKeywordReportUpdate}
+                  onIncorporateKeywords={handleIncorporateKeywords}
+                  isRerunning={isLoading}
+                  isRecalculatingScore={scoreRecalculation.isRecalculating}
+                  jobDescription={jobDescription}
+                  resumeText={
+                    editedResume
+                      ? serializeTailoredResume(editedResume)
+                      : originalResumeText ?? activeResumeText
+                  }
+                />
+              </div>
+            </WorkspaceAccordion>
+          ) : null}
 
-              <DownloadActions
-                resume={editedResume ?? result.tailoredResume}
-                coverLetter={coverLetter}
-                premiumAccessToken={accessToken}
-                jobDescriptionHash={jobDescriptionHash}
-                isPremiumUnlocked={isUnlocked}
-                passExpiryLabel={passExpiryLabel}
-                onCheckoutRequest={() => setCheckoutOpen(true)}
-              />
+          <WorkspaceAccordion
+            id="cover-letter-section"
+            title="Cover letter"
+            description="Role-specific letter ready to export"
+          >
+            <CoverLetterPreview
+              fieldId={coverLetterFieldId}
+              value={coverLetter}
+              onChange={setCoverLetter}
+            />
+          </WorkspaceAccordion>
+        </>
+      ) : null}
 
-              <Tabs defaultValue="changes">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <TabsList>
-                    <TabsTrigger value="resume">Resume</TabsTrigger>
-                    <TabsTrigger value="changes">Changes</TabsTrigger>
-                    <TabsTrigger value="keywords">Keyword report</TabsTrigger>
-                    <TabsTrigger value="cover">Cover letter</TabsTrigger>
-                  </TabsList>
-                  <UndoRedoToolbar
-                    canUndo={canUndoResumeEdit}
-                    canRedo={canRedoResumeEdit}
-                    onUndo={undoResumeEdit}
-                    onRedo={redoResumeEdit}
-                    enabled={Boolean(editedResume)}
-                  />
-                </div>
+      {showFaq ? (
+        <WorkspaceAccordion id="faq-section" title="FAQ" description="How ATS4CV works">
+          <SeoFaqSection embedded />
+        </WorkspaceAccordion>
+      ) : null}
+    </>
+  )
 
-                <TabsContent value="resume" className="mt-4">
-                  {editedResume && baselineTailoredResume ? (
-                    <EditableResumePreview
-                      resume={editedResume}
-                      baselineResume={baselineTailoredResume}
-                      onResumeChange={pushEditedResume}
-                      originalText={originalResumeText}
-                      jobDescription={jobDescription}
-                    />
-                  ) : null}
-                </TabsContent>
+  const rightPane = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <PreviewScoreBanner
+        before={result?.baselineKeywordReport}
+        after={keywordAfter}
+        tailoredBaselineScore={
+          baselineKeywordReport?.matchScore ?? result?.keywordReport.matchScore
+        }
+        isAfterUpdating={scoreRecalculation.isRecalculating}
+        resume={editedResume ?? result?.tailoredResume ?? null}
+        coverLetter={coverLetter}
+        premiumAccessToken={accessToken}
+        jobDescriptionHash={jobDescriptionHash}
+        isPremiumUnlocked={isUnlocked}
+        passExpiryLabel={passExpiryLabel}
+        onCheckoutRequest={() => setCheckoutOpen(true)}
+      />
 
-                <TabsContent value="changes" className="mt-4">
-                  {originalResumeText && editedResume ? (
-                    <ResumeDiffView
-                      originalText={originalResumeText}
-                      resume={editedResume}
-                      onResumeChange={pushEditedResume}
-                      jobDescription={jobDescription}
-                    />
-                  ) : null}
-                </TabsContent>
+      {hasPreviewDocument ? (
+        <>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/80 px-4 py-2">
+            <Tabs
+              value={previewTab}
+              onValueChange={(value) => setPreviewTab(value as 'tailored' | 'audit')}
+            >
+              <TabsList>
+                <TabsTrigger value="tailored">Tailored view</TabsTrigger>
+                <TabsTrigger value="audit" disabled={!originalResumeText?.trim()}>
+                  Changes audit
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <UndoRedoToolbar
+              canUndo={canUndoResumeEdit}
+              canRedo={canRedoResumeEdit}
+              onUndo={undoResumeEdit}
+              onRedo={redoResumeEdit}
+              enabled={Boolean(editedResume)}
+            />
+          </div>
 
-                <TabsContent value="keywords" className="mt-4">
-                  <KeywordReportPanel
-                    report={editedKeywordReport ?? result.keywordReport}
-                    baselineReport={baselineKeywordReport ?? result.keywordReport}
-                    onReportChange={handleKeywordReportUpdate}
-                    onIncorporateKeywords={handleIncorporateKeywords}
-                    isRerunning={isLoading}
-                    isRecalculatingScore={scoreRecalculation.isRecalculating}
-                    jobDescription={jobDescription}
-                    resumeText={
-                      editedResume
-                        ? serializeTailoredResume(editedResume)
-                        : originalResumeText ?? activeResumeText
-                    }
-                  />
-                </TabsContent>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {previewTab === 'tailored' ? (
+              <ResumeLetterPage>
+                {isLoading && streamingResume ? (
+                  <p className="mb-4 text-xs font-medium uppercase tracking-wide text-brand-gold">
+                    Live preview — updating as generation streams
+                  </p>
+                ) : null}
+                <ResumePreview
+                  resume={displayResume!}
+                  jobDescription={jobDescription}
+                  variant="letter"
+                />
+              </ResumeLetterPage>
+            ) : originalResumeText && editedResume ? (
+              <ResumeLetterPage>
+                <ResumeDiffView
+                  originalText={originalResumeText}
+                  resume={editedResume}
+                  onResumeChange={pushEditedResume}
+                  jobDescription={jobDescription}
+                />
+              </ResumeLetterPage>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <ResumeLetterPage
+            empty
+            emptyMessage="Paste a job description and your resume, then generate to see your live 8.5×11 document preview here."
+          />
+        </div>
+      )}
+    </div>
+  )
 
-                <TabsContent value="cover" className="mt-4">
-                  <CoverLetterPreview
-                    fieldId={coverLetterFieldId}
-                    value={coverLetter}
-                    onChange={setCoverLetter}
-                  />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        ) : null}
+  return (
+    <div className="flex h-dvh flex-col overflow-hidden bg-muted/30">
+      <SiteHeader current="tailor" variant="compact" />
 
-        {showFaq ? <SeoFaqSection /> : null}
-      </main>
+      <SplitWorkspaceLayout leftPane={leftPane} rightPane={rightPane} />
 
       <SquareCheckoutModal
         open={checkoutOpen}
@@ -574,8 +657,6 @@ export function TailorWorkspacePage({
         jobDescription={jobDescription}
         onSuccess={handleCheckoutSuccess}
       />
-
-      <SiteFooter />
     </div>
   )
 }

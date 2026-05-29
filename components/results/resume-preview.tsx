@@ -7,9 +7,11 @@ import { PhrasingSimilarityPreview } from '@/components/results/phrasing-similar
 interface ResumePreviewProps {
   resume: TailoredResume
   jobDescription?: string
+  /** Strip card chrome when rendered inside the letter-page canvas. */
+  variant?: 'card' | 'letter'
 }
 
-export function ResumePreview({ resume, jobDescription }: ResumePreviewProps) {
+export function ResumePreview({ resume, jobDescription, variant = 'card' }: ResumePreviewProps) {
   const contactParts = [
     resume.contact.email,
     resume.contact.phone,
@@ -17,8 +19,13 @@ export function ResumePreview({ resume, jobDescription }: ResumePreviewProps) {
     resume.contact.linkedin,
   ].filter(Boolean)
 
+  const rootClass =
+    variant === 'letter'
+      ? 'space-y-5 font-sans text-sm leading-relaxed text-foreground'
+      : 'mx-auto max-w-2xl space-y-5 rounded-lg border border-border/80 bg-card p-8 font-sans text-sm leading-relaxed text-foreground shadow-md'
+
   return (
-    <div className="mx-auto max-w-2xl space-y-5 rounded-lg border border-border/80 bg-card p-8 font-sans text-sm leading-relaxed text-foreground shadow-md">
+    <div className={rootClass}>
       <header className="border-b border-primary/20 pb-4">
         <h2 className="font-heading text-2xl font-semibold">{resume.contact.name}</h2>
         {contactParts.length > 0 ? (
