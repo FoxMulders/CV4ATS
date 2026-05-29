@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { HiringPanelStep } from '@/components/hiring-panel/hiring-panel-step'
 import { PremiumUnlockBanner } from '@/components/billing/premium-unlock-banner'
 import { SquareCheckoutModal } from '@/components/billing/square-checkout-modal'
 import { SiteHeader } from '@/components/layout/site-header'
@@ -39,10 +38,8 @@ import { useSavedResume } from '@/hooks/use-saved-resume'
 import { RESUME_STEP_ANCHOR_ID } from '@/lib/wizard/workspace-focus-guide'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
-import { consumeHiringPanelStream } from '@/lib/api/hiring-panel-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
-import type { HiringPanelResult } from '@/lib/ai/hiring-panel-schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 
@@ -112,10 +109,6 @@ export function TailorWorkspacePage({
   const [baselineKeywordReport, setBaselineKeywordReport] = useState<KeywordReport | null>(null)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [previewTab, setPreviewTab] = useState<'tailored' | 'audit'>('tailored')
-  const [hiringPanelLoading, setHiringPanelLoading] = useState(false)
-  const [hiringPanelStep, setHiringPanelStep] = useState(0)
-  const [hiringPanelLabel, setHiringPanelLabel] = useState<string | null>(null)
-  const [hiringPanelResult, setHiringPanelResult] = useState<HiringPanelResult | null>(null)
   const {
     accessToken,
     isUnlocked,
@@ -301,44 +294,6 @@ export function TailorWorkspacePage({
     }
   }
 
-  async function handleRunHiringPanel() {
-    if (!canGenerate || isLoading || hiringPanelLoading) return
-
-    setHiringPanelLoading(true)
-    setHiringPanelStep(0)
-    setHiringPanelLabel(null)
-    setHiringPanelResult(null)
-
-    try {
-      const response = await fetch('/api/hiring-panel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobDescription: jobDescription.trim(),
-          resumeText: activeResumeText,
-          coverLetter: coverLetter.trim() || undefined,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(await parseApiErrorResponse(response, 'Hiring panel failed'))
-      }
-
-      const panelResult = await consumeHiringPanelStream(response, (step, label) => {
-        setHiringPanelStep(step)
-        setHiringPanelLabel(label)
-      })
-
-      setHiringPanelResult(panelResult)
-      setCoverLetter(panelResult.coverLetter)
-      toast.success('Panel complete — cover letter updated from panel rewrite')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Hiring panel failed')
-    } finally {
-      setHiringPanelLoading(false)
-    }
-  }
-
   async function handleIncorporateKeywords(selections: SkillSnippetSelection[]) {
     const resumeOverride =
       editedResume != null ? serializeTailoredResume(editedResume) : activeResumeText || undefined
@@ -478,24 +433,8 @@ export function TailorWorkspacePage({
           scorePassLines={scorePassLines}
           streamingResume={streamingResume}
           streamingCoverLetter={streamingCoverLetter}
-          disabled={!canGenerate || hiringPanelLoading}
+          disabled={!canGenerate}
           hideStreamingPreview
-        />
-        <HiringPanelStep
-          onRun={handleRunHiringPanel}
-          isLoading={hiringPanelLoading}
-          loadingStep={hiringPanelStep}
-          loadingLabel={hiringPanelLabel}
-          disabled={!canGenerate || isLoading}
-          result={hiringPanelResult}
-          onApplyCoverLetter={
-            hiringPanelResult
-              ? () => {
-                  setCoverLetter(hiringPanelResult.coverLetter)
-                  toast.success('Cover letter updated from panel rewrite')
-                }
-              : undefined
-          }
         />
       </WorkspaceAccordion>
 

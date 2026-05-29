@@ -1,7 +1,7 @@
 const WINDOW_MS = 60 * 60 * 1000
 const WINDOW_SECONDS = Math.ceil(WINDOW_MS / 1000)
 
-export type RateLimitBucket = 'generate' | 'tailor' | 'parse' | 'export' | 'ingest' | 'search' | 'hiring-panel'
+export type RateLimitBucket = 'generate' | 'tailor' | 'parse' | 'export' | 'ingest' | 'search'
 
 const BUCKET_LIMITS: Record<RateLimitBucket, number> = {
   generate: 5,
@@ -10,7 +10,6 @@ const BUCKET_LIMITS: Record<RateLimitBucket, number> = {
   export: 30,
   ingest: 10,
   search: 60,
-  'hiring-panel': 3,
 }
 
 type Entry = { count: number; resetAt: number }

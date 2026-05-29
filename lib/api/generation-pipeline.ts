@@ -1,3 +1,4 @@
+import { runWritingCouncilPass } from '@/lib/ai/writing-council'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'
 import { refineTailoredResume, generateTailoredResume } from '@/lib/ai/generate'
 import {
@@ -323,7 +324,16 @@ export async function runGenerationPipeline(
     })
   }
 
-  await emitStep(3)
+  await emitStep(3, 'Strengthening cover letter narrative…')
+
+  const councilResult = await runWritingCouncilPass(
+    jobDescription,
+    resumeText,
+    aiResult.coverLetter
+  )
+  if (councilResult?.coverLetter.trim()) {
+    aiResult = { ...aiResult, coverLetter: councilResult.coverLetter.trim() }
+  }
 
   aiResult = {
     ...aiResult,
