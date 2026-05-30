@@ -50,7 +50,10 @@ import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/s
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 import { parseResumeTextToTailoredResume } from '@/lib/resume/text-to-structured'
-import { tailoredResumeToDocument } from '@/lib/resume/strict-resume-state'
+import {
+  coalesceTailoredResumeFromGeneration,
+  tailoredResumeToDocument,
+} from '@/lib/resume/strict-resume-state'
 import {
   detectAchievementGaps,
   formatAchievementSupplement,
@@ -72,6 +75,19 @@ type GenerationResultWithMeta = GenerationResult & {
   hiringPanel?: HiringPanelSessionResult | null
   rawKeywordScore?: number
   generationSource?: 'browser' | 'server'
+  resumeDocument?: import('@/lib/resume/strict-resume-state').ResumeDocument
+}
+
+function normalizeGenerationResult(data: GenerationResultWithMeta): GenerationResultWithMeta {
+  const tailoredResume = coalesceTailoredResumeFromGeneration(
+    data.tailoredResume,
+    data.resumeDocument
+  )
+  return {
+    ...data,
+    tailoredResume,
+    resumeDocument: data.resumeDocument ?? tailoredResumeToDocument(tailoredResume),
+  }
 }
 
 type GenerateOptions = {
@@ -462,9 +478,10 @@ export function TailorWorkspacePage({
           }
         }
 
-        setResult(nextResult)
-        resetEditedResume(nextResult.tailoredResume)
-        setBaselineTailoredResume(nextResult.tailoredResume)
+        const normalizedResult = normalizeGenerationResult(nextResult)
+        setResult(normalizedResult)
+        resetEditedResume(normalizedResult.tailoredResume)
+        setBaselineTailoredResume(normalizedResult.tailoredResume)
         setEditedKeywordReport(nextResult.keywordReport)
         setBaselineKeywordReport(nextResult.baselineKeywordReport)
         if (nextResult.preScan) {
@@ -557,9 +574,10 @@ export function TailorWorkspacePage({
         },
       })
 
-      setResult({ ...data, generationSource: 'server' })
-      resetEditedResume(data.tailoredResume)
-      setBaselineTailoredResume(data.tailoredResume)
+      const normalizedResult = normalizeGenerationResult({ ...data, generationSource: 'server' })
+      setResult(normalizedResult)
+      resetEditedResume(normalizedResult.tailoredResume)
+      setBaselineTailoredResume(normalizedResult.tailoredResume)
       setEditedKeywordReport(data.keywordReport)
       setBaselineKeywordReport(data.baselineKeywordReport)
       if (data.preScan) {

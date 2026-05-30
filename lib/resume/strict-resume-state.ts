@@ -42,6 +42,14 @@ function normalizeBlockKey(company: string, title: string, index: number): strin
   return base.length > 2 ? base : `block-${index}`
 }
 
+export function normalizeExperienceBlockKey(company: string, title: string, index: number): string {
+  return normalizeBlockKey(company, title, index)
+}
+
+function normalizeCompanyKey(company: string): string {
+  return company.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
 function formatDatesDisplay(startDate: string, endDate: string): string {
   if (startDate && endDate) return `${startDate} – ${endDate}`
   return startDate || endDate || ''
@@ -50,7 +58,7 @@ function formatDatesDisplay(startDate: string, endDate: string): string {
 function isProjectEntry(entry: Experience): boolean {
   return (
     /personal ai project|side project|freelance project|personal project/i.test(entry.title) ||
-    /^(tipsy fox|popuphub|pop-up hub|tipsy fox escapes)/i.test(entry.company.trim())
+    /^tipsy fox/i.test(entry.company.trim())
   )
 }
 
@@ -171,6 +179,34 @@ export function tailoredResumeToDocument(resume: TailoredResume): ResumeDocument
   }
 }
 
+/** Prefer populated timeline sections from resumeDocument when tailoredResume arrays are empty. */
+export function coalesceTailoredResumeFromGeneration(
+  tailoredResume: TailoredResume,
+  resumeDocument?: ResumeDocument
+): TailoredResume {
+  const experience =
+    tailoredResume.experience?.length > 0
+      ? tailoredResume.experience
+      : (resumeDocument?.workExperience ?? [])
+
+  const education =
+    tailoredResume.education?.length > 0
+      ? tailoredResume.education
+      : (resumeDocument?.education ?? [])
+
+  const projects =
+    (tailoredResume.projects?.length ?? 0) > 0
+      ? (tailoredResume.projects ?? [])
+      : (resumeDocument?.projects ?? [])
+
+  return {
+    ...tailoredResume,
+    experience,
+    education,
+    projects,
+  }
+}
+
 export function serializeAiEnrichmentInputForPrompt(input: AiEnrichmentInput): string {
   return JSON.stringify(input, null, 2)
 }
@@ -189,9 +225,36 @@ export function parseCurrentResumeJson(raw: unknown): TailoredResume | null {
       contact,
       summary: String(parsed.summary ?? ''),
       skills: Array.isArray(parsed.skills) ? parsed.skills.map(String) : [],
-      experience: workExperience,
-      projects: Array.isArray(parsed.projects) ? (parsed.projects as Experience[]) : [],
-      education: Array.isArray(parsed.education) ? (parsed.education as Education[]) : [],
+      experience: workExperience.map((entry) => ({
+        title: String(entry.title ?? ''),
+        company: String(entry.company ?? ''),
+        location: String(entry.location ?? ''),
+        startDate: String(entry.startDate ?? ''),
+        endDate: String(entry.endDate ?? 'Present'),
+        bullets: Array.isArray(entry.bullets)
+          ? entry.bullets.map(String).filter(Boolean)
+          : ['Delivered measurable outcomes in this role.'],
+      })),
+      projects: Array.isArray(parsed.projects)
+        ? (parsed.projects as Experience[]).map((entry) => ({
+            title: String(entry.title ?? ''),
+            company: String(entry.company ?? ''),
+            location: String(entry.location ?? ''),
+            startDate: String(entry.startDate ?? ''),
+            endDate: String(entry.endDate ?? 'Present'),
+            bullets: Array.isArray(entry.bullets)
+              ? entry.bullets.map(String).filter(Boolean)
+              : ['Delivered measurable outcomes in this role.'],
+          }))
+        : [],
+      education: Array.isArray(parsed.education)
+        ? (parsed.education as Education[]).map((entry) => ({
+            degree: String(entry.degree ?? ''),
+            school: String(entry.school ?? ''),
+            graduationDate: String(entry.graduationDate ?? ''),
+            details: String(entry.details ?? ''),
+          }))
+        : [],
       certifications: Array.isArray(parsed.certifications)
         ? parsed.certifications.map(String)
         : [],
@@ -199,4 +262,59 @@ export function parseCurrentResumeJson(raw: unknown): TailoredResume | null {
   } catch {
     return null
   }
+}
+
+/** Maps AI bullets onto the original timeline — company, title, and dates are never overwritten. */
+export function mergeBulletsOntoOriginalExperience(
+  original: Experience[],
+  aiEntries: Experience[] | undefined,
+  aiBulletsByKey: Array<{ blockKey: string; bullets: string[] }> = []
+): Experience[] {
+  if (original.length === 0) {
+    return aiEntries ?? []
+  }
+
+  const byBlockKey = new Map<string, string[]>()
+  const byCompany = new Map<string, string[]>()
+  const byIndex = new Map<number, string[]>()
+
+  for (const { blockKey, bullets } of aiBulletsByKey) {
+    if (blockKey && bullets.length > 0) {
+      byBlockKey.set(blockKey, bullets)
+    }
+  }
+
+  aiEntries?.forEach((entry, index) => {
+    if (!entry.bullets?.length) return
+    const blockKey = normalizeBlockKey(entry.company, entry.title, index)
+    byBlockKey.set(blockKey, entry.bullets)
+    byIndex.set(index, entry.bullets)
+    const companyKey = normalizeCompanyKey(entry.company)
+    if (companyKey) {
+      byCompany.set(companyKey, entry.bullets)
+    }
+  })
+
+  return original.map((entry, index) => {
+    const blockKey = normalizeBlockKey(entry.company, entry.title, index)
+    const companyKey = normalizeCompanyKey(entry.company)
+    const aiBullets =
+      byBlockKey.get(blockKey) ??
+      (companyKey ? byCompany.get(companyKey) : undefined) ??
+      byIndex.get(index)
+
+    return {
+      company: entry.company,
+      title: entry.title,
+      location: entry.location ?? '',
+      startDate: entry.startDate || 'Recent',
+      endDate: entry.endDate || 'Present',
+      bullets:
+        aiBullets?.length && aiBullets.some((bullet) => bullet.trim())
+          ? aiBullets
+          : entry.bullets.length > 0
+            ? entry.bullets
+            : ['Delivered measurable outcomes in this role.'],
+    }
+  })
 }

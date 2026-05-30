@@ -33,7 +33,7 @@ export function looksLikeCompanyLine(line: string): boolean {
   if (/@|https?:\/\//.test(trimmed)) return false
   if (/^(professional summary|work experience|professional experience)$/i.test(trimmed)) return false
   if (COMPANY_HINT.test(trimmed)) return true
-  if (/^(tipsy fox|popuphub|pop-up hub)/i.test(trimmed)) return true
+  if (/^tipsy fox/i.test(trimmed)) return true
   if (
     /^[A-Z][A-Za-z0-9&.'\- ]{2,55}$/.test(trimmed) &&
     !looksLikeJobTitle(trimmed) &&

@@ -31,7 +31,7 @@ function updateExperience(
 ): TailoredResume {
   return {
     ...resume,
-    experience: resume.experience.map((job, jobIndex) =>
+    experience: (resume.experience ?? []).map((job, jobIndex) =>
       jobIndex === index ? { ...job, ...patch } : job
     ),
   }
@@ -40,7 +40,7 @@ function updateExperience(
 function deleteExperience(resume: TailoredResume, index: number): TailoredResume {
   return {
     ...resume,
-    experience: resume.experience.filter((_, jobIndex) => jobIndex !== index),
+    experience: (resume.experience ?? []).filter((_, jobIndex) => jobIndex !== index),
   }
 }
 
@@ -51,7 +51,7 @@ function updateBullet(
   text: string
 ): TailoredResume {
   return updateExperience(resume, jobIndex, {
-    bullets: resume.experience[jobIndex]!.bullets.map((bullet, index) =>
+    bullets: (resume.experience ?? [])[jobIndex]!.bullets.map((bullet, index) =>
       index === bulletIndex ? text : bullet
     ),
   })
@@ -180,10 +180,14 @@ export function EditableParsedResumeForm({
     />
   )
 
-  const experienceFields = (
+  const experienceEntries = resume.experience ?? []
+  const educationEntries = resume.education ?? []
+
+  const experienceFields =
+    experienceEntries.length > 0 ? (
     <div className="space-y-4">
-      {resume.experience.map((job, jobIndex) => {
-        const baselineJob = baseline.experience[jobIndex]
+      {experienceEntries.map((job, jobIndex) => {
+        const baselineJob = baseline.experience?.[jobIndex]
         const jobKey = `${job.company}-${job.title}-${job.startDate}-${jobIndex}`
 
         return (
@@ -310,13 +314,15 @@ export function EditableParsedResumeForm({
         )
       })}
     </div>
-  )
+    ) : (
+      <p className="text-sm text-muted-foreground">No work experience entries yet.</p>
+    )
 
   const educationFields =
-    resume.education.length > 0 ? (
+    educationEntries.length > 0 ? (
       <div className="space-y-3">
-        {resume.education.map((edu, eduIndex) => {
-          const baselineEdu = baseline.education[eduIndex]
+        {educationEntries.map((edu, eduIndex) => {
+          const baselineEdu = baseline.education?.[eduIndex]
           return (
             <div key={`${edu.school}-${edu.degree}-${eduIndex}`} className="grid gap-3 sm:grid-cols-2">
               <EditableFieldShell
@@ -436,7 +442,7 @@ export function EditableParsedResumeForm({
         {experienceFields}
       </section>
 
-      {resume.education.length ? (
+      {educationEntries.length ? (
         <section className="space-y-3">
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-primary">Education</p>
           {educationFields}

@@ -12,6 +12,8 @@ interface ResumePreviewProps {
 }
 
 export function ResumePreview({ resume, jobDescription, variant = 'card' }: ResumePreviewProps) {
+  const experienceEntries = resume.experience ?? []
+  const educationEntries = resume.education ?? []
   const contactParts = [
     resume.contact.email,
     resume.contact.phone,
@@ -59,31 +61,35 @@ export function ResumePreview({ resume, jobDescription, variant = 'card' }: Resu
           Work Experience
         </h3>
         <div className="space-y-4">
-          {resume.experience.map((job) => (
-            <div key={`${job.company}-${job.title}-${job.startDate}`}>
-              <p className="font-semibold">
-                {job.title} — {job.company}
-                {job.location ? ` | ${job.location}` : ''}
-              </p>
-              <p className="text-muted-foreground">
-                {job.startDate} – {job.endDate}
-              </p>
-              <ul className="mt-2 list-disc space-y-2 pl-5">
-                {job.bullets.map((bullet) => (
-                  <li key={bullet}>
-                    {bullet}
-                    {jobDescription?.trim() ? (
-                      <PhrasingSimilarityPreview
-                        text={bullet}
-                        jobDescription={jobDescription}
-                        previewClassName="mt-1"
-                      />
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {experienceEntries.length > 0 ? (
+            experienceEntries.map((job) => (
+              <div key={`${job.company}-${job.title}-${job.startDate}`}>
+                <p className="font-semibold">
+                  {job.title} — {job.company}
+                  {job.location ? ` | ${job.location}` : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  {job.startDate} – {job.endDate}
+                </p>
+                <ul className="mt-2 list-disc space-y-2 pl-5">
+                  {(job.bullets ?? []).map((bullet) => (
+                    <li key={bullet}>
+                      {bullet}
+                      {jobDescription?.trim() ? (
+                        <PhrasingSimilarityPreview
+                          text={bullet}
+                          jobDescription={jobDescription}
+                          previewClassName="mt-1"
+                        />
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          ) : (
+            <p className="text-muted-foreground">No work experience to display.</p>
+          )}
         </div>
       </section>
 
@@ -92,15 +98,19 @@ export function ResumePreview({ resume, jobDescription, variant = 'card' }: Resu
           Education
         </h3>
         <div className="space-y-3">
-          {resume.education.map((edu) => (
-            <div key={`${edu.school}-${edu.degree}`}>
-              <p className="font-semibold">
-                {edu.degree}, {edu.school}
-                {edu.graduationDate ? ` — ${edu.graduationDate}` : ''}
-              </p>
-              {edu.details ? <p className="text-muted-foreground">{edu.details}</p> : null}
-            </div>
-          ))}
+          {educationEntries.length > 0 ? (
+            educationEntries.map((edu) => (
+              <div key={`${edu.school}-${edu.degree}`}>
+                <p className="font-semibold">
+                  {edu.degree}, {edu.school}
+                  {edu.graduationDate ? ` — ${edu.graduationDate}` : ''}
+                </p>
+                {edu.details ? <p className="text-muted-foreground">{edu.details}</p> : null}
+              </div>
+            ))
+          ) : (
+            <p className="text-muted-foreground">No education to display.</p>
+          )}
         </div>
       </section>
 

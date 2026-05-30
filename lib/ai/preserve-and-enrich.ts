@@ -1,4 +1,4 @@
-import type { AiGenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import type { AiGenerationResult, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { buildFallbackCoverLetter } from '@/lib/ai/fallback-cover-letter'
 import type { EnrichmentModelOutput } from '@/lib/ai/enrichment-schemas'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
@@ -8,6 +8,8 @@ import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 import {
   allFrozenBlocks,
   lockResumeState,
+  mergeBulletsOntoOriginalExperience,
+  normalizeExperienceBlockKey,
   strictStateToTailoredResume,
   type StrictResumeState,
 } from '@/lib/resume/strict-resume-state'
@@ -75,6 +77,42 @@ function resolveLockedState(source: TailoredResume | string): StrictResumeState 
   return lockResumeState(source)
 }
 
+function normalizeCompanyKey(company: string): string {
+  return company.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function buildBulletLookups(draftExperience: Experience[]) {
+  const byBlockKey = new Map<string, string[]>()
+  const byCompany = new Map<string, string[]>()
+  const byIndex = new Map<number, string[]>()
+
+  draftExperience.forEach((block, index) => {
+    if (!block.bullets?.length) return
+    const blockKey = normalizeExperienceBlockKey(block.company, block.title, index)
+    byBlockKey.set(blockKey, block.bullets)
+    byIndex.set(index, block.bullets)
+    const companyKey = normalizeCompanyKey(block.company)
+    if (companyKey) {
+      byCompany.set(companyKey, block.bullets)
+    }
+  })
+
+  return { byBlockKey, byCompany, byIndex }
+}
+
+function resolveAiBulletsForBlock(
+  block: { blockKey: string; company: string },
+  index: number,
+  lookups: ReturnType<typeof buildBulletLookups>
+): string[] | undefined {
+  const companyKey = normalizeCompanyKey(block.company)
+  return (
+    lookups.byBlockKey.get(block.blockKey) ??
+    (companyKey ? lookups.byCompany.get(companyKey) : undefined) ??
+    lookups.byIndex.get(index)
+  )
+}
+
 /** Enforces zero data loss by merging AI bullet/skills enrichments onto frozen resume state. */
 export function applyStructuralPreservation(
   source: TailoredResume | string,
@@ -85,21 +123,18 @@ export function applyStructuralPreservation(
   const summary = chooseSummary(locked, draft.tailoredResume.summary)
   const skills = mergeSkills(locked, draft.tailoredResume.skills, options.missingKeywords)
 
-  const bulletMap = new Map<string, string[]>()
-  for (const block of draft.tailoredResume.experience) {
-    const key = `${block.company}::${block.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-    bulletMap.set(key, block.bullets)
-  }
-  for (const block of draft.tailoredResume.projects ?? []) {
-    const key = `${block.company}::${block.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-    bulletMap.set(key, block.bullets)
-  }
+  const workLookups = buildBulletLookups(draft.tailoredResume.experience ?? [])
+  const projectLookups = buildBulletLookups(draft.tailoredResume.projects ?? [])
 
-  const mergeBlock = (block: (typeof locked.workExperience)[number]) => ({
+  const mergeBlock = (
+    block: (typeof locked.workExperience)[number],
+    index: number,
+    lookups: ReturnType<typeof buildBulletLookups>
+  ) => ({
     ...block,
     bullets: sanitizeEnrichedBullets(
       block.bullets,
-      bulletMap.get(block.blockKey) ?? bulletMap.get(block.blockKey.slice(0, 8)),
+      resolveAiBulletsForBlock(block, index, lookups),
       summary
     ),
   })
@@ -108,13 +143,12 @@ export function applyStructuralPreservation(
     ...locked,
     summary,
     skills: skills.length > 0 ? skills : locked.skills,
-    workExperience: locked.workExperience.map(mergeBlock),
-    projects: locked.projects.map(mergeBlock),
-    education: locked.education.length > 0 ? locked.education : draft.tailoredResume.education,
-    certifications:
-      locked.certifications.length > 0
-        ? locked.certifications
-        : (draft.tailoredResume.certifications ?? []),
+    workExperience: locked.workExperience.map((block, index) =>
+      mergeBlock(block, index, workLookups)
+    ),
+    projects: locked.projects.map((block, index) => mergeBlock(block, index, projectLookups)),
+    education: [...locked.education],
+    certifications: [...locked.certifications],
   }
 
   const tailoredResume = strictStateToTailoredResume(mergedState)
@@ -151,26 +185,67 @@ export function enrichmentOutputToDraft(
   enrichment: EnrichmentModelOutput,
   locked: StrictResumeState
 ): Pick<AiGenerationResult, 'tailoredResume' | 'coverLetter'> {
-  const bulletByKey = new Map(
-    enrichment.experienceBullets.map((entry) => [entry.blockKey, entry.bullets])
-  )
+  const originalWork = locked.workExperience.map((block) => ({
+    company: block.company,
+    title: block.title,
+    location: block.location,
+    startDate: block.startDate,
+    endDate: block.endDate,
+    bullets: block.bullets,
+  }))
+  const originalProjects = locked.projects.map((block) => ({
+    company: block.company,
+    title: block.title,
+    location: block.location,
+    startDate: block.startDate,
+    endDate: block.endDate,
+    bullets: block.bullets,
+  }))
 
-  const mergeBlock = (block: (typeof locked.workExperience)[number]) => ({
-    ...block,
+  const summary = chooseSummary(locked, enrichment.professionalSummary)
+  const mergedWork = mergeBulletsOntoOriginalExperience(
+    originalWork,
+    undefined,
+    enrichment.experienceBullets
+  ).map((entry, index) => ({
+    ...entry,
     bullets: sanitizeEnrichedBullets(
-      block.bullets,
-      bulletByKey.get(block.blockKey) ??
-        [...bulletByKey.entries()].find(([key]) => key.startsWith(block.blockKey.slice(0, 6)))?.[1],
-      enrichment.professionalSummary ?? locked.summary
+      originalWork[index]?.bullets ?? entry.bullets,
+      entry.bullets,
+      summary
     ),
-  })
+  }))
+
+  const projectBullets = enrichment.experienceBullets.filter((entry) =>
+    locked.projects.some((block) => block.blockKey === entry.blockKey)
+  )
+  const mergedProjects = mergeBulletsOntoOriginalExperience(
+    originalProjects,
+    undefined,
+    projectBullets
+  ).map((entry, index) => ({
+    ...entry,
+    bullets: sanitizeEnrichedBullets(
+      originalProjects[index]?.bullets ?? entry.bullets,
+      entry.bullets,
+      summary
+    ),
+  }))
 
   const mergedState: StrictResumeState = {
     ...locked,
-    summary: chooseSummary(locked, enrichment.professionalSummary),
+    summary,
     skills: mergeSkills(locked, enrichment.skills),
-    workExperience: locked.workExperience.map(mergeBlock),
-    projects: locked.projects.map(mergeBlock),
+    workExperience: locked.workExperience.map((block, index) => ({
+      ...block,
+      bullets: mergedWork[index]?.bullets ?? block.bullets,
+    })),
+    projects: locked.projects.map((block, index) => ({
+      ...block,
+      bullets: mergedProjects[index]?.bullets ?? block.bullets,
+    })),
+    education: [...locked.education],
+    certifications: [...locked.certifications],
   }
 
   return {

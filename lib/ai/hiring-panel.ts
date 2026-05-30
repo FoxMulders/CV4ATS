@@ -20,6 +20,7 @@ import {
   aiGenerationResultSchema,
   tailoredResumeSchema,
   type AiGenerationResult,
+  type TailoredResume,
 } from '@/lib/ai/schemas'
 import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
 import {
@@ -34,6 +35,8 @@ export const MAX_HIRING_PANEL_REVISION_ROUNDS = 4
 
 export type HiringPanelRunOptions = {
   achievementSupplement?: string
+  /** Structured resume from the client — preferred preservation source over text re-parse. */
+  currentResume?: TailoredResume
 }
 
 const REVIEW_OUTPUT = Output.object({
@@ -239,9 +242,10 @@ function needsAnotherRevisionRound(
 function preserveDraft(
   draft: AiGenerationResult,
   sourceResumeText: string,
-  jobDescription: string
+  jobDescription: string,
+  currentResume?: TailoredResume
 ): AiGenerationResult {
-  return applyStructuralPreservation(sourceResumeText, draft, {
+  return applyStructuralPreservation(currentResume ?? sourceResumeText, draft, {
     jobDescription,
     missingKeywords: draft.keywordReport?.missingKeywords,
   })
@@ -296,7 +300,8 @@ export async function runHiringPanelWithRevisions(
           options.achievementSupplement
         ),
         sourceResumeText,
-        jobDescription
+        jobDescription,
+        options.currentResume
       )
       return {
         aiResult: current,
@@ -324,7 +329,8 @@ export async function runHiringPanelWithRevisions(
           options.achievementSupplement
         ),
         sourceResumeText,
-        jobDescription
+        jobDescription,
+        options.currentResume
       )
       return {
         aiResult: current,
@@ -339,7 +345,8 @@ export async function runHiringPanelWithRevisions(
         coverLetter: revision.coverLetter,
       },
       sourceResumeText,
-      jobDescription
+      jobDescription,
+      options.currentResume
     )
 
     await onProgress?.('Re-running hiring panel after applying suggestions…')
@@ -353,7 +360,8 @@ export async function runHiringPanelWithRevisions(
         options.achievementSupplement
       ),
       sourceResumeText,
-      jobDescription
+      jobDescription,
+      options.currentResume
     )
 
     revisionRounds += 1

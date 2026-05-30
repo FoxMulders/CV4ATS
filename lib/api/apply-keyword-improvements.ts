@@ -9,7 +9,8 @@ import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
 export function applyKeywordImprovementsToDraft(
   draft: AiGenerationResult,
   jobDescription: string,
-  sourceResumeText: string
+  sourceResumeText: string,
+  currentResume?: import('@/lib/ai/schemas').TailoredResume
 ): { aiResult: AiGenerationResult; injectedSkills: string[] } {
   const missing = getMissingScoringKeywords(
     serializeTailoredResume(draft.tailoredResume),
@@ -33,7 +34,7 @@ export function applyKeywordImprovementsToDraft(
     keywordReport: scoreAtsCompliance(serialized, jobDescription),
   }
 
-  aiResult = applyStructuralPreservation(sourceResumeText, aiResult, {
+  aiResult = applyStructuralPreservation(currentResume ?? sourceResumeText, aiResult, {
     jobDescription,
     missingKeywords: getMissingScoringKeywords(
       serializeTailoredResume(aiResult.tailoredResume),

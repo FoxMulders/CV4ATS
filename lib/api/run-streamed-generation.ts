@@ -65,6 +65,7 @@ export async function runStreamedGeneration(
     )
 
     const serialized = serializeStreamResult(result)
+    console.log('FINAL MERGED PAYLOAD:', JSON.stringify(serialized, null, 2))
     emit({
       type: 'complete',
       result: mapComplete ? mapComplete(serialized) : serialized,

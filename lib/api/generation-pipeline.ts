@@ -139,6 +139,15 @@ function applySourceGrounding(
   }
 }
 
+function reconcileAfterMutation(
+  aiResult: AiGenerationResult,
+  frozenResume: TailoredResume,
+  jobDescription: string,
+  missingKeywords?: string[]
+): AiGenerationResult {
+  return applySourceGrounding(aiResult, frozenResume, jobDescription, missingKeywords)
+}
+
 export async function runGenerationPipeline(
   jobDescription: string,
   resumeText: string,
@@ -252,7 +261,7 @@ export async function runGenerationPipeline(
   )
 
   let integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
-  aiResult = integration.aiResult
+  aiResult = reconcileAfterMutation(integration.aiResult, frozenResume, jobDescription, competencyChecklist.missingTerms)
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
   const afterInitialScore = scoreResume(aiResult.tailoredResume, jobDescription, resumeText, baselineScore)
@@ -309,7 +318,12 @@ export async function runGenerationPipeline(
     )
 
     integration = runScoringIntegration(aiResult, jobDescription, keywordsToTargetSkills(missingKeywords))
-    aiResult = integration.aiResult
+    aiResult = reconcileAfterMutation(
+      integration.aiResult,
+      frozenResume,
+      jobDescription,
+      missingKeywords.slice(0, 8)
+    )
     incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
     comparison = buildAtsComparison(
@@ -336,7 +350,7 @@ export async function runGenerationPipeline(
 
   const beforeFinalScore = currentScore
   integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
-  aiResult = integration.aiResult
+  aiResult = reconcileAfterMutation(integration.aiResult, frozenResume, jobDescription)
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
   comparison = buildAtsComparison(
@@ -379,7 +393,10 @@ export async function runGenerationPipeline(
       resumeText,
       aiResult,
       async (label) => emitStep(3, label),
-      { achievementSupplement: achievementSupplement || undefined }
+      {
+        achievementSupplement: achievementSupplement || undefined,
+        currentResume: frozenResume,
+      }
     )
   } catch (error) {
     console.error('Hiring panel skipped due to error:', error)
