@@ -1,6 +1,7 @@
 import { generateText } from 'ai'
 
 import { createGeminiModel, GEMINI_MODEL_ID, geminiProviderOptions } from '@/lib/ai/gemini'
+import { extractCoverLetterFromModelOutput } from '@/lib/ai/sanitize-model-output'
 import { COVER_LETTER_BANNED_PHRASES } from '@/lib/ai/prompts'
 import { HIRING_PANEL_COVER_LETTER_BANNED } from '@/lib/ai/hiring-panel-prompts'
 import { AI_STREAM_MAX_RETRIES } from '@/lib/ai/provider'
@@ -100,6 +101,6 @@ export async function repairCoverLetterCompliance(
     providerOptions: geminiProviderOptions(),
   })
 
-  const repaired = response.text.trim()
+  const repaired = extractCoverLetterFromModelOutput(response.text)
   return repaired.length > 80 ? repaired : coverLetter
 }

@@ -1,7 +1,13 @@
 import { generateTailoredResumeLocally } from '@/lib/ai/local-fallback'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 import { promptBrowserAi } from '@/lib/ai/browser/chrome-language-model'
+import {
+  extractCoverLetterFromModelOutput,
+  extractSummaryFromModelOutput,
+  modelOutputLooksLikeCommentary,
+} from '@/lib/ai/sanitize-model-output'
 import { buildAtsComparison, serializeTailoredResume } from '@/lib/resume/ats-score'
+import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
 import { runSkillExtrapolationAndInjection, type PreScanResult } from '@/lib/resume/pre-scan-preparation'
 
 export type BrowserGenerationResult = AiGenerationResult & {
@@ -14,10 +20,10 @@ export type BrowserGenerationResult = AiGenerationResult & {
 
 const COVER_SYSTEM = `You rewrite cover letters for ATS job applications. Rules:
 - Plain text only, professional letter format with contact header, salutation, 3 short body paragraphs, closing.
-- No banned clichés: "I am writing to express", "Throughout my career", "I am eager to bring", "partnered closely with", "Furthermore", "Passionate about".
+- No banned clichés: "I am writing to express", "Throughout my career", "I am eager to bring", "partnered closely with", "Furthermore", "Passionate about", "Dear Hiring Team".
 - Name the target role from the job description in paragraph 1.
 - Include quantified proof only when present in the resume text — never invent metrics.
-- Return ONLY the cover letter text, no markdown fences.`
+- Return ONLY the cover letter text. No markdown, no bold, no code fences, no "Key Changes" section, no explanations.`
 
 const SUMMARY_SYSTEM = `You rewrite resume professional summaries for ATS. Rules:
 - 2 sentences max: executive value proposition + core expertise pipe line (Core Expertise: A | B | C).
@@ -34,7 +40,7 @@ async function polishCoverLetterWithBrowserAi(
   jobDescription: string,
   resumeText: string
 ): Promise<string> {
-  const rewritten = await promptBrowserAi(
+  return promptBrowserAi(
     COVER_SYSTEM,
     `JOB DESCRIPTION:
 ${truncate(jobDescription, 6000)}
@@ -45,8 +51,20 @@ ${truncate(resumeText, 8000)}
 CURRENT COVER LETTER (rewrite completely — fix banned phrases, add JD specificity):
 ${truncate(coverLetter, 5000)}`
   )
+}
 
-  return rewritten.length > 120 ? rewritten : coverLetter
+function finalizeBrowserCoverLetter(polished: string, fallback: string): string {
+  const cleaned = extractCoverLetterFromModelOutput(polished)
+
+  if (
+    cleaned.length < 120 ||
+    modelOutputLooksLikeCommentary(polished) ||
+    auditCoverLetterCompliance(cleaned).some((v) => v.type === 'banned-phrase')
+  ) {
+    return fallback
+  }
+
+  return cleaned
 }
 
 async function polishSummaryWithBrowserAi(
@@ -85,30 +103,32 @@ export async function runBrowserGeneration(
   onProgress?.('Running unlimited browser tailoring (local keywords)…')
 
   let aiResult: AiGenerationResult = generateTailoredResumeLocally(jobDescription, resumeText)
+  const localCoverLetter = aiResult.coverLetter
+  const localSummary = aiResult.tailoredResume.summary
 
   if (useChromeNano) {
     try {
       onProgress?.('Polishing summary with Gemini Nano (on your device)…')
+      const polishedSummary = extractSummaryFromModelOutput(
+        await polishSummaryWithBrowserAi(localSummary, jobDescription, resumeText)
+      )
       aiResult = {
         ...aiResult,
         tailoredResume: {
           ...aiResult.tailoredResume,
-          summary: await polishSummaryWithBrowserAi(
-            aiResult.tailoredResume.summary,
-            jobDescription,
-            resumeText
-          ),
+          summary: polishedSummary.length >= 40 ? polishedSummary : localSummary,
         },
       }
 
       onProgress?.('Polishing cover letter with Gemini Nano…')
+      const polishedCover = await polishCoverLetterWithBrowserAi(
+        localCoverLetter,
+        jobDescription,
+        resumeText
+      )
       aiResult = {
         ...aiResult,
-        coverLetter: await polishCoverLetterWithBrowserAi(
-          aiResult.coverLetter,
-          jobDescription,
-          resumeText
-        ),
+        coverLetter: finalizeBrowserCoverLetter(polishedCover, localCoverLetter),
       }
     } catch (error) {
       console.warn('Browser AI polish skipped:', error)

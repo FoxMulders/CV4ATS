@@ -67,6 +67,7 @@ type GenerationResultWithMeta = GenerationResult & {
   incorporatedKeywords?: string[]
   hiringPanel?: HiringPanelSessionResult | null
   rawKeywordScore?: number
+  generationSource?: 'browser' | 'server'
 }
 
 type GenerateOptions = {
@@ -398,7 +399,7 @@ export function TailorWorkspacePage({
           },
         })
 
-        setResult(data)
+        setResult({ ...data, generationSource: 'browser' })
         resetEditedResume(data.tailoredResume)
         setBaselineTailoredResume(data.tailoredResume)
         setEditedKeywordReport(data.keywordReport)
@@ -474,7 +475,7 @@ export function TailorWorkspacePage({
         },
       })
 
-      setResult(data)
+      setResult({ ...data, generationSource: 'server' })
       resetEditedResume(data.tailoredResume)
       setBaselineTailoredResume(data.tailoredResume)
       setEditedKeywordReport(data.keywordReport)
@@ -748,7 +749,9 @@ export function TailorWorkspacePage({
                   ? 'Review unavailable — regenerate to retry'
                   : result.hiringPanel
                     ? `${result.hiringPanel.aggregateScore}% interview readiness · ${result.hiringPanel.managers.filter((m) => m.approved).length}/10 approved`
-                    : 'Manager critique runs after each generation'
+                    : result.generationSource === 'browser'
+                      ? 'Skipped in browser AI mode'
+                      : 'Manager critique runs after each generation'
               }
               defaultOpen
             >
@@ -759,6 +762,18 @@ export function TailorWorkspacePage({
                   onVerifyExperience={() => openPanelExperienceIntake(result.hiringPanel!)}
                   hasExperienceGaps={panelExperienceQuestions.length > 0}
                 />
+              ) : result.generationSource === 'browser' ? (
+                <div className="rounded-lg border border-border/80 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                  <p className="font-medium text-foreground">Hiring panel not run in browser AI mode</p>
+                  <p className="mt-1">
+                    Free unlimited browser AI skips the 10-manager server review so generation stays on
+                    your device with no quota limits.
+                  </p>
+                  <p className="mt-2">
+                    Turn off <span className="font-medium text-foreground">Free unlimited browser AI</span>{' '}
+                    above the generate button and regenerate when you want the full hiring panel critique.
+                  </p>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No panel data for this run. Regenerate to run the 10-manager review.
