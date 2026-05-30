@@ -43,7 +43,11 @@ export async function POST(request: Request) {
     const parsed = hiringPanelRequestSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+      console.error('Hiring panel request validation failed:', parsed.error.flatten())
+      return NextResponse.json(
+        { error: 'Invalid hiring panel request. Regenerate or turn off browser AI for the full server path.' },
+        { status: 400 }
+      )
     }
 
     const { jobDescription, sourceResumeText, draft, achievementSupplement } = parsed.data

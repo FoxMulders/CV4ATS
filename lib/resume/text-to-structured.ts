@@ -311,7 +311,9 @@ function parseExperience(lines: string[]): Experience[] {
 
   return entries.map((entry) => ({
     ...entry,
-    company: entry.company === 'Previous Employer' ? '' : entry.company,
+    company: entry.company === 'Previous Employer' || !entry.company.trim() ? '' : entry.company,
+    startDate: entry.startDate.trim(),
+    endDate: entry.endDate.trim() || 'Present',
   }))
 }
 

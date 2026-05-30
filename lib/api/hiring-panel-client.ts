@@ -1,4 +1,5 @@
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
+import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 
@@ -22,7 +23,10 @@ export async function requestHiringPanelReview(
   const response = await fetch('/api/hiring-panel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      draft: normalizeGenerationDraftForApi(payload.draft),
+    }),
   })
 
   if (!response.ok) {
