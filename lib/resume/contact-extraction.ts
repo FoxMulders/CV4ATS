@@ -72,7 +72,30 @@ export function isValidExperienceBullet(line: string): boolean {
   if (isContactOrLocationLine(trimmed)) return false
   if (/^(professional experience|education|skills|summary)/i.test(trimmed)) return false
   if (/documented in source resume|employer not listed/i.test(trimmed)) return false
+  if (/^\d+\+?\s*years\b/i.test(trimmed)) return false
+  if (/technical program and delivery leader|cross-functional releases, stakeholder alignment/i.test(trimmed)) {
+    return false
+  }
   return true
+}
+
+export function isSummaryLikeLine(line: string, summary?: string): boolean {
+  const trimmed = line.trim()
+  if (/^\d+\+?\s*years\b/i.test(trimmed)) return true
+  if (/technical program and delivery leader/i.test(trimmed)) return true
+  if (!summary?.trim()) return false
+  const summaryWords = new Set(
+    summary
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((word) => word.length > 4)
+  )
+  const lineWords = trimmed
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((word) => word.length > 4)
+  const overlap = lineWords.filter((word) => summaryWords.has(word)).length
+  return overlap >= Math.min(6, Math.ceil(lineWords.length * 0.55))
 }
 
 export function extractBulletsFromSource(text: string): string[] {

@@ -4,17 +4,18 @@ import { parseCertificationsFromResumeText } from '@/lib/resume/certification-gu
 import {
   extractLocationFromText,
   inferNameFromEmail,
-  isExperienceSectionHeading,
   looksLikePersonName,
   splitCombinedHeaderLine,
   titleCaseName,
 } from '@/lib/resume/contact-extraction'
+import {
+  parseExperienceFromLines,
+  scoreExperienceCompleteness,
+} from '@/lib/resume/parse-experience-blocks'
+import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 
 const SECTION_HEADING =
-  /^(professional summary|summary|skills|technical skills|core competencies|(?:professional\s+)?(?:work\s+)?experience|employment|education|certifications?)\s*:?\s*$/i
-
-const COMPANY_HINT =
-  /\b(solutions|association|inc|corp|corporation|ltd|limited|company|group|technologies|labs|bank|university|college|ama|cohere)\b/i
+  /^(professional summary|summary|skills|technical skills|core competencies|(?:professional\s+)?(?:work\s+)?experience|employment|education|certifications?|personal ai projects|personal projects)\s*:?\s*$/i
 
 const INFERRED_SKILL_TERMS = [
   'release management',
@@ -39,6 +40,7 @@ const INFERRED_SKILL_TERMS = [
   'c#',
   'sql',
   'linear',
+  'github',
 ] as const
 
 function splitLines(text: string): string[] {
@@ -51,10 +53,6 @@ function isBulletLine(line: string): boolean {
 
 function stripBullet(line: string): string {
   return line.trim().replace(/^[\s•\-*–—]+\s*/, '').trim()
-}
-
-function isDateLine(line: string): boolean {
-  return /^(\w+\.?\s+)?\d{4}\s*[-–—]\s*(\w+\.?\s+\d{4}|present|current|now)$/i.test(line.trim())
 }
 
 function extractContact(text: string) {
@@ -158,152 +156,37 @@ function parseSkills(lines: string[], fullText: string): string[] {
     .map((skill) => skill.trim())
     .filter(isValidSkillToken)
 
-  const deduped = [...new Set(skills.map((skill) => skill.replace(/\s+/g, ' ')))].slice(0, 24)
+  const deduped = dedupeSkills(
+    [...new Set(skills.map((skill) => skill.replace(/\s+/g, ' ')))].slice(0, 24)
+  )
   if (deduped.length >= 4) return deduped
 
   const inferred = inferSkillsFromText(fullText)
-  return [...new Set([...deduped, ...inferred])].slice(0, 24)
-}
-
-function looksLikeJobTitle(line: string): boolean {
-  return /(?:manager|engineer|director|lead|analyst|consultant|developer|architect|specialist|coordinator|administrator|owner|program|project)/i.test(
-    line
-  )
+  return dedupeSkills([...new Set([...deduped, ...inferred])]).slice(0, 24)
 }
 
 function parseExperience(lines: string[]): Experience[] {
-  const sectionStart = lines.findIndex((line) => isExperienceSectionHeading(line.trim()))
-  const scanLines = sectionStart >= 0 ? lines.slice(sectionStart + 1) : lines
+  const parsed = parseExperienceFromLines(lines)
+  if (parsed.length > 0) return parsed
 
-  const entries: Experience[] = []
-  let current: Experience | null = null
+  const bullets = lines
+    .filter(isBulletLine)
+    .map(stripBullet)
+    .filter((bullet) => bullet.length > 12 && bullet.length < 280)
+    .filter((bullet) => !/utilizing .+ utilizing/i.test(bullet))
 
-  for (let index = 0; index < scanLines.length; index += 1) {
-    const rawLine = scanLines[index]!
-    const line = rawLine.trim()
-    if (!line) continue
-    if (/^education/i.test(line)) break
+  if (bullets.length === 0) return []
 
-    if (isBulletLine(line)) {
-      if (!current) {
-        current = {
-          title: 'Professional Experience',
-          company: '',
-          location: '',
-          startDate: '',
-          endDate: 'Present',
-          bullets: [],
-        }
-      }
-      const bullet = stripBullet(line)
-      if (bullet.length > 12) current.bullets.push(bullet)
-      continue
-    }
-
-    if (isDateLine(line)) {
-      if (!current) continue
-      const match = line.match(/(\w+\.?\s+\d{4})\s*[-–—]\s*(\w+\.?\s+\d{4}|present|current|now)/i)
-      if (match) {
-        current.startDate = match[1]?.trim() ?? ''
-        current.endDate = /present|current|now/i.test(match[2] ?? '') ? 'Present' : match[2]?.trim() ?? ''
-      }
-      continue
-    }
-
-    const nextNonEmptyIndex = scanLines.findIndex((entry, entryIndex) => entryIndex > index && entry.trim())
-    const nextLine = nextNonEmptyIndex >= 0 ? scanLines[nextNonEmptyIndex]!.trim() : ''
-
-    if (
-      nextLine &&
-      !isBulletLine(nextLine) &&
-      !isDateLine(nextLine) &&
-      (COMPANY_HINT.test(line) || (!looksLikeJobTitle(line) && looksLikeJobTitle(nextLine)))
-    ) {
-      if (current && current.bullets.length > 0) entries.push(current)
-      current = {
-        title: nextLine,
-        company: line,
-        location: '',
-        startDate: '',
-        endDate: 'Present',
-        bullets: [],
-      }
-      index = nextNonEmptyIndex
-      continue
-    }
-
-    const roleMatch = line.match(/^(.+?)\s*(?:—|–|-|\|)\s*(.+?)(?:\s*\((.+)\))?$/i)
-    if (roleMatch) {
-      if (current && current.bullets.length > 0) entries.push(current)
-      current = {
-        title: roleMatch[1]!.trim(),
-        company: roleMatch[2]!.trim(),
-        location: roleMatch[3]?.trim() ?? '',
-        startDate: '',
-        endDate: 'Present',
-        bullets: [],
-      }
-      continue
-    }
-
-    const atMatch = line.match(/^(.+?)\s+at\s+(.+)$/i)
-    if (atMatch) {
-      if (current && current.bullets.length > 0) entries.push(current)
-      current = {
-        title: atMatch[1]!.trim(),
-        company: atMatch[2]!.trim(),
-        location: '',
-        startDate: '',
-        endDate: 'Present',
-        bullets: [],
-      }
-      continue
-    }
-
-    if (line.length < 100 && !line.includes('@') && looksLikeJobTitle(line)) {
-      if (current && current.bullets.length > 0) entries.push(current)
-      current = {
-        title: line,
-        company: '',
-        location: '',
-        startDate: '',
-        endDate: 'Present',
-        bullets: [],
-      }
-    }
-  }
-
-  if (current && current.bullets.length > 0) {
-    entries.push(current)
-  }
-
-  if (entries.length === 0) {
-    const bullets = lines
-      .filter(isBulletLine)
-      .map(stripBullet)
-      .filter((bullet) => bullet.length > 12 && bullet.length < 280)
-      .filter((bullet) => !/utilizing .+ utilizing/i.test(bullet))
-
-    if (bullets.length > 0) {
-      return [
-        {
-          title: 'Professional Experience',
-          company: '',
-          location: '',
-          startDate: '',
-          endDate: 'Present',
-          bullets: bullets.slice(0, 8),
-        },
-      ]
-    }
-  }
-
-  return entries.map((entry) => ({
-    ...entry,
-    company: entry.company === 'Previous Employer' || !entry.company.trim() ? '' : entry.company,
-    startDate: entry.startDate.trim(),
-    endDate: entry.endDate.trim() || 'Present',
-  }))
+  return [
+    {
+      title: 'Consultant',
+      company: 'Independent',
+      location: '',
+      startDate: '',
+      endDate: 'Present',
+      bullets: bullets.slice(0, 8),
+    },
+  ]
 }
 
 function parseEducation(lines: string[]): Education[] {

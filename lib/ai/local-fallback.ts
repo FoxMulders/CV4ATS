@@ -4,13 +4,16 @@ import { buildCoreCompetencyChecklist } from '@/lib/resume/core-competency-check
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
 import {
   inferNameFromEmail,
+  isSummaryLikeLine,
   isValidExperienceBullet,
   titleCaseName,
 } from '@/lib/resume/contact-extraction'
 import {
   extractCompanyFromDescription,
   extractJobTitleFromDescription,
+  sanitizeJobTitleForProse,
 } from '@/lib/resume/extract-job-title'
+import { isRealExperienceBullet } from '@/lib/resume/parse-experience-blocks'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
 import { injectIntoTailoredResume } from '@/lib/resume/tailored-resume-injection'
 import { parseResumeTextToTailoredResume } from '@/lib/resume/text-to-structured'
@@ -19,13 +22,16 @@ const LOCAL_KEYWORD_TARGETS = [
   'agile',
   'kanban',
   'jira',
+  'linear',
+  'github',
   'automation',
-  'scope',
+  'scope management',
   'program management',
   'workflows',
   'waterfall',
   'scrum',
   'sdlc',
+  'release management',
 ] as const
 
 const KEYWORD_SOUP =
@@ -70,7 +76,21 @@ function resolveContactName(resume: TailoredResume, sourceResumeText: string): s
   return current || 'Candidate'
 }
 
-function pickProofBullet(sourceResumeText: string): string | null {
+function pickProofBullet(resume: TailoredResume, sourceResumeText: string): string | null {
+  for (const entry of resume.experience) {
+    for (const bullet of entry.bullets) {
+      if (
+        bullet.length >= 35 &&
+        bullet.length <= 220 &&
+        isRealExperienceBullet(bullet) &&
+        !isSummaryLikeLine(bullet, resume.summary) &&
+        !KEYWORD_SOUP.test(bullet)
+      ) {
+        if (/\d|%/.test(bullet)) return bullet
+      }
+    }
+  }
+
   const bullets = sourceResumeText
     .replace(/\r\n/g, '\n')
     .split('\n')
@@ -78,15 +98,18 @@ function pickProofBullet(sourceResumeText: string): string | null {
     .filter((line) => line.length >= 35 && line.length <= 220)
     .filter((line) => !KEYWORD_SOUP.test(line))
     .filter(isValidExperienceBullet)
+    .filter((line) => isRealExperienceBullet(line))
+    .filter((line) => !isSummaryLikeLine(line, resume.summary))
 
-  return bullets[0] ?? null
+  return bullets.find((line) => /\d|%/.test(line)) ?? bullets[0] ?? null
 }
 
 function pickRecentRole(resume: TailoredResume) {
   return (
     resume.experience.find(
       (entry) =>
-        entry.company !== 'Previous Employer' &&
+        entry.company.trim() &&
+        !/previous employer|independent|confidential|see resume/i.test(entry.company) &&
         entry.title !== 'Professional Experience' &&
         entry.bullets.length > 0
     ) ?? resume.experience[0]
@@ -114,21 +137,20 @@ function buildLocalCoverLetter(
   jobDescription: string,
   sourceResumeText: string
 ): string {
-  const role = extractJobTitleFromDescription(jobDescription)
+  const role = sanitizeJobTitleForProse(extractJobTitleFromDescription(jobDescription))
   const company = extractCompanyFromDescription(jobDescription)
   const name = resolveContactName(resume, sourceResumeText)
   const recentRole = pickRecentRole(resume)
-  const proofBullet = pickProofBullet(sourceResumeText)
+  const proofBullet = pickProofBullet(resume, sourceResumeText)
   const salutation = company ? `Dear ${company} Hiring Team,` : 'Dear Hiring Manager,'
 
   const opening = company
-    ? `The ${role} opening at ${company} aligns with my track record in technical program delivery, release coordination, and cross-functional execution.`
-    : `The ${role} opening aligns with my track record in technical program delivery, release coordination, and cross-functional execution.`
+    ? `I am interested in the ${role} role at ${company}, with a track record in technical program delivery, release coordination, and cross-functional execution.`
+    : `I am interested in the ${role} role, with a track record in technical program delivery, release coordination, and cross-functional execution.`
 
   const roleContext =
     recentRole?.company?.trim() &&
-    recentRole.company !== 'See resume history' &&
-    recentRole.company !== 'Previous Employer'
+    !/previous employer|independent|confidential|see resume/i.test(recentRole.company)
       ? ` as ${recentRole.title} at ${recentRole.company}`
       : recentRole?.title?.trim() && recentRole.title !== 'Professional Experience'
         ? ` as ${recentRole.title}`
@@ -136,11 +158,19 @@ function buildLocalCoverLetter(
 
   const experienceParagraph = roleContext
     ? `In my recent work${roleContext}, I focused on shipping reliable releases, tightening delivery workflows, and aligning engineering, product, and operations stakeholders.${
-        proofBullet ? ` One example: ${proofBullet}` : ''
+        proofBullet ? ` One measurable result: ${proofBullet}` : ''
       }`
     : proofBullet
-      ? `One recent delivery example: ${proofBullet}`
+      ? `One measurable delivery result from my background: ${proofBullet}`
       : `My recent work centers on release coordination, delivery risk reduction, and measurable improvements to engineering throughput.`
+
+  const toolingParagraph =
+    role.toLowerCase().includes('program manager') && resume.skills.length > 0
+      ? `I have hands-on experience with ${resume.skills
+          .filter((skill) => /linear|github|jira|release|agile|aws|automation/i.test(skill))
+          .slice(0, 4)
+          .join(', ')} in prior release and delivery programs.`
+      : ''
 
   const close = company
     ? `I am ready to discuss how this background maps to ${company}'s ${role} delivery priorities.`
@@ -156,6 +186,7 @@ function buildLocalCoverLetter(
     opening,
     '',
     experienceParagraph,
+    ...(toolingParagraph ? ['', toolingParagraph] : []),
     '',
     close,
     '',

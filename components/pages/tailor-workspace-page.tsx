@@ -623,7 +623,8 @@ export function TailorWorkspacePage({
 
   const displayResume = editedResume ?? streamingResume
   const hasPreviewDocument = Boolean(displayResume)
-  const showPreviewPane = hasPreviewDocument || isLoading
+  /** Only split the workspace once a resume exists — not during empty loading state. */
+  const showPreviewPane = hasPreviewDocument
   const keywordAfter = editedKeywordReport ?? result?.keywordReport
 
   const leftPane = (
@@ -918,7 +919,7 @@ export function TailorWorkspacePage({
       className={cn(
         'flex flex-col bg-muted/30',
         showPreviewPane
-          ? 'h-svh max-h-svh overflow-hidden'
+          ? 'overflow-x-hidden lg:h-svh lg:max-h-svh lg:overflow-hidden'
           : 'overflow-x-hidden'
       )}
     >
@@ -928,7 +929,7 @@ export function TailorWorkspacePage({
         leftPane={leftPane}
         rightPane={rightPane}
         showRightPane={showPreviewPane}
-        className={showPreviewPane ? 'min-h-0 flex-1' : undefined}
+        className={showPreviewPane ? 'lg:min-h-0 lg:flex-1' : undefined}
       />
 
       <SquareCheckoutModal

@@ -28,8 +28,8 @@ export function SplitWorkspaceLayout({
         'grid overflow-hidden',
         showRightPane
           ? cn(
-              'h-full min-h-0 flex-1',
-              'grid-cols-1 max-lg:grid-rows-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-1 lg:items-start lg:content-start'
+              'grid-cols-1 max-lg:grid-rows-[auto_auto] lg:h-full lg:min-h-0 lg:flex-1',
+              'lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-1 lg:items-start lg:content-start'
             )
           : 'h-auto flex-none grid-cols-1 grid-rows-1',
         className

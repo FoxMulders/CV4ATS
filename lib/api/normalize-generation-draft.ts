@@ -5,47 +5,66 @@ import {
   inferNameFromEmail,
   titleCaseName,
 } from '@/lib/resume/contact-extraction'
+import {
+  isRealExperienceBullet,
+  parseExperienceFromLines,
+  scoreExperienceCompleteness,
+} from '@/lib/resume/parse-experience-blocks'
+import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 
 function normalizeExperience(entry: Experience): Experience {
   return {
-    title: entry.title.trim() || 'Professional Experience',
-    company: entry.company.trim() || 'Confidential',
+    title: entry.title.trim() || 'Consultant',
+    company: entry.company.trim() || 'Independent',
     location: entry.location ?? '',
     startDate: entry.startDate.trim() || 'Recent',
     endDate: entry.endDate.trim() || 'Present',
-    bullets: entry.bullets.map((bullet) => bullet.trim()).filter(Boolean),
+    bullets: entry.bullets.map((bullet) => bullet.trim()).filter(isRealExperienceBullet),
   }
 }
 
-function mergeExperienceFromSource(
+function hasPlaceholderExperience(experience: Experience[]): boolean {
+  return experience.some(
+    (entry) =>
+      /previous employer|confidential|see resume|employer not listed|independent/i.test(entry.company) &&
+      entry.title === 'Professional Experience'
+  )
+}
+
+function resolveExperienceFromSource(
   experience: Experience[],
   sourceResumeText: string
 ): Experience[] {
-  if (experience.some((entry) => entry.bullets.length > 0)) {
-    return experience.map((entry) => ({
-      ...entry,
-      company: entry.company.trim() || 'Previous Employer',
-    }))
-  }
+  if (!sourceResumeText.trim()) return experience
 
-  const reparsed = parseResumeTextToTailoredResume(sourceResumeText).experience
-  if (reparsed.some((entry) => entry.bullets.length > 0)) {
-    return reparsed.map(normalizeExperience)
+  const lines = sourceResumeText.replace(/\r\n/g, '\n').split('\n')
+  const reparsed = parseExperienceFromLines(lines)
+  const reparsedFromParser = parseResumeTextToTailoredResume(sourceResumeText).experience
+
+  const candidates = [reparsed, reparsedFromParser, experience].sort(
+    (a, b) => scoreExperienceCompleteness(b) - scoreExperienceCompleteness(a)
+  )
+
+  const best = candidates[0] ?? experience
+  if (best.some((entry) => entry.bullets.length > 0)) {
+    return best.map(normalizeExperience).filter((entry) => entry.bullets.length > 0)
   }
 
   const bullets = extractBulletsFromSource(sourceResumeText)
-  if (bullets.length === 0) return experience
+  if (bullets.length === 0) return experience.map(normalizeExperience)
 
-  return [
-    normalizeExperience({
-      title: 'Professional Experience',
-      company: 'Previous Employer',
-      location: '',
-      startDate: 'Recent',
-      endDate: 'Present',
-      bullets,
-    }),
-  ]
+  return bullets.length > 0
+    ? [
+        normalizeExperience({
+          title: 'Consultant',
+          company: 'Independent',
+          location: '',
+          startDate: 'Recent',
+          endDate: 'Present',
+          bullets,
+        }),
+      ]
+    : experience.map(normalizeExperience)
 }
 
 function fixContactName(resume: TailoredResume, sourceResumeText?: string): TailoredResume['contact'] {
@@ -82,14 +101,21 @@ function fixContactName(resume: TailoredResume, sourceResumeText?: string): Tail
 }
 
 function cleanSkills(skills: string[]): string[] {
-  return skills.filter((skill) => {
-    const lower = skill.toLowerCase()
-  if (lower.split(/\s+/).length >= 3 && /(?:program|project|engineering|technical)\s+manager|director|engineer$/i.test(lower)) {
-    return false
-  }
-  if (/^(internal tools|methodology|delivery|professional experience)$/i.test(skill.trim())) return false
-    return skill.trim().length > 1
-  })
+  return dedupeSkills(
+    skills.filter((skill) => {
+      const lower = skill.toLowerCase()
+      if (
+        lower.split(/\s+/).length >= 3 &&
+        /(?:program|project|engineering|technical)\s+manager|director|engineer$/i.test(lower)
+      ) {
+        return false
+      }
+      if (/^(internal tools|methodology|delivery|professional experience)$/i.test(skill.trim())) {
+        return false
+      }
+      return skill.trim().length > 1
+    })
+  )
 }
 
 const DEFAULT_SUMMARY =
@@ -124,21 +150,24 @@ export function normalizeGenerationDraftForApi(
         reparsed.certifications && reparsed.certifications.length > 0
           ? reparsed.certifications
           : draft.tailoredResume.certifications,
-      experience:
-        reparsed.experience.some((entry) => entry.bullets.length > 0) &&
-        !draft.tailoredResume.experience.some((entry) => entry.bullets.length > 0)
-          ? reparsed.experience
-          : draft.tailoredResume.experience,
     }
   }
+
+  const resolvedExperience = resolveExperienceFromSource(
+    tailoredResume.experience,
+    sourceResumeText ?? ''
+  )
 
   tailoredResume = {
     ...tailoredResume,
     contact: fixContactName(tailoredResume, sourceResumeText),
     skills: cleanSkills(tailoredResume.skills.map((s) => s.trim()).filter(Boolean)).slice(0, 24),
-    experience: mergeExperienceFromSource(tailoredResume.experience, sourceResumeText ?? '')
-      .map(normalizeExperience)
-      .filter((entry) => entry.bullets.length > 0),
+    experience:
+      resolvedExperience.length > 0
+        ? resolvedExperience
+        : hasPlaceholderExperience(tailoredResume.experience)
+          ? []
+          : tailoredResume.experience.map(normalizeExperience).filter((entry) => entry.bullets.length > 0),
     education: tailoredResume.education.map((entry) => ({
       degree: entry.degree.trim() || 'Education',
       school: entry.school.trim() || 'Institution not listed',
@@ -146,6 +175,10 @@ export function normalizeGenerationDraftForApi(
       details: entry.details ?? '',
     })),
     certifications: (tailoredResume.certifications ?? []).map((c) => c.trim()).filter(Boolean),
+  }
+
+  if (tailoredResume.experience.length === 0 && sourceResumeText?.trim()) {
+    tailoredResume.experience = resolveExperienceFromSource([], sourceResumeText)
   }
 
   if (tailoredResume.skills.length === 0) {
