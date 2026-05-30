@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Plus, RotateCw, X } from 'lucide-react'
+import { Loader2, Plus, RotateCw, ShieldCheck, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -18,6 +18,7 @@ import {
   PhrasingSimilarityPreview,
   usePhrasingSimilarityAudit,
 } from '@/components/results/phrasing-similarity-preview'
+import { VerifySkillModal } from '@/components/skills/verify-skill-modal'
 
 import type { AnchoredSkillSelection } from '@/lib/resume/apply-skill-modifications'
 import { applyAnchoredSkillModifications, selectionsToAnchoredModifications } from '@/lib/resume/apply-skill-modifications'
@@ -349,6 +350,7 @@ function SnippetEditorCard({
   onRemove,
   purgeReason,
 }: SnippetEditorCardProps) {
+  const [verifyOpen, setVerifyOpen] = useState(false)
   const similarityAudit = usePhrasingSimilarityAudit(snippet, jobDescription)
   const placementLabel =
     item?.placementLabel ??
@@ -360,9 +362,24 @@ function SnippetEditorCard({
     (item?.targetCompany ? `→ experience [${item.targetCompany}]` : item?.placement ? `→ ${item.placement}` : undefined)
   const showInlineComparison =
     Boolean(item?.originalBullet?.trim()) && item?.modificationType === 'inline-bullet'
+  const originalBullet = item?.originalBullet?.trim() ?? ''
+  const canVerifyExperience = Boolean(originalBullet)
 
   return (
-    <div className="space-y-3 rounded-lg border border-amber-200/70 bg-amber-50/20 p-3">
+    <>
+      <VerifySkillModal
+        open={verifyOpen}
+        onOpenChange={setVerifyOpen}
+        skillName={keyword}
+        originalBullet={originalBullet}
+        onVerified={(result) => {
+          if (result.status === 'Pass' && result.revisedBullet?.trim()) {
+            onSnippetChange(result.revisedBullet.trim())
+            toast.success('Experience verified — revised bullet applied.')
+          }
+        }}
+      />
+      <div className="space-y-3 rounded-lg border border-amber-200/70 bg-amber-50/20 p-3">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1 space-y-1">
           <Label htmlFor={`snippet-${keyword}`} className="font-medium">
@@ -402,6 +419,19 @@ function SnippetEditorCard({
             <>✨ Tailor with AI</>
           )}
         </Button>
+        {canVerifyExperience ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs"
+            disabled={isLoading || isTailoring}
+            onClick={() => setVerifyOpen(true)}
+          >
+            <ShieldCheck className="size-3" />
+            Verify experience
+          </Button>
+        ) : null}
         {similarityAudit.hasHighSimilarity ? <PhrasingSimilarityBadge /> : null}
         <Button
           type="button"
@@ -460,7 +490,8 @@ function SnippetEditorCard({
           showBadge={false}
         />
       ) : null}
-    </div>
+      </div>
+    </>
   )
 }
 

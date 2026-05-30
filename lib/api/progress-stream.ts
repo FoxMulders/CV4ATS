@@ -204,7 +204,7 @@ export async function consumeGenerationStreamLegacy<T extends GenerationResult =
   return consumeGenerationStream<T>(response, { onProgress })
 }
 
-export const GENERATION_TIMEOUT_MS = 270_000
+export const GENERATION_TIMEOUT_MS = 290_000
 /** Legacy edge cap — generate/tailor routes now run on Node.js with maxDuration. */
 export const EDGE_GENERATION_TIMEOUT_MS = 28_000
 

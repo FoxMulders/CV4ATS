@@ -10,6 +10,7 @@ import {
 type PipelineOptions = {
   selectedKeywords?: string[]
   customSnippets?: string[]
+  achievementSupplement?: string
   anchoredModifications?: Array<{
     snippet: string
     positionId?: string

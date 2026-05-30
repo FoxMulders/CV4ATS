@@ -75,12 +75,14 @@ export async function POST(request: Request) {
     const selectedKeywords = parseSelectedKeywords(formData.get('selectedKeywords'))
     const customSnippets = parseCustomSnippets(formData.get('customSnippets'))
     const anchoredModifications = parseAnchoredModifications(formData.get('anchoredModifications'))
+    const achievementSupplement = String(formData.get('achievementSupplement') ?? '').trim()
 
     const stream = createNdjsonStream((emit) =>
       runStreamedGeneration(emit, jobDescription, resumeText, {
         selectedKeywords,
         customSnippets,
         anchoredModifications,
+        achievementSupplement: achievementSupplement || undefined,
       })
     )
 

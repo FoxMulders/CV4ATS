@@ -1,20 +1,39 @@
 const WINDOW_MS = 60 * 60 * 1000
 const WINDOW_SECONDS = Math.ceil(WINDOW_MS / 1000)
 
-export type RateLimitBucket = 'generate' | 'tailor' | 'parse' | 'export' | 'ingest' | 'search'
+export type RateLimitBucket =
+  | 'generate'
+  | 'tailor'
+  | 'parse'
+  | 'export'
+  | 'ingest'
+  | 'search'
+  | 'verify-skill'
+  | 'panel-revise'
+  | 'prescan'
 
 const BUCKET_LIMITS: Record<RateLimitBucket, number> = {
-  generate: 5,
-  tailor: 10,
-  parse: 20,
-  export: 30,
-  ingest: 10,
-  search: 60,
+  generate: 15,
+  tailor: 15,
+  parse: 30,
+  export: 40,
+  ingest: 15,
+  search: 80,
+  'verify-skill': 40,
+  'panel-revise': 20,
+  prescan: 200,
 }
 
 type Entry = { count: number; resetAt: number }
 
 const memoryStore = new Map<string, Entry>()
+
+export function isRateLimitDisabled(): boolean {
+  const flag = process.env.DISABLE_RATE_LIMIT?.trim().toLowerCase()
+  if (flag === '1' || flag === 'true' || flag === 'yes') return true
+  if (process.env.NODE_ENV === 'development') return true
+  return false
+}
 
 function hasKvEnv(): boolean {
   return Boolean(
@@ -77,6 +96,10 @@ export async function checkRateLimit(
   bucket: RateLimitBucket,
   ip: string
 ): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  if (isRateLimitDisabled()) {
+    return { allowed: true }
+  }
+
   if (process.env.NEXT_RUNTIME === 'edge') {
     return checkMemoryRateLimit(bucket, ip)
   }

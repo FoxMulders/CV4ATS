@@ -226,7 +226,10 @@ export function normalizeDisplayScore(
 
   if (nearIdenticalProfile) {
     return Math.round(
-      Math.min(100, NEAR_IDENTICAL_SCORE_FLOOR + (clampedRaw / 100) * (100 - NEAR_IDENTICAL_SCORE_FLOOR))
+      Math.min(
+        94,
+        NEAR_IDENTICAL_SCORE_FLOOR + (clampedRaw / 100) * (100 - NEAR_IDENTICAL_SCORE_FLOOR)
+      )
     )
   }
 

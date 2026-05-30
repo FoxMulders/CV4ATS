@@ -15,7 +15,7 @@ const preScanRequestSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rateLimit = await checkRateLimit('generate', ip)
+  const rateLimit = await checkRateLimit('prescan', ip)
 
   if (!rateLimit.allowed) {
     return rateLimitExceededResponse(rateLimit.retryAfterSeconds)

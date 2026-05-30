@@ -1,5 +1,6 @@
 import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
+import type { KeywordReport } from '@/lib/ai/schemas'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'
 import { refineTailoredResume, generateTailoredResume } from '@/lib/ai/generate'
 import {
@@ -38,6 +39,8 @@ import {
 import { integrateScoringKeywordsUntilSaturation } from '@/lib/resume/scoring-keyword-integration'
 import { getMissingScoringKeywords } from '@/lib/resume/scoring-keyword-targets'
 import { mergeTargetSkills } from '@/lib/resume/tailored-resume-injection'
+import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
+import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
 
 export { GENERATION_PROGRESS_LABELS }
 
@@ -51,6 +54,8 @@ export type ProgressCallback = (update: ProgressUpdate) => void | Promise<void>
 export type GenerationPipelineOptions = {
   selectedKeywords?: string[]
   customSnippets?: string[]
+  /** User-supplied metrics for bullets that lacked quantified outcomes. */
+  achievementSupplement?: string
   /** Inline bullet/summary revisions with placement metadata. */
   anchoredModifications?: Array<{
     snippet: string
@@ -69,6 +74,8 @@ export type GenerationPipelineResult = GenerationResult & {
   incorporatedKeywords: string[]
   passHistory: ScorePassEvent[]
   hiringPanel?: HiringPanelSessionResult | null
+  /** Uncapped keyword-only ATS before hiring panel adjustment. */
+  rawKeywordScore?: number
 }
 
 function runScoringIntegration(
@@ -119,6 +126,31 @@ function applySourceGrounding(
   }
 }
 
+/** When the hiring panel rejects the package, keyword-only ATS must not exceed panel readiness. */
+function applyPanelReadinessToKeywordReport(
+  report: KeywordReport,
+  panel: HiringPanelSessionResult | null | undefined,
+  rawKeywordScore: number
+): KeywordReport {
+  if (!panel || panel.reviewFailed || panel.unanimousApproval) {
+    return report
+  }
+
+  const cappedScore = Math.min(report.matchScore, panel.aggregateScore)
+  if (cappedScore >= report.matchScore) {
+    return report
+  }
+
+  return {
+    ...report,
+    matchScore: cappedScore,
+    suggestions: [
+      `Keyword-only ATS was ${rawKeywordScore}%, but the hiring panel scored this package ${panel.aggregateScore}%. Fix the issues below — keyword density alone does not mean interview-ready.`,
+      ...report.suggestions,
+    ].slice(0, 6),
+  }
+}
+
 export async function runGenerationPipeline(
   jobDescription: string,
   resumeText: string,
@@ -145,6 +177,7 @@ export async function runGenerationPipeline(
   const selectedKeywords = options.selectedKeywords ?? []
   const customSnippets = options.customSnippets ?? []
   const anchoredModifications = options.anchoredModifications ?? []
+  const achievementSupplement = options.achievementSupplement?.trim() ?? ''
   let workingResumeText = resumeText
   let incorporatedKeywords: string[] = []
 
@@ -215,6 +248,7 @@ export async function runGenerationPipeline(
         targetSkills: llmTargetSkills,
         coreCompetencyChecklist: checklistPrompt,
         missingKeywords: competencyChecklist.missingTerms,
+        achievementSupplement,
       },
       {
         onPartial: emitPartial,
@@ -271,6 +305,7 @@ export async function runGenerationPipeline(
         currentScore,
         missingKeywords.slice(0, 8),
         checklistPrompt,
+        achievementSupplement,
         { onPartial: emitPartial }
       ),
       resumeText
@@ -336,12 +371,24 @@ export async function runGenerationPipeline(
     ),
   }
 
-  const panelRun = await runHiringPanelWithRevisions(
-    jobDescription,
-    resumeText,
+  let panelRun: Awaited<ReturnType<typeof runHiringPanelWithRevisions>> = {
     aiResult,
-    async (label) => emitStep(3, label)
-  )
+    panel: null,
+  }
+
+  try {
+    panelRun = await runHiringPanelWithRevisions(
+      jobDescription,
+      resumeText,
+      aiResult,
+      async (label) => emitStep(3, label),
+      { achievementSupplement: achievementSupplement || undefined }
+    )
+  } catch (error) {
+    console.error('Hiring panel skipped due to error:', error)
+    await emitStep(3, 'Hiring panel skipped — finalizing your resume…')
+  }
+
   aiResult = panelRun.aiResult
   aiResult = applySourceGrounding(
     {
@@ -350,6 +397,34 @@ export async function runGenerationPipeline(
     },
     resumeText
   )
+
+  const coverViolations = auditCoverLetterCompliance(aiResult.coverLetter)
+  if (coverViolations.length > 0) {
+    await emitStep(3, 'Final cover letter polish…')
+    try {
+      const panelReview =
+        panelRun.panel && !panelRun.panel.reviewFailed && panelRun.panel.managers.length === 10
+          ? {
+              managers: panelRun.panel.managers,
+              revisionRecommendations: panelRun.panel.revisionRecommendations,
+              finalVerdict: panelRun.panel.finalVerdict,
+            }
+          : null
+      aiResult = {
+        ...aiResult,
+        coverLetter: await repairCoverLetterCompliance(
+          aiResult.coverLetter,
+          coverViolations,
+          resumeText,
+          jobDescription,
+          achievementSupplement,
+          panelReview
+        ),
+      }
+    } catch (error) {
+      console.error('Cover letter polish skipped:', error)
+    }
+  }
 
   comparison = buildAtsComparison(
     workingResumeText,
@@ -373,23 +448,29 @@ export async function runGenerationPipeline(
     jobDescription
   )
   const phrasingSuggestions = buildPhrasingComplianceSuggestions(phrasingAudit)
-  const keywordReport = sanitizeKeywordReport({
-    ...comparison.keywordReport,
-    suggestions: [...phrasingSuggestions, ...comparison.keywordReport.suggestions].slice(0, 6),
-  })
+  const rawKeywordScore = comparison.keywordReport.matchScore
+  const keywordReport = applyPanelReadinessToKeywordReport(
+    sanitizeKeywordReport({
+      ...comparison.keywordReport,
+      suggestions: [...phrasingSuggestions, ...comparison.keywordReport.suggestions].slice(0, 6),
+    }),
+    panelRun.panel,
+    rawKeywordScore
+  )
 
   const result: GenerationPipelineResult = {
     ...aiResult,
     keywordReport,
     baselineKeywordReport,
     refinementPasses,
-    targetScoreMet: comparison.keywordReport.matchScore >= TARGET_ATS_SCORE,
+    targetScoreMet: keywordReport.matchScore >= TARGET_ATS_SCORE,
     preScan,
     incorporatedKeywords: [
       ...new Set([...preScan.autoInjectedSkills, ...incorporatedKeywords, ...selectedKeywords]),
     ],
     passHistory,
     hiringPanel: panelRun.panel,
+    rawKeywordScore,
   }
 
   await emitStep(4)

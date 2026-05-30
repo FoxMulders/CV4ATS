@@ -1,5 +1,6 @@
 import { generateText, NoObjectGeneratedError, Output } from 'ai'
 
+import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
 import { unwrapAiError } from '@/lib/ai/errors'
 import { createGeminiModel, GEMINI_MODEL_ID, geminiProviderOptions } from '@/lib/ai/gemini'
 import {
@@ -20,11 +21,19 @@ import {
   tailoredResumeSchema,
   type AiGenerationResult,
 } from '@/lib/ai/schemas'
+import {
+  auditCoverLetterCompliance,
+  findCoverLetterBannedPhrases,
+} from '@/lib/resume/cover-letter-compliance'
 
 export const HIRING_PANEL_MODEL_ID =
   process.env.HIRING_PANEL_MODEL_ID?.trim() || GEMINI_MODEL_ID
 
 export const MAX_HIRING_PANEL_REVISION_ROUNDS = 2
+
+export type HiringPanelRunOptions = {
+  achievementSupplement?: string
+}
 
 const REVIEW_OUTPUT = Output.object({
   schema: hiringPanelReviewSchema,
@@ -66,6 +75,31 @@ function tryRecoverRevision(
   }
 }
 
+async function enforceCoverLetterCompliance(
+  draft: AiGenerationResult,
+  jobDescription: string,
+  sourceResumeText: string,
+  panelReview: HiringPanelReview | null,
+  achievementSupplement?: string
+): Promise<AiGenerationResult> {
+  let coverLetter = draft.coverLetter
+  let violations = auditCoverLetterCompliance(coverLetter)
+
+  for (let pass = 0; pass < 2 && violations.length > 0; pass += 1) {
+    coverLetter = await repairCoverLetterCompliance(
+      coverLetter,
+      violations,
+      sourceResumeText,
+      jobDescription,
+      achievementSupplement,
+      panelReview
+    )
+    violations = auditCoverLetterCompliance(coverLetter)
+  }
+
+  return { ...draft, coverLetter }
+}
+
 export async function runHiringPanelReview(
   jobDescription: string,
   sourceResumeText: string,
@@ -74,57 +108,97 @@ export async function runHiringPanelReview(
   const model = createGeminiModel(HIRING_PANEL_MODEL_ID)
   const prompt = buildHiringPanelReviewPrompt(jobDescription, sourceResumeText, draft)
 
-  try {
-    const response = await generateText({
-      model,
-      system: HIRING_PANEL_REVIEW_SYSTEM_PROMPT,
-      prompt,
-      temperature: 0.3,
-      maxOutputTokens: AI_GENERATION_MAX_TOKENS,
-      maxRetries: AI_STREAM_MAX_RETRIES,
-      output: REVIEW_OUTPUT,
-      providerOptions: geminiProviderOptions(),
-    })
-    return hiringPanelReviewSchema.parse(response.output)
-  } catch (error) {
-    const recovered = tryRecoverReview(error)
-    if (recovered) return recovered
-    console.error('Hiring panel review failed:', error)
-    return null
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await generateText({
+        model,
+        system: HIRING_PANEL_REVIEW_SYSTEM_PROMPT,
+        prompt,
+        temperature: attempt === 0 ? 0.3 : 0.2,
+        maxOutputTokens: AI_GENERATION_MAX_TOKENS,
+        maxRetries: AI_STREAM_MAX_RETRIES,
+        output: REVIEW_OUTPUT,
+        providerOptions: geminiProviderOptions(),
+      })
+      return hiringPanelReviewSchema.parse(response.output)
+    } catch (error) {
+      const recovered = tryRecoverReview(error)
+      if (recovered) return recovered
+      if (attempt === 0) continue
+      console.error('Hiring panel review failed:', error)
+      return null
+    }
   }
+
+  return null
 }
 
 export async function runHiringPanelRevision(
   jobDescription: string,
   sourceResumeText: string,
   draft: AiGenerationResult,
-  review: HiringPanelReview
+  review: HiringPanelReview,
+  options: HiringPanelRunOptions = {}
 ): Promise<Pick<AiGenerationResult, 'tailoredResume' | 'coverLetter'> | null> {
   const model = createGeminiModel(HIRING_PANEL_MODEL_ID)
-  const prompt = buildHiringPanelRevisionPrompt(jobDescription, sourceResumeText, draft, review)
-
-  try {
-    const response = await generateText({
-      model,
-      system: HIRING_PANEL_REVISION_SYSTEM_PROMPT,
-      prompt,
-      temperature: 0.35,
-      maxOutputTokens: AI_GENERATION_MAX_TOKENS,
-      maxRetries: AI_STREAM_MAX_RETRIES,
-      output: REVISION_OUTPUT,
-      providerOptions: geminiProviderOptions(),
-    })
-    const revision = response.output as Pick<AiGenerationResult, 'tailoredResume' | 'coverLetter'>
-    return {
-      tailoredResume: tailoredResumeSchema.parse(revision.tailoredResume),
-      coverLetter: String(revision.coverLetter).trim(),
+  const prompt = buildHiringPanelRevisionPrompt(
+    jobDescription,
+    sourceResumeText,
+    draft,
+    review,
+    {
+      ...options,
+      bannedPhrasesInLetter: findCoverLetterBannedPhrases(draft.coverLetter),
     }
-  } catch (error) {
-    const recovered = tryRecoverRevision(error)
-    if (recovered) return recovered
-    console.error('Hiring panel revision failed:', error)
-    return null
+  )
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await generateText({
+        model,
+        system: HIRING_PANEL_REVISION_SYSTEM_PROMPT,
+        prompt,
+        temperature: attempt === 0 ? 0.35 : 0.25,
+        maxOutputTokens: AI_GENERATION_MAX_TOKENS,
+        maxRetries: AI_STREAM_MAX_RETRIES,
+        output: REVISION_OUTPUT,
+        providerOptions: geminiProviderOptions(),
+      })
+      const revision = response.output as Pick<AiGenerationResult, 'tailoredResume' | 'coverLetter'>
+      return {
+        tailoredResume: tailoredResumeSchema.parse(revision.tailoredResume),
+        coverLetter: String(revision.coverLetter).trim(),
+      }
+    } catch (error) {
+      const recovered = tryRecoverRevision(error)
+      if (recovered) return recovered
+
+      try {
+        const response = await generateText({
+          model,
+          system: `${HIRING_PANEL_REVISION_SYSTEM_PROMPT}\n\nReturn JSON with tailoredResume and coverLetter keys only.`,
+          prompt: `${prompt}\n\nRespond with valid JSON only.`,
+          temperature: 0.25,
+          maxOutputTokens: AI_GENERATION_MAX_TOKENS,
+          maxRetries: AI_STREAM_MAX_RETRIES,
+          providerOptions: geminiProviderOptions(),
+        })
+        const parsed = parseJsonFromModelText(response.text) as Record<string, unknown>
+        return {
+          tailoredResume: tailoredResumeSchema.parse(parsed.tailoredResume),
+          coverLetter: String(parsed.coverLetter ?? '').trim(),
+        }
+      } catch {
+        // fall through
+      }
+
+      if (attempt === 0) continue
+      console.error('Hiring panel revision failed:', error)
+      return null
+    }
   }
+
+  return null
 }
 
 function aggregateScore(managers: HiringPanelReview['managers']): number {
@@ -132,7 +206,7 @@ function aggregateScore(managers: HiringPanelReview['managers']): number {
   return Math.round(managers.reduce((sum, m) => sum + m.score, 0) / managers.length)
 }
 
-function buildSessionResult(
+export function buildSessionResult(
   review: HiringPanelReview,
   revisionRounds: number
 ): HiringPanelSessionResult {
@@ -143,20 +217,35 @@ function buildSessionResult(
     revisionRounds,
     managers: review.managers,
     finalVerdict: review.finalVerdict,
+    revisionRecommendations: review.revisionRecommendations,
   }
+}
+
+function needsAnotherRevisionRound(
+  review: HiringPanelReview,
+  coverLetter: string,
+  revisionRounds: number
+): boolean {
+  if (revisionRounds >= MAX_HIRING_PANEL_REVISION_ROUNDS) return false
+
+  const unanimous = review.managers.every((m) => m.approved)
+  const bannedRemaining = findCoverLetterBannedPhrases(coverLetter).length > 0
+
+  return !unanimous || bannedRemaining
 }
 
 export async function runHiringPanelWithRevisions(
   jobDescription: string,
   sourceResumeText: string,
   draft: AiGenerationResult,
-  onProgress?: (label: string) => void | Promise<void>
+  onProgress?: (label: string) => void | Promise<void>,
+  options: HiringPanelRunOptions = {}
 ): Promise<{ aiResult: AiGenerationResult; panel: HiringPanelSessionResult | null }> {
   let current: AiGenerationResult = draft
   let revisionRounds = 0
   let lastReview: HiringPanelReview | null = null
 
-  while (revisionRounds <= MAX_HIRING_PANEL_REVISION_ROUNDS) {
+  while (true) {
     await onProgress?.(
       revisionRounds === 0
         ? 'Hiring panel review…'
@@ -167,14 +256,31 @@ export async function runHiringPanelWithRevisions(
     if (!review) {
       return {
         aiResult: current,
-        panel: lastReview ? buildSessionResult(lastReview, revisionRounds) : null,
+        panel: lastReview
+          ? buildSessionResult(lastReview, revisionRounds)
+          : {
+              unanimousApproval: false,
+              aggregateScore: 0,
+              revisionRounds: 0,
+              managers: [],
+              finalVerdict:
+                'Hiring panel review could not be completed. Regenerate to retry manager feedback.',
+              revisionRecommendations: [],
+              reviewFailed: true,
+            },
       }
     }
 
     lastReview = review
-    const unanimous = review.managers.every((m) => m.approved)
 
-    if (unanimous || revisionRounds >= MAX_HIRING_PANEL_REVISION_ROUNDS) {
+    if (!needsAnotherRevisionRound(review, current.coverLetter, revisionRounds)) {
+      current = await enforceCoverLetterCompliance(
+        current,
+        jobDescription,
+        sourceResumeText,
+        review,
+        options.achievementSupplement
+      )
       return {
         aiResult: current,
         panel: buildSessionResult(review, revisionRounds),
@@ -187,10 +293,18 @@ export async function runHiringPanelWithRevisions(
       jobDescription,
       sourceResumeText,
       current,
-      review
+      review,
+      options
     )
 
     if (!revision?.coverLetter.trim()) {
+      current = await enforceCoverLetterCompliance(
+        current,
+        jobDescription,
+        sourceResumeText,
+        review,
+        options.achievementSupplement
+      )
       return {
         aiResult: current,
         panel: buildSessionResult(review, revisionRounds),
@@ -202,11 +316,17 @@ export async function runHiringPanelWithRevisions(
       tailoredResume: revision.tailoredResume,
       coverLetter: revision.coverLetter,
     }
-    revisionRounds += 1
-  }
 
-  return {
-    aiResult: current,
-    panel: lastReview ? buildSessionResult(lastReview, revisionRounds) : null,
+    await onProgress?.('Fixing banned phrasing and cover letter issues…')
+
+    current = await enforceCoverLetterCompliance(
+      current,
+      jobDescription,
+      sourceResumeText,
+      review,
+      options.achievementSupplement
+    )
+
+    revisionRounds += 1
   }
 }

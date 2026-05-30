@@ -22,4 +22,6 @@ export type HiringPanelSessionResult = {
   revisionRounds: number
   managers: HiringManagerReview[]
   finalVerdict: string
+  revisionRecommendations: string[]
+  reviewFailed?: boolean
 }

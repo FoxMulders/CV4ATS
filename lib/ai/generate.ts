@@ -101,7 +101,7 @@ function formatAiError(error: unknown, provider: ResolvedAiModel): string {
   }
 
   if (NoObjectGeneratedError.isInstance(root)) {
-    return `AI returned an unparseable response. Try a shorter resume. (${root.message})`
+    return `AI returned an empty or unparseable response. Try a shorter resume/job description, or regenerate in a moment. (${root.message})`
   }
 
   if (error instanceof Error) {
@@ -138,9 +138,12 @@ async function runStreamWithProvider(
     providerOptions: entry.providerOptions,
   })
 
+  let lastPartial: DeepPartial<AiGenerationResult> | undefined
+
   for await (const partial of stream.partialOutputStream) {
     const preview = asPartialResult(partial)
     if (preview) {
+      lastPartial = preview
       await callbacks.onPartial?.(preview)
     }
   }
@@ -153,6 +156,24 @@ async function runStreamWithProvider(
     if (recovered) {
       return recovered
     }
+
+    if (lastPartial?.tailoredResume?.summary && lastPartial?.coverLetter) {
+      try {
+        return parseStructuredResult(normalizeAiGenerationOutput(lastPartial))
+      } catch {
+        // fall through to raw text recovery
+      }
+    }
+
+    try {
+      const text = await stream.text
+      if (text?.trim()) {
+        return parseStructuredResult(parseJsonFromModelText(text))
+      }
+    } catch {
+      // fall through
+    }
+
     throw new Error(formatAiError(error, entry), { cause: error })
   }
 }
@@ -208,6 +229,7 @@ export async function refineTailoredResume(
   currentScore: number,
   missingKeywords: string[],
   coreCompetencyChecklist?: string,
+  achievementSupplement?: string,
   callbacks: AiStreamCallbacks = {}
 ): Promise<AiGenerationResult> {
   const prompt = buildRefinementPrompt(
@@ -215,7 +237,8 @@ export async function refineTailoredResume(
     sourceResumeText,
     currentScore,
     missingKeywords,
-    coreCompetencyChecklist
+    coreCompetencyChecklist,
+    achievementSupplement
   )
 
   try {

@@ -2,7 +2,7 @@ export async function parseApiErrorResponse(response: Response, fallback: string
   if (response.status === 429) {
     const retryAfter = Number(response.headers.get('Retry-After') ?? '3600')
     const minutes = Math.max(1, Math.ceil(retryAfter / 60))
-    return `Rate limit exceeded. Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.`
+    return `Rate limit exceeded. Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}, or turn on Free unlimited browser AI (Chrome + Gemini Nano) below the generate button.`
   }
 
   try {

@@ -6,6 +6,7 @@ import { DownloadActions } from '@/components/results/download-actions'
 import { AnimatedAtsScoreGauge } from '@/components/results/animated-ats-score-gauge'
 import { BaselineVarianceBadge } from '@/components/results/baseline-variance-badge'
 import type { KeywordReport, TailoredResume } from '@/lib/ai/schemas'
+import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import { cn } from '@/lib/utils'
 
 interface PreviewScoreBannerProps {
@@ -13,6 +14,8 @@ interface PreviewScoreBannerProps {
   after?: KeywordReport | null
   tailoredBaselineScore?: number
   isAfterUpdating?: boolean
+  hiringPanel?: HiringPanelSessionResult | null
+  rawKeywordScore?: number | null
   resume?: TailoredResume | null
   coverLetter?: string
   premiumAccessToken?: string | null
@@ -28,6 +31,8 @@ export function PreviewScoreBanner({
   after,
   tailoredBaselineScore,
   isAfterUpdating = false,
+  hiringPanel,
+  rawKeywordScore,
   resume,
   coverLetter = '',
   premiumAccessToken,
@@ -40,7 +45,14 @@ export function PreviewScoreBanner({
   const hasScore = Boolean(after)
   const lift =
     before && after ? after.matchScore - before.matchScore : after ? after.matchScore : 0
-  const liveBaseline = tailoredBaselineScore ?? after?.matchScore
+  const liveBaseline = tailoredBaselineScore ?? before?.matchScore ?? after?.matchScore
+  const showPanelScore =
+    hiringPanel && !hiringPanel.reviewFailed && hiringPanel.managers.length > 0
+  const keywordOnlyHigher =
+    showPanelScore &&
+    rawKeywordScore != null &&
+    rawKeywordScore > after!.matchScore + 5 &&
+    !hiringPanel!.unanimousApproval
 
   return (
     <div
@@ -55,11 +67,22 @@ export function PreviewScoreBanner({
             <>
               <AnimatedAtsScoreGauge
                 score={after.matchScore}
-                label="ATS match"
+                label={showPanelScore && !hiringPanel!.unanimousApproval ? 'Readiness' : 'ATS match'}
                 size="compact"
                 isUpdating={isAfterUpdating}
                 baselineScore={liveBaseline}
               />
+              {showPanelScore ? (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Panel </span>
+                  <span className="font-semibold tabular-nums">{hiringPanel!.aggregateScore}%</span>
+                  {keywordOnlyHigher ? (
+                    <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">
+                      (keywords alone: {rawKeywordScore}%)
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {before ? (
                 <div className="flex items-center gap-2 text-sm">
                   <TrendingUp className="size-4 text-brand-gold" aria-hidden="true" />

@@ -3,8 +3,10 @@
 import { Loader2, Sparkles } from 'lucide-react'
 
 import type { TailoredResume } from '@/lib/ai/schemas'
+import type { BrowserAiStatus } from '@/lib/ai/browser/chrome-language-model'
 import { Button } from '@/components/ui/button'
 import { GENERATE_ACTION_ID } from '@/lib/wizard/workspace-focus-guide'
+import { BrowserAiToggle } from '@/components/wizard/browser-ai-toggle'
 import { GenerationProgress } from '@/components/wizard/generation-progress'
 import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 
@@ -19,6 +21,10 @@ interface GenerateStepProps {
   disabled: boolean
   /** Hide inline streaming preview (e.g. when preview lives in a split pane). */
   hideStreamingPreview?: boolean
+  useBrowserAi?: boolean
+  onUseBrowserAiChange?: (enabled: boolean) => void
+  browserAiStatus?: BrowserAiStatus | null
+  onRefreshBrowserAiStatus?: () => void
 }
 
 export function GenerateStep({
@@ -31,9 +37,22 @@ export function GenerateStep({
   streamingCoverLetter,
   disabled,
   hideStreamingPreview = false,
+  useBrowserAi = false,
+  onUseBrowserAiChange,
+  browserAiStatus = null,
+  onRefreshBrowserAiStatus,
 }: GenerateStepProps) {
   return (
     <div className="space-y-4">
+      {onUseBrowserAiChange ? (
+        <BrowserAiToggle
+          enabled={useBrowserAi}
+          onEnabledChange={onUseBrowserAiChange}
+          status={browserAiStatus}
+          onRefreshStatus={onRefreshBrowserAiStatus}
+        />
+      ) : null}
+
       <Button
         id={GENERATE_ACTION_ID}
         type="button"

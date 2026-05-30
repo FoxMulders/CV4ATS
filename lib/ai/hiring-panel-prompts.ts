@@ -63,15 +63,18 @@ ${RESUME_STYLISTIC_BLACKLIST.slice(0, 12).map((p) => `- "${p}"`).join('\n')}`
 
 export const HIRING_PANEL_REVISION_SYSTEM_PROMPT = `You are an executive resume writer revising a tailored application based on hiring panel feedback.
 
-Apply EVERY revision recommendation and address EVERY dissenting manager comment. Do not invent employers, dates, metrics, or credentials absent from the source resume.
+Your job is to rewrite the draft so the panel's specific criticisms are resolved — not to defend or lightly edit the existing copy.
 
-Cover letter must:
-- Name the target role or team domain from the job description in paragraph 1
-- Cite at least 2 specific JD responsibilities/tools/outcomes (semantic paraphrase only)
-- Use 3–4 body paragraphs + professional closing with candidate name
-- Never use banned generic phrases
+Mandatory revision rules:
+1. Apply EVERY item in revisionRecommendations — each must be visibly addressed in the new draft.
+2. Read EVERY dissenting manager comment and fix the exact problem cited (cover letter paragraph, missing JD mandate, vague bullet, banned cliché, missing metric, etc.).
+3. Replace ALL detected banned phrases listed in the user prompt. Do not paraphrase them slightly — rewrite the surrounding sentence with fresh, specific language grounded in the source resume.
+4. Do not invent employers, dates, metrics, or credentials absent from the source resume or user supplement.
+5. Cover letter: name the target role/team from the JD in paragraph 1; cite at least 2 JD-specific responsibilities; 3–4 body paragraphs; quantified proof when supported; professional closing with candidate name.
+6. Resume: Action + Scope + Business Impact bullets; preserve contact info and factual employers.
 
-Resume bullets: Action + Scope + Business Impact. Preserve contact info and factual employers.
+Never use these banned cover letter patterns:
+${[...COVER_LETTER_BANNED_PHRASES, ...HIRING_PANEL_COVER_LETTER_BANNED].map((p) => `- "${p}"`).join('\n')}
 
 Return revised tailoredResume and coverLetter JSON only.`
 
@@ -104,30 +107,38 @@ export function buildHiringPanelRevisionPrompt(
   jobDescription: string,
   sourceResumeText: string,
   draft: AiGenerationResult,
-  review: HiringPanelReview
+  review: HiringPanelReview,
+  options: { achievementSupplement?: string; bannedPhrasesInLetter?: string[] } = {}
 ): string {
   const dissent = review.managers.filter((m) => !m.approved)
   const dissentBlock = dissent
     .map((m) => `- ${m.managerRole} (score ${m.score}): ${m.comment}`)
     .join('\n')
+  const bannedInLetter = options.bannedPhrasesInLetter ?? []
+  const supplementBlock = options.achievementSupplement?.trim()
+    ? `\nUSER-VERIFIED CONTEXT (ground truth — metrics and/or panel-confirmed experience; weave into bullets and cover letter):\n${options.achievementSupplement.trim()}\n`
+    : ''
 
   return `JOB DESCRIPTION:
 ${truncate(jobDescription.trim(), MAX_JOB_DESCRIPTION_LENGTH)}
 
 SOURCE RESUME (ground truth):
 ${truncate(sourceResumeText.trim(), MAX_RESUME_TEXT_LENGTH)}
-
+${supplementBlock}
 CURRENT TAILORED RESUME:
 ${truncate(serializeTailoredResume(draft.tailoredResume), MAX_RESUME_TEXT_LENGTH)}
 
 CURRENT COVER LETTER:
 ${truncate(draft.coverLetter.trim(), 6000)}
 
-PANEL REVISION RECOMMENDATIONS:
+DETECTED BANNED PHRASES IN COVER LETTER (remove and rewrite every occurrence):
+${bannedInLetter.length > 0 ? bannedInLetter.map((p) => `- "${p}"`).join('\n') : '- None detected — still avoid all banned patterns.'}
+
+PANEL REVISION RECOMMENDATIONS (apply all):
 ${review.revisionRecommendations.map((r) => `- ${r}`).join('\n') || '- Address all dissenting manager comments below.'}
 
 DISSENTING MANAGERS (${dissent.length}/10):
 ${dissentBlock || '- None'}
 
-Revise the tailored resume and cover letter to earn unanimous panel approval.`
+Revise the tailored resume and cover letter to resolve every item above. The cover letter must not contain any banned phrase.`
 }

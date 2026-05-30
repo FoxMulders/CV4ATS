@@ -25,6 +25,8 @@ import { ResumeLetterPage } from '@/components/workspace/resume-letter-page'
 import { SplitWorkspaceLayout } from '@/components/workspace/split-workspace-layout'
 import { WorkspaceAccordion } from '@/components/workspace/workspace-accordion'
 import { GenerateStep } from '@/components/wizard/generate-step'
+import { AchievementIntakeModal } from '@/components/wizard/achievement-intake-modal'
+import { PanelExperienceIntakeModal } from '@/components/wizard/panel-experience-intake-modal'
 import { JobDescriptionStep } from '@/components/wizard/job-description-step'
 import {
   ResumeInputStep,
@@ -34,16 +36,29 @@ import {
 } from '@/components/wizard/resume-input-step'
 import { formatScorePassLine } from '@/lib/api/generation-config'
 import { useJobPass } from '@/hooks/use-job-pass'
+import { useBrowserAiPreference } from '@/hooks/use-browser-ai-preference'
 import { useAtsScoreRecalculation } from '@/hooks/use-ats-score-recalculation'
 import { useSavedResume } from '@/hooks/use-saved-resume'
 import { RESUME_STEP_ANCHOR_ID } from '@/lib/wizard/workspace-focus-guide'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
+import { runBrowserGeneration } from '@/lib/ai/browser/run-browser-generation'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
+import {
+  detectAchievementGaps,
+  formatAchievementSupplement,
+  type AchievementGapQuestion,
+} from '@/lib/resume/achievement-gap'
+import {
+  detectPanelExperienceGaps,
+  formatPanelExperienceSupplement,
+  type PanelExperienceQuestion,
+} from '@/lib/resume/panel-experience-gaps'
+import { requestPanelRevise } from '@/lib/api/panel-revise-client'
 
 type GenerationResultWithMeta = GenerationResult & {
   refinementPasses?: number
@@ -51,6 +66,7 @@ type GenerationResultWithMeta = GenerationResult & {
   preScan?: PreScanResult
   incorporatedKeywords?: string[]
   hiringPanel?: HiringPanelSessionResult | null
+  rawKeywordScore?: number
 }
 
 type GenerateOptions = {
@@ -58,6 +74,8 @@ type GenerateOptions = {
   customSnippets?: string[]
   anchoredModifications?: ReturnType<typeof selectionsToAnchoredModifications>
   resumeOverride?: string
+  achievementSupplement?: string
+  skipAchievementIntake?: boolean
 }
 
 export interface TailorWorkspacePageProps {
@@ -111,6 +129,12 @@ export function TailorWorkspacePage({
   const [editedKeywordReport, setEditedKeywordReport] = useState<KeywordReport | null>(null)
   const [baselineKeywordReport, setBaselineKeywordReport] = useState<KeywordReport | null>(null)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [achievementIntakeOpen, setAchievementIntakeOpen] = useState(false)
+  const [achievementQuestions, setAchievementQuestions] = useState<AchievementGapQuestion[]>([])
+  const [pendingGenerateOptions, setPendingGenerateOptions] = useState<GenerateOptions | null>(null)
+  const [panelExperienceOpen, setPanelExperienceOpen] = useState(false)
+  const [panelExperienceQuestions, setPanelExperienceQuestions] = useState<PanelExperienceQuestion[]>([])
+  const [panelReviseLoading, setPanelReviseLoading] = useState(false)
   const [previewTab, setPreviewTab] = useState<'tailored' | 'audit'>('tailored')
   const {
     accessToken,
@@ -120,6 +144,9 @@ export function TailorWorkspacePage({
     jobDescriptionHash,
     passExpiryLabel,
   } = useJobPass(jobDescription)
+
+  const { useBrowserAi, setUseBrowserAi, status: browserAiStatus, refreshStatus: refreshBrowserAiStatus } =
+    useBrowserAiPreference()
 
   useSavedResume(resumeText, setResumeText, fileParse)
 
@@ -186,6 +213,144 @@ export function TailorWorkspacePage({
     isResumeInputReady(resumeText, resumeFile, fileParse) &&
     fileParse.status !== 'parsing'
 
+  function requestGenerate(options: GenerateOptions = {}) {
+    if (!canGenerate && !options.resumeOverride) return
+
+    const resumeForScan =
+      options.resumeOverride ??
+      getResumeTextForSubmit(resumeText, resumeFile, fileParse).resumeText ??
+      activeResumeText
+
+    const isReTailor =
+      Boolean(options.selectedKeywords?.length) ||
+      Boolean(options.customSnippets?.length) ||
+      Boolean(options.anchoredModifications?.length)
+
+    if (
+      !useBrowserAi &&
+      !options.skipAchievementIntake &&
+      !options.achievementSupplement &&
+      !isReTailor &&
+      resumeForScan.trim()
+    ) {
+      const gaps = detectAchievementGaps(resumeForScan)
+      if (gaps.length > 0) {
+        setAchievementQuestions(gaps)
+        setPendingGenerateOptions(options)
+        setAchievementIntakeOpen(true)
+        return
+      }
+    }
+
+    void handleGenerate(options)
+  }
+
+  function openAchievementIntakeFromPanel() {
+    const gaps = detectAchievementGaps(activeResumeText)
+    if (gaps.length === 0) {
+      toast.message('Add quantified outcomes to your resume bullets, then regenerate.')
+      return
+    }
+    setAchievementQuestions(gaps)
+    setPendingGenerateOptions({ skipAchievementIntake: false })
+    setAchievementIntakeOpen(true)
+  }
+
+  function handleAchievementIntakeSubmit(answers: Record<string, string>) {
+    const supplement = formatAchievementSupplement(
+      achievementQuestions
+        .map((question) => ({
+          context: question.context,
+          bulletPreview: question.bulletPreview,
+          answer: answers[question.id] ?? '',
+        }))
+        .filter((entry) => entry.answer.trim().length >= 8)
+    )
+
+    setAchievementIntakeOpen(false)
+    void handleGenerate({
+      ...(pendingGenerateOptions ?? {}),
+      achievementSupplement: supplement || undefined,
+      skipAchievementIntake: true,
+    })
+    setPendingGenerateOptions(null)
+  }
+
+  function openPanelExperienceIntake(panel: HiringPanelSessionResult) {
+    const gaps = detectPanelExperienceGaps(panel)
+    if (gaps.length === 0) {
+      toast.message('No specific skill-evidence gaps detected in panel comments.')
+      return
+    }
+    setPanelExperienceQuestions(gaps)
+    setPanelExperienceOpen(true)
+  }
+
+  async function handlePanelExperienceSubmit(answers: Record<string, string>) {
+    if (!result?.hiringPanel || !originalResumeText?.trim()) {
+      toast.error('Generate a resume first, then verify flagged experience.')
+      return
+    }
+
+    const experienceSupplement = formatPanelExperienceSupplement(
+      panelExperienceQuestions.map((question) => ({
+        skillOrTool: question.skillOrTool,
+        panelSource: question.panelSource,
+        answer: answers[question.id] ?? '',
+      }))
+    )
+
+    if (!experienceSupplement.trim()) {
+      toast.error('Add at least one verified experience description.')
+      return
+    }
+
+    setPanelReviseLoading(true)
+
+    try {
+      const updated = await requestPanelRevise({
+        jobDescription: jobDescription.trim(),
+        sourceResumeText: originalResumeText.trim(),
+        draft: {
+          tailoredResume: editedResume ?? result.tailoredResume,
+          coverLetter,
+          keywordReport: editedKeywordReport ?? result.keywordReport,
+        },
+        panel: result.hiringPanel,
+        experienceSupplement,
+      })
+
+      setResult((current) =>
+        current
+          ? {
+              ...current,
+              tailoredResume: updated.tailoredResume,
+              coverLetter: updated.coverLetter,
+              keywordReport: updated.keywordReport,
+              hiringPanel: updated.hiringPanel,
+              rawKeywordScore: updated.rawKeywordScore ?? current.rawKeywordScore,
+            }
+          : current
+      )
+      resetEditedResume(updated.tailoredResume)
+      setCoverLetter(updated.coverLetter)
+      setEditedKeywordReport(updated.keywordReport)
+      setPanelExperienceOpen(false)
+
+      if (updated.hiringPanel && !updated.hiringPanel.unanimousApproval) {
+        setPanelExperienceQuestions(detectPanelExperienceGaps(updated.hiringPanel))
+      } else {
+        setPanelExperienceQuestions([])
+      }
+
+      toast.success('Resume and cover letter updated with your verified experience.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to apply verified experience.')
+    } finally {
+      setPanelReviseLoading(false)
+    }
+  }
+
   async function handleGenerate(options: GenerateOptions = {}) {
     if (!canGenerate && !options.resumeOverride) return
 
@@ -210,6 +375,50 @@ export function TailorWorkspacePage({
     }
 
     try {
+      const resumeForGeneration =
+        options.resumeOverride ??
+        getResumeTextForSubmit(resumeText, resumeFile, fileParse).resumeText ??
+        activeResumeText
+
+      if (useBrowserAi) {
+        if (!resumeForGeneration?.trim()) {
+          throw new Error('Paste resume text or wait for file parsing before using browser AI.')
+        }
+
+        setLoadingStep(1)
+        setLoadingLabel('Starting unlimited browser tailoring…')
+
+        const data = await runBrowserGeneration({
+          jobDescription: jobDescription.trim(),
+          resumeText: resumeForGeneration.trim(),
+          useChromeNano: browserAiStatus?.supported === true && browserAiStatus.ready,
+          onProgress: (label) => {
+            setLoadingLabel(label)
+            setLoadingStep((step) => Math.min(step + 1, 5))
+          },
+        })
+
+        setResult(data)
+        resetEditedResume(data.tailoredResume)
+        setBaselineTailoredResume(data.tailoredResume)
+        setEditedKeywordReport(data.keywordReport)
+        setBaselineKeywordReport(data.baselineKeywordReport)
+        if (data.preScan) {
+          setBaselinePreScan(data.preScan)
+          setEditedPreScan(data.preScan)
+        }
+        setCoverLetter(data.coverLetter)
+        setPanelExperienceQuestions([])
+
+        const injected = data.incorporatedKeywords?.length ?? 0
+        toast.success(
+          injected > 0
+            ? `Ready (browser AI) — ${injected} keyword${injected === 1 ? '' : 's'} woven in. No server quota used.`
+            : 'Ready (browser AI) — unlimited, no server quota used. Hiring panel skipped in this mode.'
+        )
+        return
+      }
+
       const formData = new FormData()
       formData.append('jobDescription', jobDescription.trim())
 
@@ -232,6 +441,9 @@ export function TailorWorkspacePage({
       }
       if (options.anchoredModifications?.length) {
         formData.append('anchoredModifications', JSON.stringify(options.anchoredModifications))
+      }
+      if (options.achievementSupplement?.trim()) {
+        formData.append('achievementSupplement', options.achievementSupplement.trim())
       }
 
       const response = await fetch('/api/generate', {
@@ -266,12 +478,22 @@ export function TailorWorkspacePage({
       resetEditedResume(data.tailoredResume)
       setBaselineTailoredResume(data.tailoredResume)
       setEditedKeywordReport(data.keywordReport)
-      setBaselineKeywordReport(data.keywordReport)
+      setBaselineKeywordReport(data.baselineKeywordReport)
       if (data.preScan) {
         setBaselinePreScan(data.preScan)
         setEditedPreScan(data.preScan)
       }
       setCoverLetter(data.coverLetter)
+
+      if (data.hiringPanel && !data.hiringPanel.unanimousApproval && !data.hiringPanel.reviewFailed) {
+        const panelGaps = detectPanelExperienceGaps(data.hiringPanel)
+        setPanelExperienceQuestions(panelGaps)
+        if (panelGaps.length > 0) {
+          setPanelExperienceOpen(true)
+        }
+      } else {
+        setPanelExperienceQuestions([])
+      }
 
       if (options.anchoredModifications?.length || options.customSnippets?.length || options.selectedKeywords?.length) {
         const count =
@@ -291,7 +513,11 @@ export function TailorWorkspacePage({
         )
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Generation failed')
+      const message = error instanceof Error ? error.message : 'Generation failed'
+      toast.error(message)
+      if (message.includes('Rate limit exceeded') && !useBrowserAi) {
+        setUseBrowserAi(true)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -429,7 +655,7 @@ export function TailorWorkspacePage({
           </div>
         ) : null}
         <GenerateStep
-          onGenerate={() => handleGenerate()}
+          onGenerate={() => requestGenerate()}
           isLoading={isLoading}
           loadingStep={loadingStep}
           loadingLabel={loadingLabel}
@@ -438,6 +664,10 @@ export function TailorWorkspacePage({
           streamingCoverLetter={streamingCoverLetter}
           disabled={!canGenerate}
           hideStreamingPreview
+          useBrowserAi={useBrowserAi}
+          onUseBrowserAiChange={setUseBrowserAi}
+          browserAiStatus={browserAiStatus}
+          onRefreshBrowserAiStatus={refreshBrowserAiStatus}
         />
       </WorkspaceAccordion>
 
@@ -509,14 +739,31 @@ export function TailorWorkspacePage({
             />
           </WorkspaceAccordion>
 
-          {result.hiringPanel ? (
+          {result ? (
             <WorkspaceAccordion
               id="hiring-panel-section"
               title="Hiring panel review"
-              description={`${result.hiringPanel.aggregateScore}% panel score · ${result.hiringPanel.managers.filter((m) => m.approved).length}/10 approved`}
+              description={
+                result.hiringPanel?.reviewFailed
+                  ? 'Review unavailable — regenerate to retry'
+                  : result.hiringPanel
+                    ? `${result.hiringPanel.aggregateScore}% interview readiness · ${result.hiringPanel.managers.filter((m) => m.approved).length}/10 approved`
+                    : 'Manager critique runs after each generation'
+              }
               defaultOpen
             >
-              <HiringPanelReviewPanel panel={result.hiringPanel} />
+              {result.hiringPanel ? (
+                <HiringPanelReviewPanel
+                  panel={result.hiringPanel}
+                  onAddMetrics={openAchievementIntakeFromPanel}
+                  onVerifyExperience={() => openPanelExperienceIntake(result.hiringPanel!)}
+                  hasExperienceGaps={panelExperienceQuestions.length > 0}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No panel data for this run. Regenerate to run the 10-manager review.
+                </p>
+              )}
             </WorkspaceAccordion>
           ) : null}
         </>
@@ -535,9 +782,9 @@ export function TailorWorkspacePage({
       <PreviewScoreBanner
         before={result?.baselineKeywordReport}
         after={keywordAfter}
-        tailoredBaselineScore={
-          baselineKeywordReport?.matchScore ?? result?.keywordReport.matchScore
-        }
+        tailoredBaselineScore={baselineKeywordReport?.matchScore ?? result?.baselineKeywordReport?.matchScore}
+        hiringPanel={result?.hiringPanel}
+        rawKeywordScore={result?.rawKeywordScore ?? null}
         isAfterUpdating={scoreRecalculation.isRecalculating}
         resume={editedResume ?? result?.tailoredResume ?? null}
         coverLetter={coverLetter}
@@ -619,6 +866,30 @@ export function TailorWorkspacePage({
         onOpenChange={setCheckoutOpen}
         jobDescription={jobDescription}
         onSuccess={handleCheckoutSuccess}
+      />
+
+      <AchievementIntakeModal
+        open={achievementIntakeOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAchievementIntakeOpen(false)
+            if (pendingGenerateOptions) {
+              void handleGenerate({ ...pendingGenerateOptions, skipAchievementIntake: true })
+              setPendingGenerateOptions(null)
+            }
+          }
+        }}
+        questions={achievementQuestions}
+        onSubmit={handleAchievementIntakeSubmit}
+        isSubmitting={isLoading}
+      />
+
+      <PanelExperienceIntakeModal
+        open={panelExperienceOpen}
+        onOpenChange={setPanelExperienceOpen}
+        questions={panelExperienceQuestions}
+        onSubmit={(answers) => void handlePanelExperienceSubmit(answers)}
+        isSubmitting={panelReviseLoading}
       />
     </div>
   )

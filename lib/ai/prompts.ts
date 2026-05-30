@@ -14,6 +14,8 @@ export const COVER_LETTER_BANNED_PHRASES = [
   'Passionate about',
   'Thrilled to apply',
   'Keen to bring',
+  'I am eager to bring',
+  'eager to bring',
   'I am writing to express',
   'I am applying for',
   'I believe my skills',
@@ -432,6 +434,8 @@ export interface UserPromptOptions {
   targetSkills?: string[]
   coreCompetencyChecklist?: string
   missingKeywords?: string[]
+  /** User-supplied metrics/outcomes for bullets that lacked quantified results. */
+  achievementSupplement?: string
 }
 
 export function buildUserPrompt(
@@ -439,7 +443,7 @@ export function buildUserPrompt(
   resumeText: string,
   options: UserPromptOptions = {}
 ): string {
-  const { targetSkills = [], coreCompetencyChecklist = '', missingKeywords = [] } = options
+  const { targetSkills = [], coreCompetencyChecklist = '', missingKeywords = [], achievementSupplement = '' } = options
 
   const checklistBlock = coreCompetencyChecklist
     ? `\n${coreCompetencyChecklist}\n`
@@ -455,9 +459,13 @@ export function buildUserPrompt(
       ? `\nPRE-EXTRACTED HIGH-VALUE TARGET SKILLS (prioritize weaving these naturally):\n${targetSkills.join(', ')}\n`
       : ''
 
+  const achievementBlock = achievementSupplement.trim()
+    ? `\nUSER-PROVIDED ACHIEVEMENT DETAILS (ground truth — use for quantified cover letter proof points and resume bullets; do not invent beyond this supplement and the source resume):\n${achievementSupplement.trim()}\n`
+    : ''
+
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${missingBlock}${skillBlock}
+${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}
 SOURCE RESUME:
 ${resumeText}
 
@@ -481,15 +489,20 @@ export function buildRefinementPrompt(
   sourceResumeText: string,
   currentScore: number,
   missingKeywords: string[],
-  coreCompetencyChecklist?: string
+  coreCompetencyChecklist?: string,
+  achievementSupplement?: string
 ): string {
   const checklistBlock = coreCompetencyChecklist
     ? `\n${coreCompetencyChecklist}\n`
     : ''
 
+  const achievementBlock = achievementSupplement?.trim()
+    ? `\nUSER-PROVIDED ACHIEVEMENT DETAILS (ground truth):\n${achievementSupplement.trim()}\n`
+    : ''
+
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}
+${checklistBlock}${achievementBlock}
 ORIGINAL SOURCE RESUME (ground truth — do not invent beyond this):
 ${sourceResumeText}
 
