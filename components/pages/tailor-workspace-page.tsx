@@ -20,6 +20,7 @@ import { ResumeDiffView } from '@/components/results/resume-diff-view'
 import { ResumePreview } from '@/components/results/resume-preview'
 import { UndoRedoToolbar } from '@/components/results/undo-redo-toolbar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { PreviewScoreBanner } from '@/components/workspace/preview-score-banner'
 import { ResumeLetterPage } from '@/components/workspace/resume-letter-page'
 import { SplitWorkspaceLayout } from '@/components/workspace/split-workspace-layout'
@@ -750,7 +751,7 @@ export function TailorWorkspacePage({
                   : result.hiringPanel
                     ? `${result.hiringPanel.aggregateScore}% interview readiness · ${result.hiringPanel.managers.filter((m) => m.approved).length}/10 approved`
                     : result.generationSource === 'browser'
-                      ? 'Skipped in browser AI mode'
+                      ? 'Optional server panel (browser AI on)'
                       : 'Manager critique runs after each generation'
               }
               defaultOpen
@@ -764,15 +765,26 @@ export function TailorWorkspacePage({
                 />
               ) : result.generationSource === 'browser' ? (
                 <div className="rounded-lg border border-border/80 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                  <p className="font-medium text-foreground">Hiring panel not run in browser AI mode</p>
+                  <p className="font-medium text-foreground">Optional: 10-manager hiring panel</p>
                   <p className="mt-1">
-                    Free unlimited browser AI skips the 10-manager server review so generation stays on
-                    your device with no quota limits.
+                    Browser AI (on by default) keeps generation unlimited on your device. The hiring
+                    panel is a separate server review — turn browser AI off only when you want that
+                    critique.
                   </p>
-                  <p className="mt-2">
-                    Turn off <span className="font-medium text-foreground">Free unlimited browser AI</span>{' '}
-                    above the generate button and regenerate when you want the full hiring panel critique.
-                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-3"
+                    onClick={() => {
+                      setUseBrowserAi(false)
+                      toast.message(
+                        'Browser AI off — click Generate again for the 10-manager hiring panel.'
+                      )
+                    }}
+                  >
+                    Turn off browser AI & regenerate for panel
+                  </Button>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">

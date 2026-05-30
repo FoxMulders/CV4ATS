@@ -6,20 +6,27 @@ import { inspectBrowserAi, type BrowserAiStatus } from '@/lib/ai/browser/chrome-
 
 const STORAGE_KEY = 'ats4cv-use-browser-ai'
 
+/** Browser AI is on by default — only explicit opt-out (stored "0") turns it off. */
+function readBrowserAiPreference(): boolean {
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY)
+    if (stored === '0') return false
+    if (stored === '1') return true
+    window.localStorage.setItem(STORAGE_KEY, '1')
+    return true
+  } catch {
+    return true
+  }
+}
+
 export function useBrowserAiPreference() {
-  const [useBrowserAi, setUseBrowserAiState] = useState(false)
+  const [useBrowserAi, setUseBrowserAiState] = useState(true)
   const [status, setStatus] = useState<BrowserAiStatus | null>(null)
+  const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY)
-      if (stored === '1') setUseBrowserAiState(true)
-    } catch {
-      // ignore
-    }
-  }, [])
-
-  useEffect(() => {
+    setUseBrowserAiState(readBrowserAiPreference())
+    setHydrated(true)
     void inspectBrowserAi().then(setStatus)
   }, [])
 
@@ -32,5 +39,15 @@ export function useBrowserAiPreference() {
     }
   }, [])
 
-  return { useBrowserAi, setUseBrowserAi, status, refreshStatus: () => void inspectBrowserAi().then(setStatus) }
+  const refreshStatus = useCallback(() => {
+    void inspectBrowserAi().then(setStatus)
+  }, [])
+
+  return {
+    useBrowserAi: hydrated ? useBrowserAi : true,
+    setUseBrowserAi,
+    status,
+    refreshStatus,
+    hydrated,
+  }
 }

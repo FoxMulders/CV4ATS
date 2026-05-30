@@ -3,16 +3,18 @@ import type {
   LanguageModelSession,
   LanguageModelStatic,
 } from '@/types/chrome-ai'
+import { isChromeDesktopBrowser } from '@/lib/ai/browser/chrome-setup'
 
 export type { LanguageModelAvailability } from '@/types/chrome-ai'
 
 export type BrowserAiStatus =
-  | { supported: false; message: string }
+  | { supported: false; message: string; needsFlagSetup: boolean }
   | {
       supported: true
       availability: LanguageModelAvailability
       message: string
       ready: boolean
+      needsFlagSetup: false
     }
 
 export function getChromeLanguageModel(): LanguageModelStatic | undefined {
@@ -24,10 +26,13 @@ export async function inspectBrowserAi(): Promise<BrowserAiStatus> {
   const lm = getChromeLanguageModel()
 
   if (!lm) {
+    const needsFlagSetup = isChromeDesktopBrowser()
     return {
       supported: false,
-      message:
-        'Chrome on-device AI is not available. Use Chrome desktop with the Prompt API enabled (chrome://flags → Prompt API for Gemini Nano), or use server generation when your quota resets.',
+      needsFlagSetup,
+      message: needsFlagSetup
+        ? 'Gemini Nano is not enabled yet. Follow the setup steps below (one-time, ~2 minutes). Keyword tailoring still works without Nano.'
+        : 'Use Chrome desktop for on-device AI, or turn off browser AI below to use server generation.',
     }
   }
 
@@ -43,6 +48,7 @@ export async function inspectBrowserAi(): Promise<BrowserAiStatus> {
       supported: true,
       availability,
       ready,
+      needsFlagSetup: false,
       message: ready
         ? 'Gemini Nano is ready — unlimited generation runs on your device.'
         : availability === 'downloadable'
@@ -54,6 +60,7 @@ export async function inspectBrowserAi(): Promise<BrowserAiStatus> {
   } catch {
     return {
       supported: false,
+      needsFlagSetup: isChromeDesktopBrowser(),
       message: 'Could not check Chrome on-device AI status.',
     }
   }
