@@ -1,6 +1,5 @@
 import type { Education, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { formatResumeText, formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
-import { lockResumeState, strictStateToTailoredResume } from '@/lib/resume/strict-resume-state'
 import { parseCertificationsFromResumeText } from '@/lib/resume/certification-guard'
 import {
   extractLocationFromText,
@@ -234,7 +233,7 @@ export function parseResumeTextToTailoredResume(resumeText: string): TailoredRes
   const lines = splitLines(normalizedText)
   const contact = extractContact(normalizedText)
 
-  const parsed = formatTailoredResume({
+  return formatTailoredResume({
     contact,
     summary: parseSummary(lines),
     skills: parseSkills(lines, normalizedText),
@@ -243,6 +242,4 @@ export function parseResumeTextToTailoredResume(resumeText: string): TailoredRes
     education: parseEducation(lines),
     certifications: parseCertificationsFromResumeText(normalizedText),
   })
-
-  return strictStateToTailoredResume(lockResumeState(parsed))
 }

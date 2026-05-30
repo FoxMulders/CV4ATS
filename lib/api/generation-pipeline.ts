@@ -1,5 +1,6 @@
 import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
+import type { KeywordReport } from '@/lib/ai/schemas'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'
 import { refineTailoredResume, generateTailoredResume } from '@/lib/ai/generate'
 import {
@@ -38,12 +39,8 @@ import {
 import { integrateScoringKeywordsUntilSaturation } from '@/lib/resume/scoring-keyword-integration'
 import { getMissingScoringKeywords } from '@/lib/resume/scoring-keyword-targets'
 import { mergeTargetSkills } from '@/lib/resume/tailored-resume-injection'
-import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-report'
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
-import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
-import type { TailoredResume } from '@/lib/ai/schemas'
-import { lockResumeState, strictStateToTailoredResume, tailoredResumeToDocument } from '@/lib/resume/strict-resume-state'
 
 export { GENERATION_PROGRESS_LABELS }
 
@@ -59,8 +56,6 @@ export type GenerationPipelineOptions = {
   customSnippets?: string[]
   /** User-supplied metrics for bullets that lacked quantified outcomes. */
   achievementSupplement?: string
-  /** Structured resume from the frontend — strict preservation source of truth. */
-  currentResume?: TailoredResume
   /** Inline bullet/summary revisions with placement metadata. */
   anchoredModifications?: Array<{
     snippet: string
@@ -81,7 +76,6 @@ export type GenerationPipelineResult = GenerationResult & {
   hiringPanel?: HiringPanelSessionResult | null
   /** Uncapped keyword-only ATS before hiring panel adjustment. */
   rawKeywordScore?: number
-  resumeDocument?: import('@/lib/resume/strict-resume-state').ResumeDocument
 }
 
 function runScoringIntegration(
@@ -124,28 +118,37 @@ function scoreResume(
 
 function applySourceGrounding(
   aiResult: AiGenerationResult,
-  source: TailoredResume | string,
-  jobDescription: string,
-  missingKeywords?: string[]
+  sourceResumeText: string
 ): AiGenerationResult {
-  const preserved = applyStructuralPreservation(source, aiResult, {
-    jobDescription,
-    missingKeywords,
-  })
-  const sourceText = typeof source === 'string' ? source : ''
   return {
-    ...preserved,
-    tailoredResume: enforceSourceCertifications(preserved.tailoredResume, sourceText),
+    ...aiResult,
+    tailoredResume: enforceSourceCertifications(aiResult.tailoredResume, sourceResumeText),
   }
 }
 
-function reconcileAfterMutation(
-  aiResult: AiGenerationResult,
-  frozenResume: TailoredResume,
-  jobDescription: string,
-  missingKeywords?: string[]
-): AiGenerationResult {
-  return applySourceGrounding(aiResult, frozenResume, jobDescription, missingKeywords)
+/** When the hiring panel rejects the package, keyword-only ATS must not exceed panel readiness. */
+function applyPanelReadinessToKeywordReport(
+  report: KeywordReport,
+  panel: HiringPanelSessionResult | null | undefined,
+  rawKeywordScore: number
+): KeywordReport {
+  if (!panel || panel.reviewFailed || panel.unanimousApproval) {
+    return report
+  }
+
+  const cappedScore = Math.min(report.matchScore, panel.aggregateScore)
+  if (cappedScore >= report.matchScore) {
+    return report
+  }
+
+  return {
+    ...report,
+    matchScore: cappedScore,
+    suggestions: [
+      `Keyword-only ATS was ${rawKeywordScore}%, but the hiring panel scored this package ${panel.aggregateScore}%. Fix the issues below — keyword density alone does not mean interview-ready.`,
+      ...report.suggestions,
+    ].slice(0, 6),
+  }
 }
 
 export async function runGenerationPipeline(
@@ -170,9 +173,6 @@ export async function runGenerationPipeline(
   }
 
   await emitStep(0)
-
-  const frozenResume =
-    options.currentResume ?? strictStateToTailoredResume(lockResumeState(resumeText))
 
   const selectedKeywords = options.selectedKeywords ?? []
   const customSnippets = options.customSnippets ?? []
@@ -249,19 +249,16 @@ export async function runGenerationPipeline(
         coreCompetencyChecklist: checklistPrompt,
         missingKeywords: competencyChecklist.missingTerms,
         achievementSupplement,
-        currentResume: frozenResume,
       },
       {
         onPartial: emitPartial,
       }
     ),
-    frozenResume,
-    jobDescription,
-    competencyChecklist.missingTerms
+    resumeText
   )
 
   let integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
-  aiResult = reconcileAfterMutation(integration.aiResult, frozenResume, jobDescription, competencyChecklist.missingTerms)
+  aiResult = integration.aiResult
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
   const afterInitialScore = scoreResume(aiResult.tailoredResume, jobDescription, resumeText, baselineScore)
@@ -310,21 +307,13 @@ export async function runGenerationPipeline(
         missingKeywords.slice(0, 8),
         checklistPrompt,
         achievementSupplement,
-        { onPartial: emitPartial },
-        frozenResume
+        { onPartial: emitPartial }
       ),
-      frozenResume,
-      jobDescription,
-      missingKeywords.slice(0, 8)
+      resumeText
     )
 
     integration = runScoringIntegration(aiResult, jobDescription, keywordsToTargetSkills(missingKeywords))
-    aiResult = reconcileAfterMutation(
-      integration.aiResult,
-      frozenResume,
-      jobDescription,
-      missingKeywords.slice(0, 8)
-    )
+    aiResult = integration.aiResult
     incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
     comparison = buildAtsComparison(
@@ -352,7 +341,7 @@ export async function runGenerationPipeline(
 
   const beforeFinalScore = currentScore
   integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
-  aiResult = reconcileAfterMutation(integration.aiResult, frozenResume, jobDescription)
+  aiResult = integration.aiResult
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
   comparison = buildAtsComparison(
@@ -396,10 +385,7 @@ export async function runGenerationPipeline(
       resumeText,
       aiResult,
       async (label) => emitStep(3, label),
-      {
-        achievementSupplement: achievementSupplement || undefined,
-        currentResume: frozenResume,
-      }
+      { achievementSupplement: achievementSupplement || undefined }
     )
   } catch (error) {
     console.error('Hiring panel skipped due to error:', error)
@@ -412,8 +398,7 @@ export async function runGenerationPipeline(
       ...aiResult,
       tailoredResume: formatTailoredResume(aiResult.tailoredResume),
     },
-    frozenResume,
-    jobDescription
+    resumeText
   )
 
   const coverViolations = auditCoverLetterCompliance(aiResult.coverLetter)
@@ -490,7 +475,6 @@ export async function runGenerationPipeline(
     passHistory,
     hiringPanel: panelRun.panel,
     rawKeywordScore,
-    resumeDocument: tailoredResumeToDocument(aiResult.tailoredResume),
   }
 
   await emitStep(4)

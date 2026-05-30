@@ -6,7 +6,6 @@ import {
   MAX_RESUME_TEXT_LENGTH,
 } from '@/lib/ai/schemas'
 import { parseAnchoredModifications, parseCustomSnippets, parseSelectedKeywords } from '@/lib/api/parse-selected-keywords'
-import { parseCurrentResumeJson } from '@/lib/resume/strict-resume-state'
 import { createNdjsonStream, ndjsonStreamResponse } from '@/lib/api/progress-stream'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { runStreamedGeneration } from '@/lib/api/run-streamed-generation'
@@ -77,7 +76,6 @@ export async function POST(request: Request) {
     const customSnippets = parseCustomSnippets(formData.get('customSnippets'))
     const anchoredModifications = parseAnchoredModifications(formData.get('anchoredModifications'))
     const achievementSupplement = String(formData.get('achievementSupplement') ?? '').trim()
-    const currentResume = parseCurrentResumeJson(formData.get('currentResume'))
 
     const stream = createNdjsonStream((emit) =>
       runStreamedGeneration(emit, jobDescription, resumeText, {
@@ -85,7 +83,6 @@ export async function POST(request: Request) {
         customSnippets,
         anchoredModifications,
         achievementSupplement: achievementSupplement || undefined,
-        currentResume: currentResume ?? undefined,
       })
     )
 

@@ -20,9 +20,8 @@ import {
   aiGenerationResultSchema,
   tailoredResumeSchema,
   type AiGenerationResult,
-  type TailoredResume,
 } from '@/lib/ai/schemas'
-import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
+import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import {
   auditCoverLetterCompliance,
   findCoverLetterBannedPhrases,
@@ -35,8 +34,6 @@ export const MAX_HIRING_PANEL_REVISION_ROUNDS = 4
 
 export type HiringPanelRunOptions = {
   achievementSupplement?: string
-  /** Structured resume from the client — preferred preservation source over text re-parse. */
-  currentResume?: TailoredResume
 }
 
 const REVIEW_OUTPUT = Output.object({
@@ -241,14 +238,9 @@ function needsAnotherRevisionRound(
 
 function preserveDraft(
   draft: AiGenerationResult,
-  sourceResumeText: string,
-  jobDescription: string,
-  currentResume?: TailoredResume
+  sourceResumeText: string
 ): AiGenerationResult {
-  return applyStructuralPreservation(currentResume ?? sourceResumeText, draft, {
-    jobDescription,
-    missingKeywords: draft.keywordReport?.missingKeywords,
-  })
+  return normalizeGenerationDraftForApi(draft, sourceResumeText)
 }
 
 export async function runHiringPanelWithRevisions(
@@ -299,9 +291,7 @@ export async function runHiringPanelWithRevisions(
           review,
           options.achievementSupplement
         ),
-        sourceResumeText,
-        jobDescription,
-        options.currentResume
+        sourceResumeText
       )
       return {
         aiResult: current,
@@ -328,9 +318,7 @@ export async function runHiringPanelWithRevisions(
           review,
           options.achievementSupplement
         ),
-        sourceResumeText,
-        jobDescription,
-        options.currentResume
+        sourceResumeText
       )
       return {
         aiResult: current,
@@ -344,9 +332,7 @@ export async function runHiringPanelWithRevisions(
         tailoredResume: revision.tailoredResume,
         coverLetter: revision.coverLetter,
       },
-      sourceResumeText,
-      jobDescription,
-      options.currentResume
+      sourceResumeText
     )
 
     await onProgress?.('Re-running hiring panel after applying suggestions…')
@@ -359,9 +345,7 @@ export async function runHiringPanelWithRevisions(
         review,
         options.achievementSupplement
       ),
-      sourceResumeText,
-      jobDescription,
-      options.currentResume
+      sourceResumeText
     )
 
     revisionRounds += 1

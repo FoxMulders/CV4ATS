@@ -49,11 +49,6 @@ import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
-import { parseResumeTextToTailoredResume } from '@/lib/resume/text-to-structured'
-import {
-  coalesceTailoredResumeFromGeneration,
-  tailoredResumeToDocument,
-} from '@/lib/resume/strict-resume-state'
 import {
   detectAchievementGaps,
   formatAchievementSupplement,
@@ -75,19 +70,6 @@ type GenerationResultWithMeta = GenerationResult & {
   hiringPanel?: HiringPanelSessionResult | null
   rawKeywordScore?: number
   generationSource?: 'browser' | 'server'
-  resumeDocument?: import('@/lib/resume/strict-resume-state').ResumeDocument
-}
-
-function normalizeGenerationResult(data: GenerationResultWithMeta): GenerationResultWithMeta {
-  const tailoredResume = coalesceTailoredResumeFromGeneration(
-    data.tailoredResume,
-    data.resumeDocument
-  )
-  return {
-    ...data,
-    tailoredResume,
-    resumeDocument: data.resumeDocument ?? tailoredResumeToDocument(tailoredResume),
-  }
 }
 
 type GenerateOptions = {
@@ -422,7 +404,7 @@ export function TailorWorkspacePage({
         let nextResult: GenerationResultWithMeta = { ...data, generationSource: 'browser' }
         let nextCoverLetter = data.coverLetter
 
-        setLoadingLabel('Applying improvements and running hiring panel review…')
+        setLoadingLabel('Running 10-manager hiring panel review…')
         setLoadingStep(6)
 
         try {
@@ -434,16 +416,9 @@ export function TailorWorkspacePage({
 
           nextResult = {
             ...nextResult,
-            tailoredResume: panelResponse.tailoredResume ?? nextResult.tailoredResume,
             hiringPanel: panelResponse.hiringPanel,
             keywordReport: panelResponse.keywordReport ?? data.keywordReport,
             rawKeywordScore: panelResponse.rawKeywordScore ?? data.rawKeywordScore,
-            incorporatedKeywords: [
-              ...new Set([
-                ...(nextResult.incorporatedKeywords ?? []),
-                ...(panelResponse.incorporatedKeywords ?? []),
-              ]),
-            ],
           }
 
           if (panelResponse.coverLetter?.trim()) {
@@ -452,36 +427,19 @@ export function TailorWorkspacePage({
 
           if (panelResponse.hiringPanel.reviewFailed) {
             toast.message('Browser tailoring finished, but the hiring panel could not complete. Try again shortly.')
-          } else if (panelResponse.hiringPanel.revisionRounds > 0) {
-            toast.message(
-              `Applied ${panelResponse.hiringPanel.revisionRounds} round(s) of panel feedback and re-reviewed your package.`
-            )
           }
         } catch (panelError) {
           console.warn('Hiring panel after browser generation failed:', panelError)
-          const message =
+          toast.message(
             panelError instanceof Error
               ? panelError.message
               : 'Browser tailoring finished, but hiring panel review failed.'
-          toast.message(message)
-          nextResult = {
-            ...nextResult,
-            hiringPanel: {
-              unanimousApproval: false,
-              aggregateScore: 0,
-              revisionRounds: 0,
-              managers: [],
-              finalVerdict: message,
-              revisionRecommendations: [],
-              reviewFailed: true,
-            },
-          }
+          )
         }
 
-        const normalizedResult = normalizeGenerationResult(nextResult)
-        setResult(normalizedResult)
-        resetEditedResume(normalizedResult.tailoredResume)
-        setBaselineTailoredResume(normalizedResult.tailoredResume)
+        setResult(nextResult)
+        resetEditedResume(nextResult.tailoredResume)
+        setBaselineTailoredResume(nextResult.tailoredResume)
         setEditedKeywordReport(nextResult.keywordReport)
         setBaselineKeywordReport(nextResult.baselineKeywordReport)
         if (nextResult.preScan) {
@@ -512,15 +470,6 @@ export function TailorWorkspacePage({
 
       const formData = new FormData()
       formData.append('jobDescription', jobDescription.trim())
-
-      const resumePayloadForState =
-        editedResume ??
-        (resumeForGeneration?.trim()
-          ? parseResumeTextToTailoredResume(resumeForGeneration.trim())
-          : null)
-      if (resumePayloadForState) {
-        formData.append('currentResume', JSON.stringify(tailoredResumeToDocument(resumePayloadForState)))
-      }
 
       if (options.resumeOverride) {
         formData.append('resumeText', options.resumeOverride)
@@ -574,10 +523,9 @@ export function TailorWorkspacePage({
         },
       })
 
-      const normalizedResult = normalizeGenerationResult({ ...data, generationSource: 'server' })
-      setResult(normalizedResult)
-      resetEditedResume(normalizedResult.tailoredResume)
-      setBaselineTailoredResume(normalizedResult.tailoredResume)
+      setResult({ ...data, generationSource: 'server' })
+      resetEditedResume(data.tailoredResume)
+      setBaselineTailoredResume(data.tailoredResume)
       setEditedKeywordReport(data.keywordReport)
       setBaselineKeywordReport(data.baselineKeywordReport)
       if (data.preScan) {

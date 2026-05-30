@@ -7,15 +7,6 @@ import {
 } from 'ai'
 
 import {
-  ENRICHMENT_SYSTEM_PROMPT,
-  buildEnrichmentRefinementPrompt,
-  buildEnrichmentUserPrompt,
-} from '@/lib/ai/enrichment-prompts'
-import {
-  enrichmentModelOutputSchema,
-  type EnrichmentModelOutput,
-} from '@/lib/ai/enrichment-schemas'
-import {
   formatDirectProviderSetupError,
   isAiProviderUnavailable,
   isRateLimitOrQuotaError,
@@ -30,10 +21,11 @@ import {
 } from '@/lib/ai/local-fallback'
 import { normalizeAiGenerationOutput, parseJsonFromModelText } from '@/lib/ai/normalize-output'
 import {
-  applyStructuralPreservation,
-  enrichmentOutputToDraft,
-} from '@/lib/ai/preserve-and-enrich'
-import type { UserPromptOptions } from '@/lib/ai/prompts'
+  buildRefinementPrompt,
+  buildUserPrompt,
+  SYSTEM_PROMPT,
+  type UserPromptOptions,
+} from '@/lib/ai/prompts'
 import {
   AI_GENERATION_MAX_TOKENS,
   AI_GENERATION_TEMPERATURE,
@@ -43,141 +35,24 @@ import {
   buildFreeProviderChain,
   type ResolvedAiModel,
 } from '@/lib/ai/provider'
-import { type AiGenerationResult, type TailoredResume } from '@/lib/ai/schemas'
-import { scoreAtsCompliance } from '@/lib/resume/ats-score'
-import { allFrozenBlocks, lockResumeState } from '@/lib/resume/strict-resume-state'
+import { aiGenerationResultSchema, type AiGenerationResult } from '@/lib/ai/schemas'
 
 export type AiStreamCallbacks = {
   onPartial?: (partial: DeepPartial<AiGenerationResult>) => void | Promise<void>
 }
 
-const ENRICHMENT_STRUCTURED_OUTPUT = Output.object({
-  schema: enrichmentModelOutputSchema,
-  name: 'EnrichedApplication',
+const STRUCTURED_OUTPUT = Output.object({
+  schema: aiGenerationResultSchema,
+  name: 'TailoredApplication',
   description:
-    'Surgically enriched skills and experienceBullets (blockKey + bullets only) plus coverLetter.',
+    'Structured ATS resume package with keywordReport, tailoredResume, and coverLetter. tailoredResume.summary must be Executive Value Proposition + Core Expertise pipe line; bullets must follow Action + Scope + Business Impact with twin-auditor compliance.',
 })
 
-type GenerationContext = {
-  sourceResumeText: string
-  currentResume?: TailoredResume
-  jobDescription: string
-  promptOptions: UserPromptOptions
+function parseStructuredResult(raw: unknown): AiGenerationResult {
+  return aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw))
 }
 
-function legacyWorkExperienceToBullets(
-  workExperience: Array<{ company?: string; title?: string; bullets?: string[] }>,
-  locked: ReturnType<typeof lockResumeState>
-): EnrichmentModelOutput['experienceBullets'] {
-  return allFrozenBlocks(locked).map((block, index) => {
-    const legacy =
-      workExperience.find(
-        (entry) =>
-          entry.company?.toLowerCase().includes(block.company.toLowerCase().slice(0, 6)) ||
-          entry.title?.toLowerCase() === block.title.toLowerCase()
-      ) ?? workExperience[index]
-
-    return {
-      blockKey: block.blockKey,
-      bullets: legacy?.bullets?.length ? legacy.bullets : block.bullets,
-    }
-  })
-}
-
-function parseEnrichmentResult(
-  raw: unknown,
-  locked: ReturnType<typeof lockResumeState>
-): EnrichmentModelOutput {
-  const record =
-    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
-
-  if (Array.isArray(record.experienceBullets)) {
-    return enrichmentModelOutputSchema.parse({
-      skills: record.skills,
-      experienceBullets: record.experienceBullets,
-      professionalSummary: record.professionalSummary ?? record.summary,
-      coverLetter: record.coverLetter,
-    })
-  }
-
-  const legacyExperience = (record.workExperience ?? record.experience) as
-    | Array<{ company?: string; title?: string; bullets?: string[] }>
-    | undefined
-
-  if (legacyExperience?.length) {
-    return enrichmentModelOutputSchema.parse({
-      skills: record.skills ?? [],
-      experienceBullets: legacyWorkExperienceToBullets(legacyExperience, locked),
-      professionalSummary: record.professionalSummary ?? record.summary,
-      coverLetter: record.coverLetter,
-    })
-  }
-
-  return enrichmentModelOutputSchema.parse(raw)
-}
-
-function resolveLockedState(context: GenerationContext) {
-  return lockResumeState(context.currentResume ?? context.sourceResumeText)
-}
-
-function finalizeEnrichmentResult(
-  enrichment: EnrichmentModelOutput,
-  context: GenerationContext
-): AiGenerationResult {
-  const locked = resolveLockedState(context)
-  const draftPartial = enrichmentOutputToDraft(enrichment, locked)
-
-  const serialized = [
-    draftPartial.tailoredResume.summary,
-    draftPartial.tailoredResume.skills.join(' '),
-    ...draftPartial.tailoredResume.experience.flatMap((entry) => entry.bullets),
-    ...(draftPartial.tailoredResume.projects ?? []).flatMap((entry) => entry.bullets),
-  ].join('\n')
-
-  const keywordReport = scoreAtsCompliance(serialized, context.jobDescription)
-
-  const draft: AiGenerationResult = {
-    keywordReport,
-    tailoredResume: draftPartial.tailoredResume,
-    coverLetter: draftPartial.coverLetter,
-  }
-
-  return applyStructuralPreservation(context.currentResume ?? context.sourceResumeText, draft, {
-    jobDescription: context.jobDescription,
-    missingKeywords: context.promptOptions.missingKeywords,
-  })
-}
-
-function mapEnrichmentPartialToAiPartial(
-  partial: DeepPartial<EnrichmentModelOutput>,
-  locked: ReturnType<typeof lockResumeState>
-): DeepPartial<AiGenerationResult> {
-  const blocks = allFrozenBlocks(locked)
-  return {
-    coverLetter: partial.coverLetter,
-    tailoredResume: {
-      summary: partial.professionalSummary,
-      skills: partial.skills,
-      experience: partial.experienceBullets?.map((entry, index) => {
-        const frozen = blocks[index]
-        return {
-          company: frozen?.company,
-          title: frozen?.title,
-          location: frozen?.location ?? '',
-          startDate: frozen?.startDate ?? '',
-          endDate: frozen?.endDate ?? 'Present',
-          bullets: entry?.bullets,
-        }
-      }),
-      projects: [],
-    },
-  }
-}
-
-function tryRecoverStructuredOutput(
-  error: unknown,
-  context: GenerationContext
-): AiGenerationResult | undefined {
+function tryRecoverStructuredOutput(error: unknown): AiGenerationResult | undefined {
   const root = unwrapAiError(error)
   const text = NoObjectGeneratedError.isInstance(root) ? root.text : undefined
 
@@ -186,13 +61,19 @@ function tryRecoverStructuredOutput(
   }
 
   try {
-    return finalizeEnrichmentResult(
-      parseEnrichmentResult(parseJsonFromModelText(text), resolveLockedState(context)),
-      context
-    )
+    return parseStructuredResult(parseJsonFromModelText(text))
   } catch {
     return undefined
   }
+}
+
+function asPartialResult(
+  value: DeepPartial<AiGenerationResult> | undefined
+): DeepPartial<AiGenerationResult> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  return value
 }
 
 function formatAiError(error: unknown, provider: ResolvedAiModel): string {
@@ -244,58 +125,41 @@ async function runStreamWithProvider(
   entry: ResolvedAiModel,
   prompt: string,
   temperature: number,
-  context: GenerationContext,
   callbacks: AiStreamCallbacks
 ): Promise<AiGenerationResult> {
   const stream = streamText({
     model: entry.model,
-    system: ENRICHMENT_SYSTEM_PROMPT,
+    system: SYSTEM_PROMPT,
     prompt,
     temperature,
     maxOutputTokens: AI_GENERATION_MAX_TOKENS,
     maxRetries: AI_STREAM_MAX_RETRIES,
-    output: ENRICHMENT_STRUCTURED_OUTPUT,
+    output: STRUCTURED_OUTPUT,
     providerOptions: entry.providerOptions,
   })
 
-  let lastPartial: DeepPartial<EnrichmentModelOutput> | undefined
-  const locked = resolveLockedState(context)
+  let lastPartial: DeepPartial<AiGenerationResult> | undefined
 
   for await (const partial of stream.partialOutputStream) {
-    if (partial && typeof partial === 'object' && !Array.isArray(partial)) {
-      lastPartial = partial as DeepPartial<EnrichmentModelOutput>
-      await callbacks.onPartial?.(mapEnrichmentPartialToAiPartial(lastPartial, locked))
+    const preview = asPartialResult(partial)
+    if (preview) {
+      lastPartial = preview
+      await callbacks.onPartial?.(preview)
     }
   }
 
   try {
     const raw = await stream.output
-    return finalizeEnrichmentResult(parseEnrichmentResult(raw, locked), context)
+    return parseStructuredResult(raw)
   } catch (error) {
-    const recovered = tryRecoverStructuredOutput(error, context)
+    const recovered = tryRecoverStructuredOutput(error)
     if (recovered) {
       return recovered
     }
 
-    if (lastPartial?.coverLetter && (lastPartial.skills || lastPartial.experienceBullets)) {
+    if (lastPartial?.tailoredResume?.summary && lastPartial?.coverLetter) {
       try {
-        const merged = finalizeEnrichmentResult(
-          parseEnrichmentResult(
-            {
-              skills: lastPartial.skills ?? [],
-              experienceBullets:
-                lastPartial.experienceBullets?.map((entry, index) => ({
-                  blockKey: entry?.blockKey ?? locked.workExperience[index]?.blockKey ?? `block-${index}`,
-                  bullets: entry?.bullets ?? ['Delivered measurable outcomes.'],
-                })) ?? [],
-              professionalSummary: lastPartial.professionalSummary,
-              coverLetter: lastPartial.coverLetter ?? '',
-            },
-            locked
-          ),
-          context
-        )
-        return merged
+        return parseStructuredResult(normalizeAiGenerationOutput(lastPartial))
       } catch {
         // fall through to raw text recovery
       }
@@ -304,10 +168,7 @@ async function runStreamWithProvider(
     try {
       const text = await stream.text
       if (text?.trim()) {
-        return finalizeEnrichmentResult(
-          parseEnrichmentResult(parseJsonFromModelText(text), locked),
-          context
-        )
+        return parseStructuredResult(parseJsonFromModelText(text))
       }
     } catch {
       // fall through
@@ -320,7 +181,6 @@ async function runStreamWithProvider(
 async function streamStructuredGeneration(
   prompt: string,
   temperature: number,
-  context: GenerationContext,
   callbacks: AiStreamCallbacks = {}
 ): Promise<AiGenerationResult> {
   assertDirectAiProviderConfigured()
@@ -331,7 +191,7 @@ async function streamStructuredGeneration(
   for (let index = 0; index < chain.length; index += 1) {
     const entry = chain[index]!
     try {
-      return await runStreamWithProvider(entry, prompt, temperature, context, callbacks)
+      return await runStreamWithProvider(entry, prompt, temperature, callbacks)
     } catch (error) {
       lastError = error
       const hasNext = index < chain.length - 1
@@ -351,21 +211,10 @@ export async function generateTailoredResume(
   promptOptions: UserPromptOptions = {},
   callbacks: AiStreamCallbacks = {}
 ): Promise<AiGenerationResult> {
-  const context: GenerationContext = {
-    sourceResumeText: resumeText,
-    currentResume: promptOptions.currentResume,
-    jobDescription,
-    promptOptions,
-  }
-  const prompt = buildEnrichmentUserPrompt({
-    jobDescription,
-    sourceResumeText: resumeText,
-    currentResume: promptOptions.currentResume,
-    options: promptOptions,
-  })
+  const prompt = buildUserPrompt(jobDescription, resumeText, promptOptions)
 
   try {
-    return await streamStructuredGeneration(prompt, AI_GENERATION_TEMPERATURE, context, callbacks)
+    return await streamStructuredGeneration(prompt, AI_GENERATION_TEMPERATURE, callbacks)
   } catch (error) {
     if (shouldUseLocalFallback(error)) {
       return generateTailoredResumeLocally(jobDescription, resumeText)
@@ -381,33 +230,19 @@ export async function refineTailoredResume(
   missingKeywords: string[],
   coreCompetencyChecklist?: string,
   achievementSupplement?: string,
-  callbacks: AiStreamCallbacks = {},
-  currentResume?: TailoredResume
+  callbacks: AiStreamCallbacks = {}
 ): Promise<AiGenerationResult> {
-  const promptOptions: UserPromptOptions = {
-    missingKeywords,
-    coreCompetencyChecklist,
-    achievementSupplement,
-    currentResume,
-  }
-  const context: GenerationContext = {
-    sourceResumeText,
-    currentResume,
-    jobDescription,
-    promptOptions,
-  }
-  const prompt = buildEnrichmentRefinementPrompt(
+  const prompt = buildRefinementPrompt(
     jobDescription,
     sourceResumeText,
     currentScore,
     missingKeywords,
     coreCompetencyChecklist,
-    achievementSupplement,
-    promptOptions.currentResume
+    achievementSupplement
   )
 
   try {
-    return await streamStructuredGeneration(prompt, AI_REFINEMENT_TEMPERATURE, context, callbacks)
+    return await streamStructuredGeneration(prompt, AI_REFINEMENT_TEMPERATURE, callbacks)
   } catch (error) {
     if (shouldUseLocalFallback(error)) {
       return refineTailoredResumeLocally(
