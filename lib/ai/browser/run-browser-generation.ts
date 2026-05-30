@@ -5,6 +5,7 @@ import {
   extractCoverLetterFromModelOutput,
   extractSummaryFromModelOutput,
   modelOutputLooksLikeCommentary,
+  modelSummaryLooksInvalid,
 } from '@/lib/ai/sanitize-model-output'
 import { buildAtsComparison, serializeTailoredResume } from '@/lib/resume/ats-score'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
@@ -28,7 +29,21 @@ const COVER_SYSTEM = `You rewrite cover letters for ATS job applications. Rules:
 const SUMMARY_SYSTEM = `You rewrite resume professional summaries for ATS. Rules:
 - 2 sentences max: executive value proposition + core expertise pipe line (Core Expertise: A | B | C).
 - No first person. No cliché openers. Ground every claim in the source resume.
-- Return ONLY the summary text, no markdown.`
+- Return ONLY the summary text — no markdown, no headings, no analysis, no commentary.`
+
+function finalizeBrowserSummary(polished: string, fallback: string): string {
+  const cleaned = extractSummaryFromModelOutput(polished)
+
+  if (
+    cleaned.length < 40 ||
+    modelSummaryLooksInvalid(polished) ||
+    modelSummaryLooksInvalid(cleaned)
+  ) {
+    return fallback
+  }
+
+  return cleaned
+}
 
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text
@@ -109,14 +124,12 @@ export async function runBrowserGeneration(
   if (useChromeNano) {
     try {
       onProgress?.('Polishing summary with Gemini Nano (on your device)…')
-      const polishedSummary = extractSummaryFromModelOutput(
-        await polishSummaryWithBrowserAi(localSummary, jobDescription, resumeText)
-      )
+      const polishedRaw = await polishSummaryWithBrowserAi(localSummary, jobDescription, resumeText)
       aiResult = {
         ...aiResult,
         tailoredResume: {
           ...aiResult.tailoredResume,
-          summary: polishedSummary.length >= 40 ? polishedSummary : localSummary,
+          summary: finalizeBrowserSummary(polishedRaw, localSummary),
         },
       }
 

@@ -7,7 +7,13 @@ const COVER_LETTER_TAIL_MARKERS = [
   /^---+\s*$/m,
   /^#{1,3}\s+Explanation/im,
   /^#{1,3}\s+Notes/im,
+  /^#{1,6}\s+/m,
+  /^Analysis of/im,
+  /^Here('s| is) (?:the|my|a)/im,
 ]
+
+const SUMMARY_INVALID =
+  /^#{1,6}\s+|^analysis of\b|^here('s| is)\b|^summary:\s*/i
 
 function stripMarkdownFences(text: string): string {
   const fenced = text.match(/```(?:markdown|md|text)?\s*\n?([\s\S]*?)```/i)
@@ -59,9 +65,31 @@ export function extractSummaryFromModelOutput(text: string): string {
   let cleaned = stripMarkdownFences(text.trim())
   cleaned = truncateAtExplanationTail(cleaned)
   cleaned = stripInlineMarkdown(cleaned)
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, '').trim()
 
-  const firstParagraph = cleaned.split(/\n\n+/)[0]?.trim()
-  return firstParagraph && firstParagraph.length >= 20 ? firstParagraph : cleaned.trim()
+  const paragraphs = cleaned
+    .split(/\n\n+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 20 && !SUMMARY_INVALID.test(part))
+
+  if (paragraphs[0]) return paragraphs[0]
+
+  const lines = cleaned
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 20 && !SUMMARY_INVALID.test(line))
+
+  return lines[0] ?? cleaned.trim()
+}
+
+export function modelSummaryLooksInvalid(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return true
+  if (SUMMARY_INVALID.test(trimmed)) return true
+  if (modelOutputLooksLikeCommentary(text)) return true
+  if (/^#{1,6}\s/m.test(trimmed)) return true
+  if (trimmed.length > 420) return true
+  return false
 }
 
 export function modelOutputLooksLikeCommentary(text: string): boolean {

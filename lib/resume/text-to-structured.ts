@@ -3,7 +3,35 @@ import { formatResumeText, formatTailoredResume } from '@/lib/resume/ats-resume-
 import { parseCertificationsFromResumeText } from '@/lib/resume/certification-guard'
 
 const SECTION_HEADING =
-  /^(professional summary|summary|skills|technical skills|work experience|experience|employment|education|certifications?)\s*:?\s*$/i
+  /^(professional summary|summary|skills|technical skills|core competencies|work experience|experience|employment|education|certifications?)\s*:?\s*$/i
+
+const COMPANY_HINT =
+  /\b(solutions|association|inc|corp|corporation|ltd|limited|company|group|technologies|labs|bank|university|college|ama|cohere)\b/i
+
+const INFERRED_SKILL_TERMS = [
+  'release management',
+  'program management',
+  'project management',
+  'technical program management',
+  'agile',
+  'scrum',
+  'kanban',
+  'itil',
+  'jira',
+  'ci/cd',
+  'devops',
+  'aws',
+  'automation',
+  'cross-functional',
+  'stakeholder management',
+  'roadmap',
+  'scope management',
+  'workflow',
+  'cloud',
+  'c#',
+  'sql',
+  'linear',
+] as const
 
 function splitLines(text: string): string[] {
   return text.replace(/\r\n/g, '\n').split('\n')
@@ -15,6 +43,28 @@ function isBulletLine(line: string): boolean {
 
 function stripBullet(line: string): string {
   return line.trim().replace(/^[\s•\-*–—]+\s*/, '').trim()
+}
+
+function isDateLine(line: string): boolean {
+  return /^(\w+\.?\s+)?\d{4}\s*[-–—]\s*(\w+\.?\s+\d{4}|present|current|now)$/i.test(line.trim())
+}
+
+function looksLikePersonName(line: string): boolean {
+  const trimmed = line.trim()
+  if (trimmed.length < 3 || trimmed.length > 60) return false
+  if (/@|https?:\/\/|\d{3}[-.)]\d{3}/.test(trimmed)) return false
+  if (SECTION_HEADING.test(trimmed)) return false
+  const words = trimmed.split(/\s+/).filter(Boolean)
+  if (words.length < 2 || words.length > 4) return false
+  return words.every((word) => /^[A-Za-z'.-]+$/.test(word))
+}
+
+function titleCaseName(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')
 }
 
 function extractContact(text: string) {
@@ -33,30 +83,26 @@ function extractContact(text: string) {
       !SECTION_HEADING.test(line)
   )
 
-  const locationMatch = text.match(
-    /\b([A-Za-z .'-]+,\s*(?:Canada|United States|USA|US|UK)[^|\n@]{0,40})/i
-  )
+  const titleCasePerson = lines.slice(0, 8).find(looksLikePersonName)
 
-  const name =
-    capsName ??
-    lines.find(
-      (line) =>
-        !line.includes('@') &&
-        !SECTION_HEADING.test(line) &&
-        line.length <= 80 &&
-        !/^https?:\/\//i.test(line) &&
-        !/^\(?\d{3}\)?/.test(line) &&
-        !/\d{5}/.test(line)
-    ) ??
+  const locationMatch =
+    text.match(/\b([A-Za-z .'-]+,\s*(?:Canada|United States|USA|US|UK)[^|\n@]{0,40})/i) ??
+    text.match(/\b([A-Za-z .'-]+,\s*[A-Z]{2}\s+[A-Z0-9]{3}\s?[A-Z0-9]{3})\b/i)
+
+  const emailLocalName = email.match(/^([a-z]+)[._-]?([a-z]+)@/i)
+  const inferredFromEmail =
+    emailLocalName && emailLocalName[1] && emailLocalName[2]
+      ? titleCaseName(`${emailLocalName[1]} ${emailLocalName[2]}`)
+      : null
+
+  const resolvedName =
+    (capsName ? titleCaseName(capsName) : null) ??
+    (titleCasePerson ? titleCaseName(titleCasePerson) : null) ??
+    inferredFromEmail ??
     'Professional Candidate'
 
   return {
-    name: capsName
-      ? capsName
-          .split(/\s+/)
-          .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-          .join(' ')
-      : name,
+    name: resolvedName,
     email,
     phone,
     linkedin,
@@ -79,26 +125,72 @@ function extractSection(lines: string[], heading: RegExp): string[] {
   return content
 }
 
-function parseSkills(lines: string[]): string[] {
-  const section = extractSection(lines, /^skills|technical skills/i)
-  const source = section.length > 0 ? section : lines.filter((line) => /[,;|]/.test(line)).slice(0, 3)
+function isValidSkillToken(skill: string): boolean {
+  const trimmed = skill.trim()
+  if (trimmed.length < 2 || trimmed.length > 40) return false
+  if (/@|\d{3}[-.)]\d{3}|https?:\/\//i.test(trimmed)) return false
+  if (/^(brad|mulders|edmonton|canada|stored|replicating|replicated|verified|including|missing)$/i.test(trimmed)) {
+    return false
+  }
+  if (/^[A-Z0-9]{3}\s?[A-Z0-9]{3}$/.test(trimmed)) return false
+  if (/^(and|the|with|for|from|into|using|utilizing|leveraging)$/i.test(trimmed)) return false
+  return true
+}
+
+function inferSkillsFromText(text: string): string[] {
+  const lower = text.toLowerCase()
+  const found = INFERRED_SKILL_TERMS.filter((term) => {
+    const pattern = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+    return pattern.test(lower)
+  }).map((term) => term.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '))
+
+  return [...new Set(found)].slice(0, 18)
+}
+
+function parseSkills(lines: string[], fullText: string): string[] {
+  const section = extractSection(lines, /^(skills|technical skills|core competencies)/i)
+
+  const source =
+    section.length > 0
+      ? section
+      : lines.filter(
+          (line) =>
+            /[,;|•]/.test(line) &&
+            line.length < 120 &&
+            !looksLikePersonName(line) &&
+            !line.includes('@') &&
+            !/^\d/.test(line.trim())
+        ).slice(0, 4)
 
   const skills = source
     .flatMap((line) => line.split(/[,;|•]/))
     .map((skill) => skill.trim())
-    .filter((skill) => skill.length > 1 && skill.length < 40)
+    .filter(isValidSkillToken)
 
-  return skills.length > 0 ? [...new Set(skills)].slice(0, 24) : ['Project Management', 'Agile', 'SDLC']
+  const deduped = [...new Set(skills.map((skill) => skill.replace(/\s+/g, ' ')))].slice(0, 24)
+  if (deduped.length >= 4) return deduped
+
+  const inferred = inferSkillsFromText(fullText)
+  return [...new Set([...deduped, ...inferred])].slice(0, 24)
+}
+
+function looksLikeJobTitle(line: string): boolean {
+  return /(?:manager|engineer|director|lead|analyst|consultant|developer|architect|specialist|coordinator|administrator|owner|program|project)/i.test(
+    line
+  )
 }
 
 function parseExperience(lines: string[]): Experience[] {
-  const sectionStart = lines.findIndex((line) => /^(work experience|experience|employment)/i.test(line.trim()))
+  const sectionStart = lines.findIndex((line) =>
+    /^(work experience|experience|employment)/i.test(line.trim())
+  )
   const scanLines = sectionStart >= 0 ? lines.slice(sectionStart + 1) : lines
 
   const entries: Experience[] = []
   let current: Experience | null = null
 
-  for (const rawLine of scanLines) {
+  for (let index = 0; index < scanLines.length; index += 1) {
+    const rawLine = scanLines[index]!
     const line = rawLine.trim()
     if (!line) continue
     if (/^education/i.test(line)) break
@@ -107,7 +199,7 @@ function parseExperience(lines: string[]): Experience[] {
       if (!current) {
         current = {
           title: 'Professional Experience',
-          company: 'Previous Employer',
+          company: '',
           location: '',
           startDate: '',
           endDate: 'Present',
@@ -115,17 +207,45 @@ function parseExperience(lines: string[]): Experience[] {
         }
       }
       const bullet = stripBullet(line)
-      if (bullet) current.bullets.push(bullet)
+      if (bullet.length > 12) current.bullets.push(bullet)
       continue
     }
 
-    if (current && current.bullets.length > 0) {
-      entries.push(current)
-      current = null
+    if (isDateLine(line)) {
+      if (!current) continue
+      const match = line.match(/(\w+\.?\s+\d{4})\s*[-–—]\s*(\w+\.?\s+\d{4}|present|current|now)/i)
+      if (match) {
+        current.startDate = match[1]?.trim() ?? ''
+        current.endDate = /present|current|now/i.test(match[2] ?? '') ? 'Present' : match[2]?.trim() ?? ''
+      }
+      continue
+    }
+
+    const nextNonEmptyIndex = scanLines.findIndex((entry, entryIndex) => entryIndex > index && entry.trim())
+    const nextLine = nextNonEmptyIndex >= 0 ? scanLines[nextNonEmptyIndex]!.trim() : ''
+
+    if (
+      nextLine &&
+      !isBulletLine(nextLine) &&
+      !isDateLine(nextLine) &&
+      (COMPANY_HINT.test(line) || (!looksLikeJobTitle(line) && looksLikeJobTitle(nextLine)))
+    ) {
+      if (current && current.bullets.length > 0) entries.push(current)
+      current = {
+        title: nextLine,
+        company: line,
+        location: '',
+        startDate: '',
+        endDate: 'Present',
+        bullets: [],
+      }
+      index = nextNonEmptyIndex
+      continue
     }
 
     const roleMatch = line.match(/^(.+?)\s*(?:—|–|-|\|)\s*(.+?)(?:\s*\((.+)\))?$/i)
     if (roleMatch) {
+      if (current && current.bullets.length > 0) entries.push(current)
       current = {
         title: roleMatch[1]!.trim(),
         company: roleMatch[2]!.trim(),
@@ -137,10 +257,25 @@ function parseExperience(lines: string[]): Experience[] {
       continue
     }
 
-    if (line.length < 100 && !line.includes('@')) {
+    const atMatch = line.match(/^(.+?)\s+at\s+(.+)$/i)
+    if (atMatch) {
+      if (current && current.bullets.length > 0) entries.push(current)
+      current = {
+        title: atMatch[1]!.trim(),
+        company: atMatch[2]!.trim(),
+        location: '',
+        startDate: '',
+        endDate: 'Present',
+        bullets: [],
+      }
+      continue
+    }
+
+    if (line.length < 100 && !line.includes('@') && looksLikeJobTitle(line)) {
+      if (current && current.bullets.length > 0) entries.push(current)
       current = {
         title: line,
-        company: 'Previous Employer',
+        company: '',
         location: '',
         startDate: '',
         endDate: 'Present',
@@ -154,27 +289,35 @@ function parseExperience(lines: string[]): Experience[] {
   }
 
   if (entries.length === 0) {
-    const bullets = lines.filter(isBulletLine).map(stripBullet).filter(Boolean)
-    return [
-      {
-        title: 'Professional Experience',
-        company: 'Previous Employer',
-        location: '',
-        startDate: '',
-        endDate: 'Present',
-        bullets: bullets.length > 0 ? bullets.slice(0, 8) : ['Led cross-functional delivery initiatives with measurable business outcomes.'],
-      },
-    ]
+    const bullets = lines
+      .filter(isBulletLine)
+      .map(stripBullet)
+      .filter((bullet) => bullet.length > 12 && bullet.length < 280)
+      .filter((bullet) => !/utilizing .+ utilizing/i.test(bullet))
+
+    if (bullets.length > 0) {
+      return [
+        {
+          title: 'Professional Experience',
+          company: '',
+          location: '',
+          startDate: '',
+          endDate: 'Present',
+          bullets: bullets.slice(0, 8),
+        },
+      ]
+    }
   }
 
-  return entries
+  return entries.map((entry) => ({
+    ...entry,
+    company: entry.company === 'Previous Employer' ? '' : entry.company,
+  }))
 }
 
 function parseEducation(lines: string[]): Education[] {
   const section = extractSection(lines, /^education/i)
-  if (section.length === 0) {
-    return [{ degree: 'Degree', school: 'University', graduationDate: '', details: '' }]
-  }
+  if (section.length === 0) return []
 
   return section.slice(0, 3).map((line) => ({
     degree: line,
@@ -194,16 +337,20 @@ function parseSummary(lines: string[]): string {
     .filter(
       (line) =>
         line.trim().length > 40 &&
+        line.trim().length < 320 &&
         !isBulletLine(line) &&
         !SECTION_HEADING.test(line.trim()) &&
-        !line.includes('@')
+        !line.includes('@') &&
+        !/^#{1,6}\s/.test(line.trim()) &&
+        !/^analysis of/i.test(line.trim())
     )
     .slice(0, 2)
 
-  return (
-    prose.join(' ') ||
-    'Senior technical leader with extensive experience delivering enterprise software, program management, and cross-functional IT initiatives.'
-  )
+  if (prose.length > 0) {
+    return prose.join(' ')
+  }
+
+  return 'Technical program and delivery leader with experience coordinating cross-functional releases, stakeholder alignment, and operational workflow improvements.'
 }
 
 /** Best-effort plain-text resume → structured TailoredResume for local fallback mode. */
@@ -215,7 +362,7 @@ export function parseResumeTextToTailoredResume(resumeText: string): TailoredRes
   return formatTailoredResume({
     contact,
     summary: parseSummary(lines),
-    skills: parseSkills(lines),
+    skills: parseSkills(lines, normalizedText),
     experience: parseExperience(lines),
     education: parseEducation(lines),
     certifications: parseCertificationsFromResumeText(normalizedText),

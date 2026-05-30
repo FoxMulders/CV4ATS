@@ -172,7 +172,8 @@ export function generateTailoredResumeLocally(
 
   const injection = injectIntoTailoredResume(
     tailoredResume,
-    keywordsToTargetSkills(priorityMissing.length > 0 ? priorityMissing : [...LOCAL_KEYWORD_TARGETS])
+    keywordsToTargetSkills(priorityMissing.length > 0 ? priorityMissing : [...LOCAL_KEYWORD_TARGETS]),
+    { skillsOnly: true }
   )
   tailoredResume = injection.resume
 

@@ -297,7 +297,8 @@ function weaveSummaryTerms(resume: TailoredResume, terms: string[]): string[] {
 
 export function injectIntoTailoredResume(
   resume: TailoredResume,
-  missingSkills: TargetSkill[]
+  missingSkills: TargetSkill[],
+  options: { skillsOnly?: boolean } = {}
 ): TailoredResumeInjectionResult {
   const serialized = serializeTailoredResume(resume)
   const stillMissing = missingSkills.filter(
@@ -310,6 +311,19 @@ export function injectIntoTailoredResume(
   }
 
   const cloned: TailoredResume = structuredClone(resume)
+
+  if (options.skillsOnly) {
+    const injectedSkills = ensureSkillsPresent(
+      cloned,
+      stillMissing.map((skill) => skill.term)
+    )
+    return {
+      resume: cloned,
+      injectedSkills: [...new Set(injectedSkills)],
+      modifiedBulletCount: 0,
+    }
+  }
+
   const injectedSkills: string[] = []
   let modifiedBulletCount = 0
   const usedBullets = new Set<string>()
