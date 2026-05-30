@@ -914,10 +914,10 @@ export function TailorWorkspacePage({
   )
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-muted/30">
+    <div className="fixed inset-0 grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-muted/30">
       <SiteHeader current="tailor" variant="compact" />
 
-      <SplitWorkspaceLayout leftPane={leftPane} rightPane={rightPane} />
+      <SplitWorkspaceLayout leftPane={leftPane} rightPane={rightPane} className="min-h-0" />
 
       <SquareCheckoutModal
         open={checkoutOpen}

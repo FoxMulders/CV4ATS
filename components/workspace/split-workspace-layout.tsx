@@ -20,7 +20,7 @@ export function SplitWorkspaceLayout({
     <div
       id="tailor-workspace"
       className={cn(
-        'grid min-h-0 flex-1 grid-cols-1',
+        'grid h-full min-h-0 overflow-hidden grid-cols-1',
         'max-lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]',
         'lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-[minmax(0,1fr)]',
         className
