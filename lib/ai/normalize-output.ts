@@ -22,6 +22,11 @@ export function normalizeAiGenerationOutput(raw: unknown): unknown {
   }
 
   const root = raw as Record<string, unknown>
+
+  if (isEnrichmentShape(root)) {
+    return normalizeEnrichmentToGenerationShape(root)
+  }
+
   const coverLetter = normalizeCoverLetter(root.coverLetter)
   const tailoredResume = normalizeTailoredResume(root.tailoredResume)
 
@@ -30,6 +35,56 @@ export function normalizeAiGenerationOutput(raw: unknown): unknown {
     coverLetter,
     tailoredResume,
   }
+}
+
+function isEnrichmentShape(root: Record<string, unknown>): boolean {
+  return (
+    typeof root.professionalSummary === 'string' &&
+    Array.isArray(root.workExperience) &&
+    typeof root.coverLetter === 'string'
+  )
+}
+
+function normalizeEnrichmentToGenerationShape(root: Record<string, unknown>): unknown {
+  const workExperience = (root.workExperience as unknown[]).map(normalizeEnrichmentExperienceEntry)
+  const tailoredResume = normalizeTailoredResume({
+    contact: root.contact,
+    summary: root.professionalSummary,
+    skills: root.skills,
+    experience: workExperience,
+    education: root.education ?? [],
+    certifications: root.certifications ?? [],
+  })
+
+  return {
+    keywordReport: root.keywordReport,
+    coverLetter: normalizeCoverLetter(root.coverLetter),
+    tailoredResume,
+  }
+}
+
+function normalizeEnrichmentExperienceEntry(entry: unknown): unknown {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    return entry
+  }
+
+  const block = { ...(entry as Record<string, unknown>) }
+  const dates = typeof block.dates === 'string' ? block.dates.trim() : ''
+  const parts = dates.split(/\s*[-–—]\s*/)
+
+  if (parts.length >= 2) {
+    block.startDate = parts[0]!.trim()
+    block.endDate = /present|current|now/i.test(parts[1] ?? '') ? 'Present' : parts[1]!.trim()
+  } else if (dates) {
+    block.startDate = dates
+    block.endDate = 'Present'
+  }
+
+  if (typeof block.jobTitle === 'string' && !block.title) {
+    block.title = block.jobTitle
+  }
+
+  return normalizeExperienceEntry(block)
 }
 
 function normalizeCoverLetter(value: unknown): unknown {

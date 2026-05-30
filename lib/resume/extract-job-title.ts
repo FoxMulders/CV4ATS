@@ -131,3 +131,13 @@ export function extractCompanyFromDescription(jobDescription: string): string | 
 
   return null
 }
+
+export function extractCleanJobContext(jobDescription: string): {
+  jobTitle: string
+  companyName: string | null
+} {
+  return {
+    jobTitle: sanitizeJobTitleForProse(extractJobTitleFromDescription(jobDescription)),
+    companyName: extractCompanyFromDescription(jobDescription),
+  }
+}

@@ -40,6 +40,7 @@ import { integrateScoringKeywordsUntilSaturation } from '@/lib/resume/scoring-ke
 import { getMissingScoringKeywords } from '@/lib/resume/scoring-keyword-targets'
 import { mergeTargetSkills } from '@/lib/resume/tailored-resume-injection'
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
+import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
 
 export { GENERATION_PROGRESS_LABELS }
@@ -118,11 +119,17 @@ function scoreResume(
 
 function applySourceGrounding(
   aiResult: AiGenerationResult,
-  sourceResumeText: string
+  sourceResumeText: string,
+  jobDescription: string,
+  missingKeywords?: string[]
 ): AiGenerationResult {
+  const preserved = applyStructuralPreservation(sourceResumeText, aiResult, {
+    jobDescription,
+    missingKeywords,
+  })
   return {
-    ...aiResult,
-    tailoredResume: enforceSourceCertifications(aiResult.tailoredResume, sourceResumeText),
+    ...preserved,
+    tailoredResume: enforceSourceCertifications(preserved.tailoredResume, sourceResumeText),
   }
 }
 
@@ -254,7 +261,9 @@ export async function runGenerationPipeline(
         onPartial: emitPartial,
       }
     ),
-    resumeText
+    resumeText,
+    jobDescription,
+    competencyChecklist.missingTerms
   )
 
   let integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
@@ -308,7 +317,9 @@ export async function runGenerationPipeline(
         achievementSupplement,
         { onPartial: emitPartial }
       ),
-      resumeText
+      resumeText,
+      jobDescription,
+      missingKeywords.slice(0, 8)
     )
 
     integration = runScoringIntegration(aiResult, jobDescription, keywordsToTargetSkills(missingKeywords))
@@ -395,7 +406,8 @@ export async function runGenerationPipeline(
       ...aiResult,
       tailoredResume: formatTailoredResume(aiResult.tailoredResume),
     },
-    resumeText
+    resumeText,
+    jobDescription
   )
 
   const coverViolations = auditCoverLetterCompliance(aiResult.coverLetter)

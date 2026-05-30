@@ -10,6 +10,7 @@ import {
 } from '@/lib/ai/sanitize-model-output'
 import { buildAtsComparison, serializeTailoredResume } from '@/lib/resume/ats-score'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
+import { extractCleanJobContext } from '@/lib/resume/extract-job-title'
 import { runSkillExtrapolationAndInjection, type PreScanResult } from '@/lib/resume/pre-scan-preparation'
 
 export type BrowserGenerationResult = AiGenerationResult & {
@@ -54,17 +55,24 @@ function truncate(text: string, max: number): string {
 async function polishCoverLetterWithBrowserAi(
   coverLetter: string,
   jobDescription: string,
-  resumeText: string
+  resumeText: string,
+  candidateName: string
 ): Promise<string> {
+  const { jobTitle, companyName } = extractCleanJobContext(jobDescription)
   return promptBrowserAi(
     COVER_SYSTEM,
-    `JOB DESCRIPTION:
+    `CLEAN JOB CONTEXT (use exactly — do not parse JD headers into prose):
+- candidateName: "${candidateName}"
+- jobTitle: "${jobTitle}"
+- companyName: "${companyName ?? 'the hiring company'}"
+
+JOB DESCRIPTION:
 ${truncate(jobDescription, 6000)}
 
 SOURCE RESUME:
 ${truncate(resumeText, 8000)}
 
-CURRENT COVER LETTER (rewrite completely — fix banned phrases, add JD specificity):
+CURRENT COVER LETTER (rewrite completely — fix banned phrases, use clean job context):
 ${truncate(coverLetter, 5000)}`
   )
 }
@@ -138,7 +146,8 @@ export async function runBrowserGeneration(
       const polishedCover = await polishCoverLetterWithBrowserAi(
         localCoverLetter,
         jobDescription,
-        resumeText
+        resumeText,
+        aiResult.tailoredResume.contact.name
       )
       aiResult = {
         ...aiResult,
