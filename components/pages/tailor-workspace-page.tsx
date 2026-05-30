@@ -622,6 +622,7 @@ export function TailorWorkspacePage({
 
   const displayResume = editedResume ?? streamingResume
   const hasPreviewDocument = Boolean(displayResume)
+  const showPreviewPane = hasPreviewDocument || isLoading
   const keywordAfter = editedKeywordReport ?? result?.keywordReport
 
   const leftPane = (
@@ -836,7 +837,13 @@ export function TailorWorkspacePage({
   )
 
   const rightPane = (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div
+      className={
+        hasPreviewDocument
+          ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+          : 'flex shrink-0 flex-col'
+      }
+    >
       <PreviewScoreBanner
         before={result?.baselineKeywordReport}
         after={keywordAfter}
@@ -903,21 +910,24 @@ export function TailorWorkspacePage({
           </div>
         </>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <ResumeLetterPage
-            empty
-            emptyMessage="Paste a job description and your resume, then generate to see your live 8.5×11 document preview here."
-          />
-        </div>
+        <p className="border-t border-border/60 px-4 py-3 text-sm text-muted-foreground">
+          Paste a job description and your resume, then generate to see your live document preview
+          here.
+        </p>
       )}
     </div>
   )
 
   return (
-    <div className="fixed inset-0 grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-muted/30">
+    <div className="flex h-svh max-h-svh flex-col overflow-hidden bg-muted/30">
       <SiteHeader current="tailor" variant="compact" />
 
-      <SplitWorkspaceLayout leftPane={leftPane} rightPane={rightPane} className="min-h-0" />
+      <SplitWorkspaceLayout
+        leftPane={leftPane}
+        rightPane={rightPane}
+        showRightPane={showPreviewPane}
+        className="min-h-0 flex-1"
+      />
 
       <SquareCheckoutModal
         open={checkoutOpen}

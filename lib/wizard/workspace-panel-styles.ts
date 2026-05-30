@@ -27,5 +27,5 @@ export const WORKSPACE_COUNTER_CLASS = 'mt-2 text-xs text-muted-foreground'
 
 export const WORKSPACE_COUNTER_AT_LIMIT_CLASS = 'mt-2 text-xs font-medium text-destructive'
 
-/** Step card content area — equal flex growth for both columns. */
-export const WORKSPACE_STEP_CONTENT_CLASS = 'flex min-h-0 flex-1 flex-col'
+/** Step card content area inside workspace accordions. */
+export const WORKSPACE_STEP_CONTENT_CLASS = 'flex flex-col'
