@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PreviewScoreBanner } from '@/components/workspace/preview-score-banner'
 import { ResumeLetterPage } from '@/components/workspace/resume-letter-page'
 import { SplitWorkspaceLayout } from '@/components/workspace/split-workspace-layout'
+import { cn } from '@/lib/utils'
 import { WorkspaceAccordion } from '@/components/workspace/workspace-accordion'
 import { GenerateStep } from '@/components/wizard/generate-step'
 import { AchievementIntakeModal } from '@/components/wizard/achievement-intake-modal'
@@ -837,13 +838,7 @@ export function TailorWorkspacePage({
   )
 
   const rightPane = (
-    <div
-      className={
-        hasPreviewDocument
-          ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
-          : 'flex shrink-0 flex-col'
-      }
-    >
+    <div className={hasPreviewDocument ? 'flex flex-col' : 'flex shrink-0 flex-col'}>
       <PreviewScoreBanner
         before={result?.baselineKeywordReport}
         after={keywordAfter}
@@ -883,7 +878,7 @@ export function TailorWorkspacePage({
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="overflow-y-auto overscroll-contain">
             {previewTab === 'tailored' ? (
               <ResumeLetterPage>
                 {isLoading && streamingResume ? (
@@ -919,14 +914,21 @@ export function TailorWorkspacePage({
   )
 
   return (
-    <div className="flex h-svh max-h-svh flex-col overflow-hidden bg-muted/30">
+    <div
+      className={cn(
+        'flex flex-col bg-muted/30',
+        showPreviewPane
+          ? 'h-svh max-h-svh overflow-hidden'
+          : 'overflow-x-hidden'
+      )}
+    >
       <SiteHeader current="tailor" variant="compact" />
 
       <SplitWorkspaceLayout
         leftPane={leftPane}
         rightPane={rightPane}
         showRightPane={showPreviewPane}
-        className="min-h-0 flex-1"
+        className={showPreviewPane ? 'min-h-0 flex-1' : undefined}
       />
 
       <SquareCheckoutModal

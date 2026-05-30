@@ -1,5 +1,6 @@
 import { generateTailoredResumeLocally } from '@/lib/ai/local-fallback'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
+import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { promptBrowserAi } from '@/lib/ai/browser/chrome-language-model'
 import {
   extractCoverLetterFromModelOutput,
@@ -160,8 +161,10 @@ export async function runBrowserGeneration(
     resumeText
   )
 
+  const normalized = normalizeGenerationDraftForApi(aiResult, resumeText)
+
   return {
-    ...aiResult,
+    ...normalized,
     keywordReport: comparison.keywordReport,
     baselineKeywordReport: comparison.baselineKeywordReport,
     incorporatedKeywords: preScan.autoInjectedSkills,

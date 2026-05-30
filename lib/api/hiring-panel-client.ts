@@ -25,7 +25,7 @@ export async function requestHiringPanelReview(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...payload,
-      draft: normalizeGenerationDraftForApi(payload.draft),
+      draft: normalizeGenerationDraftForApi(payload.draft, payload.sourceResumeText),
     }),
   })
 

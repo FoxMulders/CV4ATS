@@ -7,12 +7,14 @@ import { cn } from '@/lib/utils'
 interface SplitWorkspaceLayoutProps {
   leftPane: ReactNode
   rightPane: ReactNode
-  /** When false, hide the preview column on small screens and avoid empty split rows. */
+  /** When false, hide the preview column and size the editor to its content. */
   showRightPane?: boolean
   className?: string
 }
 
-/** Fixed viewport-height split workspace — 42/58 on desktop, stacked on mobile. */
+const WORKSPACE_SCROLL_MAX_CLASS = 'max-h-[calc(100svh-3.75rem)]'
+
+/** Split workspace — full viewport when preview is active; content-height otherwise. */
 export function SplitWorkspaceLayout({
   leftPane,
   rightPane,
@@ -23,16 +25,24 @@ export function SplitWorkspaceLayout({
     <div
       id="tailor-workspace"
       className={cn(
-        'grid h-full min-h-0 flex-1 overflow-hidden',
+        'grid overflow-hidden',
         showRightPane
-          ? 'grid-cols-1 max-lg:grid-rows-[auto_auto] lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-[minmax(0,1fr)]'
-          : 'grid-cols-1 grid-rows-1',
+          ? cn(
+              'h-full min-h-0 flex-1',
+              'grid-cols-1 max-lg:grid-rows-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-1 lg:items-start lg:content-start'
+            )
+          : 'h-auto flex-none grid-cols-1 grid-rows-1',
         className
       )}
     >
       <aside
         aria-label="Resume editor controls"
-        className="flex min-h-0 flex-col overflow-y-auto overscroll-contain border-b border-border/80 bg-muted/20 lg:min-h-0 lg:border-b-0 lg:border-r"
+        className={cn(
+          'flex flex-col overscroll-contain border-b border-border/80 bg-muted/20 lg:border-b-0 lg:border-r',
+          showRightPane
+            ? cn('min-h-0 overflow-y-auto', WORKSPACE_SCROLL_MAX_CLASS)
+            : 'h-auto overflow-visible'
+        )}
       >
         <div className="space-y-3 p-4 sm:p-5">{leftPane}</div>
       </aside>
@@ -40,7 +50,11 @@ export function SplitWorkspaceLayout({
       {showRightPane ? (
         <section
           aria-label="Live resume preview"
-          className="flex min-h-0 flex-col overflow-hidden bg-muted/40 lg:min-h-0"
+          className={cn(
+            'flex min-h-0 flex-col overflow-hidden bg-muted/40',
+            WORKSPACE_SCROLL_MAX_CLASS,
+            'max-lg:shrink-0 lg:overflow-y-auto'
+          )}
         >
           {rightPane}
         </section>

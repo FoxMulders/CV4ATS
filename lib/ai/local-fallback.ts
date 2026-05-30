@@ -1,6 +1,12 @@
 import type { AiGenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { buildCoreCompetencyChecklist } from '@/lib/resume/core-competency-checklist'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
+import {
+  inferNameFromEmail,
+  isValidExperienceBullet,
+  titleCaseName,
+} from '@/lib/resume/contact-extraction'
 import {
   extractCompanyFromDescription,
   extractJobTitleFromDescription,
@@ -33,17 +39,15 @@ function stripBullet(line: string): string {
   return line.trim().replace(/^[\s•\-*–—]+\s*/, '').trim()
 }
 
-function titleCaseName(value: string): string {
-  return value
-    .trim()
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ')
-}
-
 function resolveContactName(resume: TailoredResume, sourceResumeText: string): string {
-  if (resume.contact.name && resume.contact.name !== 'Professional Candidate') {
-    return resume.contact.name
+  const current = resume.contact.name.trim()
+  if (
+    current &&
+    current !== 'Professional Candidate' &&
+    !/^Bradmulder/i.test(current) &&
+    !current.split(/\s+/).some((part) => part.length === 1)
+  ) {
+    return current
   }
 
   const lines = sourceResumeText
@@ -60,7 +64,10 @@ function resolveContactName(resume: TailoredResume, sourceResumeText: string): s
   )
   if (capsName) return titleCaseName(capsName)
 
-  return resume.contact.name || 'Candidate'
+  const fromEmail = inferNameFromEmail(resume.contact.email)
+  if (fromEmail) return fromEmail
+
+  return current || 'Candidate'
 }
 
 function pickProofBullet(sourceResumeText: string): string | null {
@@ -70,6 +77,7 @@ function pickProofBullet(sourceResumeText: string): string | null {
     .map(stripBullet)
     .filter((line) => line.length >= 35 && line.length <= 220)
     .filter((line) => !KEYWORD_SOUP.test(line))
+    .filter(isValidExperienceBullet)
 
   return bullets[0] ?? null
 }
@@ -117,17 +125,26 @@ function buildLocalCoverLetter(
     ? `The ${role} opening at ${company} aligns with my track record in technical program delivery, release coordination, and cross-functional execution.`
     : `The ${role} opening aligns with my track record in technical program delivery, release coordination, and cross-functional execution.`
 
-  const experienceParagraph = recentRole
-    ? `In my recent work as ${recentRole.title} at ${recentRole.company}, I focused on shipping reliable releases, tightening delivery workflows, and aligning engineering, product, and operations stakeholders.${
+  const roleContext =
+    recentRole?.company?.trim() &&
+    recentRole.company !== 'See resume history' &&
+    recentRole.company !== 'Previous Employer'
+      ? ` as ${recentRole.title} at ${recentRole.company}`
+      : recentRole?.title?.trim() && recentRole.title !== 'Professional Experience'
+        ? ` as ${recentRole.title}`
+        : ''
+
+  const experienceParagraph = roleContext
+    ? `In my recent work${roleContext}, I focused on shipping reliable releases, tightening delivery workflows, and aligning engineering, product, and operations stakeholders.${
         proofBullet ? ` One example: ${proofBullet}` : ''
       }`
     : proofBullet
-      ? `A recent example from my work: ${proofBullet}`
+      ? `One recent delivery example: ${proofBullet}`
       : `My recent work centers on release coordination, delivery risk reduction, and measurable improvements to engineering throughput.`
 
   const close = company
-    ? `I would welcome a conversation about how this experience can support ${company}'s ${role} priorities.`
-    : `I would welcome a conversation about how this experience can support your team's priorities.`
+    ? `I am ready to discuss how this background maps to ${company}'s ${role} delivery priorities.`
+    : `I am ready to discuss how this background maps to your team's delivery priorities.`
 
   return [
     ...formatContactHeader(resume, name),
@@ -193,11 +210,24 @@ export function generateTailoredResumeLocally(
   ].join('\n')
 
   const keywordReport = scoreAtsCompliance(serialized, jobDescription)
-  const coverLetter = buildLocalCoverLetter(tailoredResume, jobDescription, resumeText)
+
+  const normalizedDraft = normalizeGenerationDraftForApi(
+    {
+      tailoredResume,
+      keywordReport,
+      coverLetter: '',
+    },
+    resumeText
+  )
+
+  const coverLetter = buildLocalCoverLetter(
+    normalizedDraft.tailoredResume,
+    jobDescription,
+    resumeText
+  )
 
   return {
-    tailoredResume,
-    keywordReport,
+    ...normalizedDraft,
     coverLetter,
   }
 }

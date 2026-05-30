@@ -1,9 +1,17 @@
 import type { Education, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { formatResumeText, formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
 import { parseCertificationsFromResumeText } from '@/lib/resume/certification-guard'
+import {
+  extractLocationFromText,
+  inferNameFromEmail,
+  isExperienceSectionHeading,
+  looksLikePersonName,
+  splitCombinedHeaderLine,
+  titleCaseName,
+} from '@/lib/resume/contact-extraction'
 
 const SECTION_HEADING =
-  /^(professional summary|summary|skills|technical skills|core competencies|work experience|experience|employment|education|certifications?)\s*:?\s*$/i
+  /^(professional summary|summary|skills|technical skills|core competencies|(?:professional\s+)?(?:work\s+)?experience|employment|education|certifications?)\s*:?\s*$/i
 
 const COMPANY_HINT =
   /\b(solutions|association|inc|corp|corporation|ltd|limited|company|group|technologies|labs|bank|university|college|ama|cohere)\b/i
@@ -49,24 +57,6 @@ function isDateLine(line: string): boolean {
   return /^(\w+\.?\s+)?\d{4}\s*[-–—]\s*(\w+\.?\s+\d{4}|present|current|now)$/i.test(line.trim())
 }
 
-function looksLikePersonName(line: string): boolean {
-  const trimmed = line.trim()
-  if (trimmed.length < 3 || trimmed.length > 60) return false
-  if (/@|https?:\/\/|\d{3}[-.)]\d{3}/.test(trimmed)) return false
-  if (SECTION_HEADING.test(trimmed)) return false
-  const words = trimmed.split(/\s+/).filter(Boolean)
-  if (words.length < 2 || words.length > 4) return false
-  return words.every((word) => /^[A-Za-z'.-]+$/.test(word))
-}
-
-function titleCaseName(value: string): string {
-  return value
-    .trim()
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ')
-}
-
 function extractContact(text: string) {
   const email = text.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/)?.[0] ?? ''
   const phone = text.match(/(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/)?.[0] ?? ''
@@ -85,15 +75,16 @@ function extractContact(text: string) {
 
   const titleCasePerson = lines.slice(0, 8).find(looksLikePersonName)
 
-  const locationMatch =
-    text.match(/\b([A-Za-z .'-]+,\s*(?:Canada|United States|USA|US|UK)[^|\n@]{0,40})/i) ??
-    text.match(/\b([A-Za-z .'-]+,\s*[A-Z]{2}\s+[A-Z0-9]{3}\s?[A-Z0-9]{3})\b/i)
+  let location = extractLocationFromText(text)
+  for (const line of lines.slice(0, 6)) {
+    const split = splitCombinedHeaderLine(line)
+    if (split) {
+      location = split.location
+      break
+    }
+  }
 
-  const emailLocalName = email.match(/^([a-z]+)[._-]?([a-z]+)@/i)
-  const inferredFromEmail =
-    emailLocalName && emailLocalName[1] && emailLocalName[2]
-      ? titleCaseName(`${emailLocalName[1]} ${emailLocalName[2]}`)
-      : null
+  const inferredFromEmail = email ? inferNameFromEmail(email) : null
 
   const resolvedName =
     (capsName ? titleCaseName(capsName) : null) ??
@@ -106,7 +97,7 @@ function extractContact(text: string) {
     email,
     phone,
     linkedin,
-    location: locationMatch?.[1]?.trim() ?? '',
+    location: location.replace(/^[A-Z][A-Z\s.'-]+\s+(?=Edmonton|,)/i, '').trim(),
   }
 }
 
@@ -181,9 +172,7 @@ function looksLikeJobTitle(line: string): boolean {
 }
 
 function parseExperience(lines: string[]): Experience[] {
-  const sectionStart = lines.findIndex((line) =>
-    /^(work experience|experience|employment)/i.test(line.trim())
-  )
+  const sectionStart = lines.findIndex((line) => isExperienceSectionHeading(line.trim()))
   const scanLines = sectionStart >= 0 ? lines.slice(sectionStart + 1) : lines
 
   const entries: Experience[] = []
