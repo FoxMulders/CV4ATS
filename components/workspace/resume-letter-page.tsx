@@ -22,9 +22,9 @@ export function ResumeLetterPage({
     <div className={cn('flex justify-center p-4 sm:p-6', className)}>
       <article
         className={cn(
-          'w-full max-w-[8.5in] min-h-[11in] bg-white text-foreground shadow-lg',
+          'w-full max-w-[8.5in] bg-white text-foreground shadow-lg',
           'border border-border/60 px-[0.65in] py-[0.6in] sm:px-[0.75in] sm:py-[0.7in]',
-          empty && 'flex items-center justify-center'
+          empty ? 'flex min-h-[min(11in,70vh)] items-center justify-center' : 'min-h-[11in]'
         )}
         aria-label="Resume document preview"
       >
