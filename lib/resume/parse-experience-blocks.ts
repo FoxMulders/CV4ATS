@@ -93,12 +93,44 @@ export function isRealExperienceBullet(text: string): boolean {
   if (/^(pleasant solutions|alberta motor association|technical project manager|systems developer)$/i.test(trimmed)) {
     return false
   }
+  if (/^skilled in\b/i.test(trimmed) && trimmed.split(/\s+/).length >= 6 && !/\d|%/.test(trimmed)) {
+    return false
+  }
   if (looksLikeCompanyLine(trimmed) && trimmed.split(/\s+/).length <= 4) return false
   if (looksLikeJobTitle(trimmed) && !/\d|%/.test(trimmed) && trimmed.split(/\s+/).length <= 6) {
     return false
   }
   if (/^(professional summary|summary|skills|education)$/i.test(trimmed)) return false
   return true
+}
+
+/** Blocks created when skill-summary prose is misparsed as a job entry. */
+export function looksLikeRogueExperienceBlock(entry: Experience): boolean {
+  if (entry.bullets.length === 0) return true
+
+  const primaryBullet = entry.bullets[0]!.trim()
+  const placeholderDates =
+    (!entry.startDate.trim() || entry.startDate === 'Recent') &&
+    (!entry.endDate.trim() || entry.endDate === 'Present')
+
+  if (
+    placeholderDates &&
+    /^skilled in\b/i.test(primaryBullet) &&
+    (/consultant|independent|professional experience/i.test(`${entry.title} ${entry.company}`) ||
+      !entry.company.trim())
+  ) {
+    return true
+  }
+
+  if (
+    entry.bullets.length === 1 &&
+    /^skilled in\b/i.test(primaryBullet) &&
+    entry.bullets.every((bullet) => !/\d|%/.test(bullet))
+  ) {
+    return true
+  }
+
+  return false
 }
 
 function emptyEntry(): Experience {
@@ -118,14 +150,18 @@ function flushEntry(current: Experience | null, entries: Experience[]) {
   const hasBullets = current.bullets.length > 0
   if (!hasStructure && !hasBullets) return
 
-  entries.push({
+  const entry: Experience = {
     ...current,
     title: current.title.trim() || 'Consultant',
     company: current.company.trim() || 'Independent',
     startDate: current.startDate.trim(),
     endDate: current.endDate.trim() || 'Present',
     bullets: current.bullets.filter(isRealExperienceBullet),
-  })
+  }
+
+  if (looksLikeRogueExperienceBlock(entry)) return
+
+  entries.push(entry)
 }
 
 function findNextNonEmpty(lines: string[], fromIndex: number): number {
@@ -165,6 +201,10 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
     }
 
     if (!inRelevantSection) continue
+
+    if (/^skilled in\b/i.test(line) && !isBulletLine(line)) {
+      continue
+    }
 
     if (isDateLine(line)) {
       if (!current) current = emptyEntry()

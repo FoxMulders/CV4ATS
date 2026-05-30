@@ -43,9 +43,9 @@ import {
   buildFreeProviderChain,
   type ResolvedAiModel,
 } from '@/lib/ai/provider'
-import { type AiGenerationResult } from '@/lib/ai/schemas'
+import { type AiGenerationResult, type TailoredResume } from '@/lib/ai/schemas'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
-import { lockSourceResumeStructure } from '@/lib/resume/source-resume-structure'
+import { allFrozenBlocks, lockResumeState } from '@/lib/resume/strict-resume-state'
 
 export type AiStreamCallbacks = {
   onPartial?: (partial: DeepPartial<AiGenerationResult>) => void | Promise<void>
@@ -55,85 +55,83 @@ const ENRICHMENT_STRUCTURED_OUTPUT = Output.object({
   schema: enrichmentModelOutputSchema,
   name: 'EnrichedApplication',
   description:
-    'Surgically enriched resume package: professionalSummary, skills, workExperience with locked company/title/dates, and coverLetter.',
+    'Surgically enriched skills and experienceBullets (blockKey + bullets only) plus coverLetter.',
 })
 
 type GenerationContext = {
   sourceResumeText: string
+  currentResume?: TailoredResume
   jobDescription: string
   promptOptions: UserPromptOptions
 }
 
-function parseEnrichmentResult(raw: unknown): EnrichmentModelOutput {
-  const normalized = normalizeAiGenerationOutput({
-    professionalSummary:
-      raw && typeof raw === 'object' && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>).professionalSummary ??
-          (raw as Record<string, unknown>).summary
-        : undefined,
-    skills:
-      raw && typeof raw === 'object' && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>).skills
-        : undefined,
-    workExperience:
-      raw && typeof raw === 'object' && !Array.isArray(raw)
-        ? ((raw as Record<string, unknown>).workExperience ??
-            (raw as Record<string, unknown>).experience)
-        : undefined,
-    coverLetter:
-      raw && typeof raw === 'object' && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>).coverLetter
-        : undefined,
-  })
+function legacyWorkExperienceToBullets(
+  workExperience: Array<{ company?: string; title?: string; bullets?: string[] }>,
+  locked: ReturnType<typeof lockResumeState>
+): EnrichmentModelOutput['experienceBullets'] {
+  return allFrozenBlocks(locked).map((block, index) => {
+    const legacy =
+      workExperience.find(
+        (entry) =>
+          entry.company?.toLowerCase().includes(block.company.toLowerCase().slice(0, 6)) ||
+          entry.title?.toLowerCase() === block.title.toLowerCase()
+      ) ?? workExperience[index]
 
-  if (
-    normalized &&
-    typeof normalized === 'object' &&
-    !Array.isArray(normalized) &&
-    (normalized as Record<string, unknown>).tailoredResume
-  ) {
-    const shaped = normalized as {
-      tailoredResume: {
-        summary: string
-        skills: string[]
-        experience: Array<{
-          company: string
-          title: string
-          startDate: string
-          endDate: string
-          bullets: string[]
-        }>
-      }
-      coverLetter: string
+    return {
+      blockKey: block.blockKey,
+      bullets: legacy?.bullets?.length ? legacy.bullets : block.bullets,
     }
+  })
+}
 
+function parseEnrichmentResult(
+  raw: unknown,
+  locked: ReturnType<typeof lockResumeState>
+): EnrichmentModelOutput {
+  const record =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
+
+  if (Array.isArray(record.experienceBullets)) {
     return enrichmentModelOutputSchema.parse({
-      professionalSummary: shaped.tailoredResume.summary,
-      skills: shaped.tailoredResume.skills,
-      workExperience: shaped.tailoredResume.experience.map((entry) => ({
-        company: entry.company,
-        title: entry.title,
-        dates: `${entry.startDate} – ${entry.endDate}`,
-        bullets: entry.bullets,
-      })),
-      coverLetter: shaped.coverLetter,
+      skills: record.skills,
+      experienceBullets: record.experienceBullets,
+      professionalSummary: record.professionalSummary ?? record.summary,
+      coverLetter: record.coverLetter,
+    })
+  }
+
+  const legacyExperience = (record.workExperience ?? record.experience) as
+    | Array<{ company?: string; title?: string; bullets?: string[] }>
+    | undefined
+
+  if (legacyExperience?.length) {
+    return enrichmentModelOutputSchema.parse({
+      skills: record.skills ?? [],
+      experienceBullets: legacyWorkExperienceToBullets(legacyExperience, locked),
+      professionalSummary: record.professionalSummary ?? record.summary,
+      coverLetter: record.coverLetter,
     })
   }
 
   return enrichmentModelOutputSchema.parse(raw)
 }
 
+function resolveLockedState(context: GenerationContext) {
+  return lockResumeState(context.currentResume ?? context.sourceResumeText)
+}
+
 function finalizeEnrichmentResult(
   enrichment: EnrichmentModelOutput,
   context: GenerationContext
 ): AiGenerationResult {
-  const locked = lockSourceResumeStructure(context.sourceResumeText)
+  const locked = resolveLockedState(context)
   const draftPartial = enrichmentOutputToDraft(enrichment, locked)
 
   const serialized = [
     draftPartial.tailoredResume.summary,
     draftPartial.tailoredResume.skills.join(' '),
     ...draftPartial.tailoredResume.experience.flatMap((entry) => entry.bullets),
+    ...(draftPartial.tailoredResume.projects ?? []).flatMap((entry) => entry.bullets),
   ].join('\n')
 
   const keywordReport = scoreAtsCompliance(serialized, context.jobDescription)
@@ -144,28 +142,34 @@ function finalizeEnrichmentResult(
     coverLetter: draftPartial.coverLetter,
   }
 
-  return applyStructuralPreservation(context.sourceResumeText, draft, {
+  return applyStructuralPreservation(context.currentResume ?? context.sourceResumeText, draft, {
     jobDescription: context.jobDescription,
     missingKeywords: context.promptOptions.missingKeywords,
   })
 }
 
 function mapEnrichmentPartialToAiPartial(
-  partial: DeepPartial<EnrichmentModelOutput>
+  partial: DeepPartial<EnrichmentModelOutput>,
+  locked: ReturnType<typeof lockResumeState>
 ): DeepPartial<AiGenerationResult> {
+  const blocks = allFrozenBlocks(locked)
   return {
     coverLetter: partial.coverLetter,
     tailoredResume: {
       summary: partial.professionalSummary,
       skills: partial.skills,
-      experience: partial.workExperience?.map((entry) => ({
-        company: entry?.company,
-        title: entry?.title,
-        location: '',
-        startDate: entry?.dates?.split(/\s*[-–—]\s*/)[0] ?? '',
-        endDate: entry?.dates?.split(/\s*[-–—]\s*/)[1] ?? 'Present',
-        bullets: entry?.bullets,
-      })),
+      experience: partial.experienceBullets?.map((entry, index) => {
+        const frozen = blocks[index]
+        return {
+          company: frozen?.company,
+          title: frozen?.title,
+          location: frozen?.location ?? '',
+          startDate: frozen?.startDate ?? '',
+          endDate: frozen?.endDate ?? 'Present',
+          bullets: entry?.bullets,
+        }
+      }),
+      projects: [],
     },
   }
 }
@@ -182,7 +186,10 @@ function tryRecoverStructuredOutput(
   }
 
   try {
-    return finalizeEnrichmentResult(parseEnrichmentResult(parseJsonFromModelText(text)), context)
+    return finalizeEnrichmentResult(
+      parseEnrichmentResult(parseJsonFromModelText(text), resolveLockedState(context)),
+      context
+    )
   } catch {
     return undefined
   }
@@ -252,38 +259,40 @@ async function runStreamWithProvider(
   })
 
   let lastPartial: DeepPartial<EnrichmentModelOutput> | undefined
+  const locked = resolveLockedState(context)
 
   for await (const partial of stream.partialOutputStream) {
     if (partial && typeof partial === 'object' && !Array.isArray(partial)) {
       lastPartial = partial as DeepPartial<EnrichmentModelOutput>
-      await callbacks.onPartial?.(mapEnrichmentPartialToAiPartial(lastPartial))
+      await callbacks.onPartial?.(mapEnrichmentPartialToAiPartial(lastPartial, locked))
     }
   }
 
   try {
     const raw = await stream.output
-    return finalizeEnrichmentResult(parseEnrichmentResult(raw), context)
+    return finalizeEnrichmentResult(parseEnrichmentResult(raw, locked), context)
   } catch (error) {
     const recovered = tryRecoverStructuredOutput(error, context)
     if (recovered) {
       return recovered
     }
 
-    if (lastPartial?.professionalSummary && lastPartial?.coverLetter) {
+    if (lastPartial?.coverLetter && (lastPartial.skills || lastPartial.experienceBullets)) {
       try {
         const merged = finalizeEnrichmentResult(
-          parseEnrichmentResult({
-            professionalSummary: lastPartial.professionalSummary ?? '',
-            skills: lastPartial.skills ?? [],
-            workExperience:
-              lastPartial.workExperience?.map((entry) => ({
-                company: entry?.company ?? '',
-                title: entry?.title ?? '',
-                dates: entry?.dates ?? '',
-                bullets: entry?.bullets ?? ['Delivered measurable outcomes.'],
-              })) ?? [],
-            coverLetter: lastPartial.coverLetter ?? '',
-          }),
+          parseEnrichmentResult(
+            {
+              skills: lastPartial.skills ?? [],
+              experienceBullets:
+                lastPartial.experienceBullets?.map((entry, index) => ({
+                  blockKey: entry?.blockKey ?? locked.workExperience[index]?.blockKey ?? `block-${index}`,
+                  bullets: entry?.bullets ?? ['Delivered measurable outcomes.'],
+                })) ?? [],
+              professionalSummary: lastPartial.professionalSummary,
+              coverLetter: lastPartial.coverLetter ?? '',
+            },
+            locked
+          ),
           context
         )
         return merged
@@ -295,7 +304,10 @@ async function runStreamWithProvider(
     try {
       const text = await stream.text
       if (text?.trim()) {
-        return finalizeEnrichmentResult(parseEnrichmentResult(parseJsonFromModelText(text)), context)
+        return finalizeEnrichmentResult(
+          parseEnrichmentResult(parseJsonFromModelText(text), locked),
+          context
+        )
       }
     } catch {
       // fall through
@@ -341,12 +353,14 @@ export async function generateTailoredResume(
 ): Promise<AiGenerationResult> {
   const context: GenerationContext = {
     sourceResumeText: resumeText,
+    currentResume: promptOptions.currentResume,
     jobDescription,
     promptOptions,
   }
   const prompt = buildEnrichmentUserPrompt({
     jobDescription,
     sourceResumeText: resumeText,
+    currentResume: promptOptions.currentResume,
     options: promptOptions,
   })
 
@@ -367,15 +381,18 @@ export async function refineTailoredResume(
   missingKeywords: string[],
   coreCompetencyChecklist?: string,
   achievementSupplement?: string,
-  callbacks: AiStreamCallbacks = {}
+  callbacks: AiStreamCallbacks = {},
+  currentResume?: TailoredResume
 ): Promise<AiGenerationResult> {
   const promptOptions: UserPromptOptions = {
     missingKeywords,
     coreCompetencyChecklist,
     achievementSupplement,
+    currentResume,
   }
   const context: GenerationContext = {
     sourceResumeText,
+    currentResume,
     jobDescription,
     promptOptions,
   }
@@ -385,7 +402,8 @@ export async function refineTailoredResume(
     currentScore,
     missingKeywords,
     coreCompetencyChecklist,
-    achievementSupplement
+    achievementSupplement,
+    promptOptions.currentResume
   )
 
   try {

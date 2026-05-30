@@ -35,6 +35,7 @@ export const tailoredResumeSchema = z.object({
   summary: z.string().min(1),
   skills: z.array(z.string().min(1)).min(1),
   experience: z.array(experienceSchema).min(1),
+  projects: z.array(experienceSchema),
   education: z.array(educationSchema),
   certifications: z.array(z.string()),
 })

@@ -49,6 +49,8 @@ import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
+import { parseResumeTextToTailoredResume } from '@/lib/resume/text-to-structured'
+import { tailoredResumeToDocument } from '@/lib/resume/strict-resume-state'
 import {
   detectAchievementGaps,
   formatAchievementSupplement,
@@ -493,6 +495,15 @@ export function TailorWorkspacePage({
 
       const formData = new FormData()
       formData.append('jobDescription', jobDescription.trim())
+
+      const resumePayloadForState =
+        editedResume ??
+        (resumeForGeneration?.trim()
+          ? parseResumeTextToTailoredResume(resumeForGeneration.trim())
+          : null)
+      if (resumePayloadForState) {
+        formData.append('currentResume', JSON.stringify(tailoredResumeToDocument(resumePayloadForState)))
+      }
 
       if (options.resumeOverride) {
         formData.append('resumeText', options.resumeOverride)

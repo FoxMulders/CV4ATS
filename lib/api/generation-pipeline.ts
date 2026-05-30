@@ -42,6 +42,8 @@ import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-repo
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
 import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
+import type { TailoredResume } from '@/lib/ai/schemas'
+import { lockResumeState, strictStateToTailoredResume, tailoredResumeToDocument } from '@/lib/resume/strict-resume-state'
 
 export { GENERATION_PROGRESS_LABELS }
 
@@ -57,6 +59,8 @@ export type GenerationPipelineOptions = {
   customSnippets?: string[]
   /** User-supplied metrics for bullets that lacked quantified outcomes. */
   achievementSupplement?: string
+  /** Structured resume from the frontend — strict preservation source of truth. */
+  currentResume?: TailoredResume
   /** Inline bullet/summary revisions with placement metadata. */
   anchoredModifications?: Array<{
     snippet: string
@@ -77,6 +81,7 @@ export type GenerationPipelineResult = GenerationResult & {
   hiringPanel?: HiringPanelSessionResult | null
   /** Uncapped keyword-only ATS before hiring panel adjustment. */
   rawKeywordScore?: number
+  resumeDocument?: import('@/lib/resume/strict-resume-state').ResumeDocument
 }
 
 function runScoringIntegration(
@@ -119,17 +124,18 @@ function scoreResume(
 
 function applySourceGrounding(
   aiResult: AiGenerationResult,
-  sourceResumeText: string,
+  source: TailoredResume | string,
   jobDescription: string,
   missingKeywords?: string[]
 ): AiGenerationResult {
-  const preserved = applyStructuralPreservation(sourceResumeText, aiResult, {
+  const preserved = applyStructuralPreservation(source, aiResult, {
     jobDescription,
     missingKeywords,
   })
+  const sourceText = typeof source === 'string' ? source : ''
   return {
     ...preserved,
-    tailoredResume: enforceSourceCertifications(preserved.tailoredResume, sourceResumeText),
+    tailoredResume: enforceSourceCertifications(preserved.tailoredResume, sourceText),
   }
 }
 
@@ -155,6 +161,9 @@ export async function runGenerationPipeline(
   }
 
   await emitStep(0)
+
+  const frozenResume =
+    options.currentResume ?? strictStateToTailoredResume(lockResumeState(resumeText))
 
   const selectedKeywords = options.selectedKeywords ?? []
   const customSnippets = options.customSnippets ?? []
@@ -231,12 +240,13 @@ export async function runGenerationPipeline(
         coreCompetencyChecklist: checklistPrompt,
         missingKeywords: competencyChecklist.missingTerms,
         achievementSupplement,
+        currentResume: frozenResume,
       },
       {
         onPartial: emitPartial,
       }
     ),
-    resumeText,
+    frozenResume,
     jobDescription,
     competencyChecklist.missingTerms
   )
@@ -290,9 +300,10 @@ export async function runGenerationPipeline(
         missingKeywords.slice(0, 8),
         checklistPrompt,
         achievementSupplement,
-        { onPartial: emitPartial }
+        { onPartial: emitPartial },
+        frozenResume
       ),
-      resumeText,
+      frozenResume,
       jobDescription,
       missingKeywords.slice(0, 8)
     )
@@ -381,7 +392,7 @@ export async function runGenerationPipeline(
       ...aiResult,
       tailoredResume: formatTailoredResume(aiResult.tailoredResume),
     },
-    resumeText,
+    frozenResume,
     jobDescription
   )
 
@@ -458,6 +469,7 @@ export async function runGenerationPipeline(
     passHistory,
     hiringPanel: panelRun.panel,
     rawKeywordScore,
+    resumeDocument: tailoredResumeToDocument(aiResult.tailoredResume),
   }
 
   await emitStep(4)

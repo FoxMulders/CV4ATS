@@ -45,4 +45,5 @@ export const sampleResume: TailoredResume = {
     },
   ],
   certifications: [],
+  projects: [],
 }

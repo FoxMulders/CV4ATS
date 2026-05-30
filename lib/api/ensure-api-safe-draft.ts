@@ -4,10 +4,7 @@ import { inferNameFromEmail, titleCaseName } from '@/lib/resume/contact-extracti
 import { isRealExperienceBullet } from '@/lib/resume/parse-experience-blocks'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
-import {
-  lockSourceResumeStructure,
-  lockedStructureToTailoredResume,
-} from '@/lib/resume/source-resume-structure'
+import { lockResumeState, strictStateToTailoredResume } from '@/lib/resume/strict-resume-state'
 
 const DEFAULT_SUMMARY =
   'Technical program and delivery leader with experience coordinating cross-functional releases, stakeholder alignment, and operational workflow improvements.'
@@ -66,15 +63,23 @@ function ensureTailoredResume(
   resume: TailoredResume,
   sourceResumeText?: string
 ): TailoredResume {
-  const locked = sourceResumeText?.trim() ? lockSourceResumeStructure(sourceResumeText) : null
-  const lockedResume = locked ? lockedStructureToTailoredResume(locked) : null
+  const locked = sourceResumeText?.trim()
+    ? lockResumeState(sourceResumeText)
+    : lockResumeState(resume)
+  const lockedResume = strictStateToTailoredResume(locked)
 
   let experience = (resume.experience ?? []).map((entry, index) =>
-    ensureExperienceEntry(entry, lockedResume?.experience[index])
+    ensureExperienceEntry(entry, lockedResume.experience[index])
+  )
+  let projects = (resume.projects ?? []).map((entry, index) =>
+    ensureExperienceEntry(entry, lockedResume.projects[index])
   )
 
-  if (experience.length === 0 && lockedResume?.experience.length) {
+  if (experience.length === 0 && lockedResume.experience.length) {
     experience = lockedResume.experience.map((entry) => ensureExperienceEntry(entry))
+  }
+  if (projects.length === 0 && lockedResume.projects.length) {
+    projects = lockedResume.projects.map((entry) => ensureExperienceEntry(entry))
   }
 
   if (experience.length === 0) {
@@ -90,17 +95,17 @@ function ensureTailoredResume(
     ]
   }
 
-  const summary = resume.summary?.trim() || locked?.summary?.trim() || DEFAULT_SUMMARY
+  const summary = resume.summary?.trim() || locked.summary?.trim() || DEFAULT_SUMMARY
 
   let skills = dedupeSkills((resume.skills ?? []).map((skill) => skill.trim()).filter(Boolean))
   if (skills.length === 0) {
     skills =
-      locked?.skills?.length && locked.skills.length > 0
+      locked.skills?.length && locked.skills.length > 0
         ? locked.skills
         : ['Program Management', 'Release Management', 'Agile']
   }
 
-  const education = (resume.education?.length ? resume.education : locked?.education ?? []).map(
+  const education = (resume.education?.length ? resume.education : locked.education).map(
     (entry) => ({
       degree: entry.degree?.trim() || 'Education',
       school: entry.school?.trim() || 'Institution not listed',
@@ -120,8 +125,9 @@ function ensureTailoredResume(
     summary,
     skills,
     experience,
+    projects,
     education,
-    certifications: (resume.certifications ?? locked?.certifications ?? [])
+    certifications: (resume.certifications ?? locked.certifications ?? [])
       .map((cert) => cert.trim())
       .filter(Boolean),
   }
@@ -140,6 +146,7 @@ export function ensureApiSafeGenerationResult(
     tailoredResume.summary,
     tailoredResume.skills.join(' '),
     ...tailoredResume.experience.flatMap((entry) => entry.bullets),
+    ...(tailoredResume.projects ?? []).flatMap((entry) => entry.bullets),
   ].join('\n')
 
   const keywordReport =

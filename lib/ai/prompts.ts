@@ -436,6 +436,8 @@ export interface UserPromptOptions {
   missingKeywords?: string[]
   /** User-supplied metrics/outcomes for bullets that lacked quantified results. */
   achievementSupplement?: string
+  /** Frozen structured resume from the frontend — strict state preservation source of truth. */
+  currentResume?: import('@/lib/ai/schemas').TailoredResume
 }
 
 export function buildUserPrompt(

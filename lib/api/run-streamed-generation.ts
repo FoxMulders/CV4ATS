@@ -11,6 +11,7 @@ type PipelineOptions = {
   selectedKeywords?: string[]
   customSnippets?: string[]
   achievementSupplement?: string
+  currentResume?: import('@/lib/ai/schemas').TailoredResume
   anchoredModifications?: Array<{
     snippet: string
     positionId?: string

@@ -276,5 +276,18 @@ export function coalesceStreamingResume(
         })) ?? [],
     certifications:
       resume.certifications?.filter((item): item is string => Boolean(item?.trim())) ?? [],
+    projects:
+      resume.projects
+        ?.filter((entry) => entry?.title?.trim() && entry.company?.trim())
+        .map((entry) => ({
+          title: entry!.title!,
+          company: entry!.company!,
+          location: entry!.location ?? '',
+          startDate: entry!.startDate ?? '',
+          endDate: entry!.endDate ?? '',
+          bullets: entry!.bullets?.filter((bullet): bullet is string => Boolean(bullet?.trim())) ?? [
+            'Generating project details…',
+          ],
+        })) ?? [],
   }
 }

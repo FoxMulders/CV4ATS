@@ -5,8 +5,11 @@ import type { ReactNode } from 'react'
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { isFieldEdited } from '@/lib/form/field-diff'
 
+import { Trash2 } from 'lucide-react'
+
 import { EditableFieldShell } from '@/components/form/editable-field-shell'
 import { EditableTagList } from '@/components/form/editable-tag-list'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { PhrasingSimilarityPreview } from '@/components/results/phrasing-similarity-preview'
@@ -31,6 +34,13 @@ function updateExperience(
     experience: resume.experience.map((job, jobIndex) =>
       jobIndex === index ? { ...job, ...patch } : job
     ),
+  }
+}
+
+function deleteExperience(resume: TailoredResume, index: number): TailoredResume {
+  return {
+    ...resume,
+    experience: resume.experience.filter((_, jobIndex) => jobIndex !== index),
   }
 }
 
@@ -178,6 +188,21 @@ export function EditableParsedResumeForm({
 
         return (
           <div key={jobKey} className="space-y-3 rounded-lg border border-border/70 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {job.company || 'Experience block'} · {job.title || 'Role'}
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label={`Delete ${job.company || 'experience block'}`}
+                onClick={() => onChange(deleteExperience(resume, jobIndex))}
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <EditableFieldShell
                 label="Job title"

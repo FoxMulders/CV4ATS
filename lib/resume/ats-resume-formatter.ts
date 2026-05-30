@@ -212,6 +212,7 @@ export function formatTailoredResume(resume: TailoredResume): TailoredResume {
     summary: formatEarlyCareerSummary(resume.summary),
     skills: formattedSkills.length > 0 ? formattedSkills : resume.skills.map(formatResumeText),
     experience: formattedExperience,
+    projects: (resume.projects ?? []).map(formatExperienceEntry),
     education: resume.education.map((entry) => ({
       degree: formatResumeText(entry.degree),
       school: formatResumeText(entry.school),

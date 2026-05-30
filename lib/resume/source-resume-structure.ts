@@ -78,6 +78,7 @@ export function lockedStructureToTailoredResume(structure: LockedResumeStructure
       endDate: block.endDate || 'Present',
       bullets: block.bullets.length > 0 ? block.bullets : ['Delivered measurable outcomes in this role.'],
     })),
+    projects: [],
     education: structure.education,
     certifications: structure.certifications,
   }
