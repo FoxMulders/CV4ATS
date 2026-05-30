@@ -1,6 +1,5 @@
 import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
-import type { KeywordReport } from '@/lib/ai/schemas'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'
 import { refineTailoredResume, generateTailoredResume } from '@/lib/ai/generate'
 import {
@@ -39,6 +38,7 @@ import {
 import { integrateScoringKeywordsUntilSaturation } from '@/lib/resume/scoring-keyword-integration'
 import { getMissingScoringKeywords } from '@/lib/resume/scoring-keyword-targets'
 import { mergeTargetSkills } from '@/lib/resume/tailored-resume-injection'
+import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-report'
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
 import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
@@ -130,31 +130,6 @@ function applySourceGrounding(
   return {
     ...preserved,
     tailoredResume: enforceSourceCertifications(preserved.tailoredResume, sourceResumeText),
-  }
-}
-
-/** When the hiring panel rejects the package, keyword-only ATS must not exceed panel readiness. */
-function applyPanelReadinessToKeywordReport(
-  report: KeywordReport,
-  panel: HiringPanelSessionResult | null | undefined,
-  rawKeywordScore: number
-): KeywordReport {
-  if (!panel || panel.reviewFailed || panel.unanimousApproval) {
-    return report
-  }
-
-  const cappedScore = Math.min(report.matchScore, panel.aggregateScore)
-  if (cappedScore >= report.matchScore) {
-    return report
-  }
-
-  return {
-    ...report,
-    matchScore: cappedScore,
-    suggestions: [
-      `Keyword-only ATS was ${rawKeywordScore}%, but the hiring panel scored this package ${panel.aggregateScore}%. Fix the issues below — keyword density alone does not mean interview-ready.`,
-      ...report.suggestions,
-    ].slice(0, 6),
   }
 }
 

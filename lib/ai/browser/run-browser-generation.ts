@@ -1,5 +1,6 @@
 import { generateTailoredResumeLocally } from '@/lib/ai/local-fallback'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
+import { applyKeywordImprovementsToDraft } from '@/lib/api/apply-keyword-improvements'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { promptBrowserAi } from '@/lib/ai/browser/chrome-language-model'
 import {
@@ -159,6 +160,11 @@ export async function runBrowserGeneration(
     }
   }
 
+  onProgress?.('Weaving missing keywords into your resume…')
+
+  const keywordImproved = applyKeywordImprovementsToDraft(aiResult, jobDescription, resumeText)
+  aiResult = keywordImproved.aiResult
+
   onProgress?.('Scoring ATS match…')
 
   const preScan = runSkillExtrapolationAndInjection(resumeText, jobDescription, { autoInject: false })
@@ -176,7 +182,9 @@ export async function runBrowserGeneration(
     ...normalized,
     keywordReport: comparison.keywordReport,
     baselineKeywordReport: comparison.baselineKeywordReport,
-    incorporatedKeywords: preScan.autoInjectedSkills,
+    incorporatedKeywords: [
+      ...new Set([...preScan.autoInjectedSkills, ...keywordImproved.injectedSkills]),
+    ],
     preScan,
     rawKeywordScore: comparison.keywordReport.matchScore,
   }

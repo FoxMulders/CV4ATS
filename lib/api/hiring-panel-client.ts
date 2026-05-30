@@ -12,9 +12,11 @@ export type HiringPanelReviewRequest = {
 
 export type HiringPanelReviewResponse = {
   hiringPanel: HiringPanelSessionResult
+  tailoredResume?: AiGenerationResult['tailoredResume']
   coverLetter?: string
   keywordReport?: AiGenerationResult['keywordReport']
   rawKeywordScore?: number
+  incorporatedKeywords?: string[]
 }
 
 export async function requestHiringPanelReview(

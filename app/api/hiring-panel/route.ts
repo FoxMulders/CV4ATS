@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
-import { buildSessionResult, runHiringPanelReview } from '@/lib/ai/hiring-panel'
+import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
+import { applyKeywordImprovementsToDraft } from '@/lib/api/apply-keyword-improvements'
+import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-report'
 import {
   aiGenerationResultSchema,
   MAX_JOB_DESCRIPTION_LENGTH,
@@ -13,10 +14,11 @@ import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-d
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { safeErrorMessage } from '@/lib/api/safe-error'
 import { assertGeminiConfigured } from '@/lib/ai/gemini'
-import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
+import { buildAtsComparison, serializeTailoredResume } from '@/lib/resume/ats-score'
+import { sanitizeKeywordReport } from '@/lib/api/generation-config'
 
 export const runtime = 'nodejs'
-export const maxDuration = 120
+export const maxDuration = 300
 
 const hiringPanelRequestSchema = z.object({
   jobDescription: z.string().min(1).max(MAX_JOB_DESCRIPTION_LENGTH),
@@ -69,12 +71,21 @@ export async function POST(request: Request) {
       )
     }
 
-    const review = await runHiringPanelReview(jobDescription, sourceResumeText, draft)
+    const keywordImproved = applyKeywordImprovementsToDraft(draft, jobDescription, sourceResumeText)
+    draft = keywordImproved.aiResult
 
-    if (!review) {
+    const panelRun = await runHiringPanelWithRevisions(
+      jobDescription,
+      sourceResumeText,
+      draft,
+      undefined,
+      { achievementSupplement: achievementSupplement || undefined }
+    )
+
+    if (!panelRun.panel || panelRun.panel.reviewFailed) {
       return NextResponse.json(
         {
-          hiringPanel: {
+          hiringPanel: panelRun.panel ?? {
             unanimousApproval: false,
             aggregateScore: 0,
             revisionRounds: 0,
@@ -84,43 +95,37 @@ export async function POST(request: Request) {
             revisionRecommendations: [],
             reviewFailed: true,
           },
+          tailoredResume: panelRun.aiResult.tailoredResume,
+          coverLetter: panelRun.aiResult.coverLetter,
+          keywordReport: draft.keywordReport,
+          rawKeywordScore: draft.keywordReport.matchScore,
         },
         { status: 200 }
       )
     }
 
-    let coverLetter = draft.coverLetter
-    const violations = auditCoverLetterCompliance(coverLetter)
-    if (violations.length > 0) {
-      try {
-        coverLetter = await repairCoverLetterCompliance(
-          coverLetter,
-          violations,
-          sourceResumeText,
-          jobDescription,
-          achievementSupplement,
-          review
-        )
-      } catch (error) {
-        console.error('Cover letter repair during panel review skipped:', error)
-      }
-    }
+    const comparison = buildAtsComparison(
+      sourceResumeText,
+      serializeTailoredResume(panelRun.aiResult.tailoredResume),
+      jobDescription,
+      sanitizeKeywordReport(panelRun.aiResult.keywordReport).suggestions,
+      sourceResumeText
+    )
 
-    const hiringPanel = buildSessionResult(review, 0)
-    const rawKeywordScore = draft.keywordReport.matchScore
-    let keywordReport = draft.keywordReport
-    if (hiringPanel && !hiringPanel.reviewFailed && !hiringPanel.unanimousApproval) {
-      keywordReport = {
-        ...keywordReport,
-        matchScore: Math.min(keywordReport.matchScore, hiringPanel.aggregateScore),
-      }
-    }
+    const rawKeywordScore = comparison.keywordReport.matchScore
+    const keywordReport = applyPanelReadinessToKeywordReport(
+      sanitizeKeywordReport(comparison.keywordReport),
+      panelRun.panel,
+      rawKeywordScore
+    )
 
     return NextResponse.json({
-      hiringPanel,
-      coverLetter: coverLetter !== draft.coverLetter ? coverLetter : undefined,
+      hiringPanel: panelRun.panel,
+      tailoredResume: panelRun.aiResult.tailoredResume,
+      coverLetter: panelRun.aiResult.coverLetter,
       keywordReport,
       rawKeywordScore,
+      incorporatedKeywords: keywordImproved.injectedSkills,
     })
   } catch (error) {
     console.error('Hiring panel error:', error)

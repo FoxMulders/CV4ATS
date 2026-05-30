@@ -21,6 +21,7 @@ import {
   tailoredResumeSchema,
   type AiGenerationResult,
 } from '@/lib/ai/schemas'
+import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
 import {
   auditCoverLetterCompliance,
   findCoverLetterBannedPhrases,
@@ -29,7 +30,7 @@ import {
 export const HIRING_PANEL_MODEL_ID =
   process.env.HIRING_PANEL_MODEL_ID?.trim() || GEMINI_MODEL_ID
 
-export const MAX_HIRING_PANEL_REVISION_ROUNDS = 2
+export const MAX_HIRING_PANEL_REVISION_ROUNDS = 4
 
 export type HiringPanelRunOptions = {
   achievementSupplement?: string
@@ -230,8 +231,20 @@ function needsAnotherRevisionRound(
 
   const unanimous = review.managers.every((m) => m.approved)
   const bannedRemaining = findCoverLetterBannedPhrases(coverLetter).length > 0
+  const hasActionItems = review.revisionRecommendations.length > 0
 
-  return !unanimous || bannedRemaining
+  return bannedRemaining || hasActionItems || !unanimous
+}
+
+function preserveDraft(
+  draft: AiGenerationResult,
+  sourceResumeText: string,
+  jobDescription: string
+): AiGenerationResult {
+  return applyStructuralPreservation(sourceResumeText, draft, {
+    jobDescription,
+    missingKeywords: draft.keywordReport?.missingKeywords,
+  })
 }
 
 export async function runHiringPanelWithRevisions(
@@ -274,12 +287,16 @@ export async function runHiringPanelWithRevisions(
     lastReview = review
 
     if (!needsAnotherRevisionRound(review, current.coverLetter, revisionRounds)) {
-      current = await enforceCoverLetterCompliance(
-        current,
-        jobDescription,
+      current = preserveDraft(
+        await enforceCoverLetterCompliance(
+          current,
+          jobDescription,
+          sourceResumeText,
+          review,
+          options.achievementSupplement
+        ),
         sourceResumeText,
-        review,
-        options.achievementSupplement
+        jobDescription
       )
       return {
         aiResult: current,
@@ -287,7 +304,7 @@ export async function runHiringPanelWithRevisions(
       }
     }
 
-    await onProgress?.('Applying hiring panel recommendations…')
+    await onProgress?.('Applying all panel improvement suggestions…')
 
     const revision = await runHiringPanelRevision(
       jobDescription,
@@ -298,12 +315,16 @@ export async function runHiringPanelWithRevisions(
     )
 
     if (!revision?.coverLetter.trim()) {
-      current = await enforceCoverLetterCompliance(
-        current,
-        jobDescription,
+      current = preserveDraft(
+        await enforceCoverLetterCompliance(
+          current,
+          jobDescription,
+          sourceResumeText,
+          review,
+          options.achievementSupplement
+        ),
         sourceResumeText,
-        review,
-        options.achievementSupplement
+        jobDescription
       )
       return {
         aiResult: current,
@@ -311,20 +332,28 @@ export async function runHiringPanelWithRevisions(
       }
     }
 
-    current = {
-      ...current,
-      tailoredResume: revision.tailoredResume,
-      coverLetter: revision.coverLetter,
-    }
-
-    await onProgress?.('Fixing banned phrasing and cover letter issues…')
-
-    current = await enforceCoverLetterCompliance(
-      current,
-      jobDescription,
+    current = preserveDraft(
+      {
+        ...current,
+        tailoredResume: revision.tailoredResume,
+        coverLetter: revision.coverLetter,
+      },
       sourceResumeText,
-      review,
-      options.achievementSupplement
+      jobDescription
+    )
+
+    await onProgress?.('Re-running hiring panel after applying suggestions…')
+
+    current = preserveDraft(
+      await enforceCoverLetterCompliance(
+        current,
+        jobDescription,
+        sourceResumeText,
+        review,
+        options.achievementSupplement
+      ),
+      sourceResumeText,
+      jobDescription
     )
 
     revisionRounds += 1

@@ -404,7 +404,7 @@ export function TailorWorkspacePage({
         let nextResult: GenerationResultWithMeta = { ...data, generationSource: 'browser' }
         let nextCoverLetter = data.coverLetter
 
-        setLoadingLabel('Running 10-manager hiring panel review…')
+        setLoadingLabel('Applying improvements and running hiring panel review…')
         setLoadingStep(6)
 
         try {
@@ -416,9 +416,16 @@ export function TailorWorkspacePage({
 
           nextResult = {
             ...nextResult,
+            tailoredResume: panelResponse.tailoredResume ?? nextResult.tailoredResume,
             hiringPanel: panelResponse.hiringPanel,
             keywordReport: panelResponse.keywordReport ?? data.keywordReport,
             rawKeywordScore: panelResponse.rawKeywordScore ?? data.rawKeywordScore,
+            incorporatedKeywords: [
+              ...new Set([
+                ...(nextResult.incorporatedKeywords ?? []),
+                ...(panelResponse.incorporatedKeywords ?? []),
+              ]),
+            ],
           }
 
           if (panelResponse.coverLetter?.trim()) {
@@ -427,6 +434,10 @@ export function TailorWorkspacePage({
 
           if (panelResponse.hiringPanel.reviewFailed) {
             toast.message('Browser tailoring finished, but the hiring panel could not complete. Try again shortly.')
+          } else if (panelResponse.hiringPanel.revisionRounds > 0) {
+            toast.message(
+              `Applied ${panelResponse.hiringPanel.revisionRounds} round(s) of panel feedback and re-reviewed your package.`
+            )
           }
         } catch (panelError) {
           console.warn('Hiring panel after browser generation failed:', panelError)
