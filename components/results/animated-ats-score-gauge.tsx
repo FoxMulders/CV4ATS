@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react'
 
 import { BaselineVarianceBadge } from '@/components/results/baseline-variance-badge'
+import { StructuralScoreWarnings } from '@/components/results/structural-score-warnings'
 import { useAnimatedNumber } from '@/hooks/use-animated-number'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +14,7 @@ interface AnimatedAtsScoreGaugeProps {
   isUpdating?: boolean
   size?: 'compact' | 'hero'
   className?: string
+  structuralWarnings?: string[]
 }
 
 function scoreTone(score: number): string {
@@ -36,6 +38,7 @@ export function AnimatedAtsScoreGauge({
   isUpdating = false,
   size = 'hero',
   className,
+  structuralWarnings,
 }: AnimatedAtsScoreGaugeProps) {
   const animatedScore = useAnimatedNumber(score, isUpdating ? 400 : 650)
   const isCompact = size === 'compact'
@@ -88,6 +91,8 @@ export function AnimatedAtsScoreGauge({
           style={{ width: `${Math.min(100, Math.max(0, animatedScore))}%` }}
         />
       </div>
+
+      <StructuralScoreWarnings warnings={structuralWarnings} />
     </div>
   )
 }

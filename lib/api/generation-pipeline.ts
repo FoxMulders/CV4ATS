@@ -281,7 +281,8 @@ export async function runGenerationPipeline(
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions,
-    resumeText
+    resumeText,
+    aiResult.tailoredResume
   )
 
   let currentScore = comparison.keywordReport.matchScore
@@ -331,7 +332,8 @@ export async function runGenerationPipeline(
       serializeTailoredResume(aiResult.tailoredResume),
       jobDescription,
       sanitizeKeywordReport(aiResult.keywordReport).suggestions,
-      resumeText
+      resumeText,
+      aiResult.tailoredResume
     )
 
     currentScore = comparison.keywordReport.matchScore
@@ -358,7 +360,8 @@ export async function runGenerationPipeline(
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions,
-    resumeText
+    resumeText,
+    aiResult.tailoredResume
   )
 
   if (integration.injectedSkills.length > 0 || comparison.keywordReport.matchScore !== beforeFinalScore) {
@@ -446,7 +449,8 @@ export async function runGenerationPipeline(
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions,
-    resumeText
+    resumeText,
+    aiResult.tailoredResume
   )
 
   const phrasingAudit = auditResumePhrasingCompliance(

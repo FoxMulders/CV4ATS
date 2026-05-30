@@ -93,6 +93,7 @@ export function AtsComplianceComparison({
               label=""
               isUpdating={isAfterUpdating}
               size="compact"
+              structuralWarnings={after.structuralWarnings}
             />
             <p className="text-xs text-muted-foreground transition-all duration-500">
               {after.matchedKeywords.length} matched · {after.missingKeywords.length} missing

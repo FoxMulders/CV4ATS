@@ -1,6 +1,10 @@
 import { auditExactPhrasingMatch } from '@/lib/resume/exact-phrasing-auditor'
 import { applyExperienceScoreFloor } from '@/lib/resume/experience-score-floor'
 import {
+  applyStructuralScoreAdjustments,
+  resumeHasWorkExperience,
+} from '@/lib/resume/structural-score-guardrails'
+import {
   getFixedScoringTargetTerms,
   resumeMatchesScoringTarget,
 } from '@/lib/resume/scoring-keyword-targets'
@@ -8,6 +12,7 @@ import {
   filterCompetencyKeywords,
   isNonCompetencyMetadata,
 } from '@/lib/resume/non-competency-metadata-filter'
+import type { TailoredResume } from '@/lib/ai/schemas'
 
 export const SECTION_WEIGHTS = {
   experience: 1.0,
@@ -46,6 +51,7 @@ export interface WeightedScoreResult {
   nearIdenticalProfile: boolean
   breakdown: TermScoreBreakdown[]
   targetTermCount: number
+  structuralWarnings?: string[]
 }
 
 export interface WeightedScoringOptions {
@@ -54,6 +60,8 @@ export interface WeightedScoringOptions {
   sourceResumeText?: string
   /** Baseline display score — after tailoring never reports lower than this for qualified profiles. */
   baselineScore?: number
+  /** Structured resume — used for structural guardrails (empty work experience cap). */
+  structuredResume?: TailoredResume | null
 }
 
 const SECTION_BOUNDARY =
@@ -99,7 +107,7 @@ export function parseScoringSections(resumeText: string): ResumeScoringSections 
   return {
     summary: proseBlocks[0] ?? fullText.slice(0, Math.min(700, fullText.length)),
     skills: lines.filter((line) => /[,;|•]/.test(line) && line.length < 140).join('\n'),
-    experience: fullText,
+    experience: '',
     fullText,
   }
 }
@@ -157,28 +165,40 @@ function keywordInPhrasingViolation(
   )
 }
 
+/** Experience bullets earn full weight; skills-list-only matches earn partial credit. */
 function resolveSectionWeight(keyword: string, sections: ResumeScoringSections): number {
-  const weights: number[] = []
-
-  if (sections.experience && resumeMatchesScoringTarget(sections.experience, keyword)) {
-    weights.push(SECTION_WEIGHTS.experience)
-  }
-  if (sections.summary && resumeMatchesScoringTarget(sections.summary, keyword)) {
-    weights.push(SECTION_WEIGHTS.summary)
-  }
-  if (sections.skills && resumeMatchesScoringTarget(sections.skills, keyword)) {
-    weights.push(SECTION_WEIGHTS.skills)
+  if (sections.experience?.trim() && resumeMatchesScoringTarget(sections.experience, keyword)) {
+    return SECTION_WEIGHTS.experience
   }
 
-  if (weights.length > 0) {
-    return Math.max(...weights)
+  if (sections.skills?.trim() && resumeMatchesScoringTarget(sections.skills, keyword)) {
+    return SECTION_WEIGHTS.skills
   }
 
-  if (resumeMatchesScoringTarget(sections.fullText, keyword)) {
+  if (sections.summary?.trim() && resumeMatchesScoringTarget(sections.summary, keyword)) {
     return SECTION_WEIGHTS.summary
   }
 
+  if (resumeMatchesScoringTarget(sections.fullText, keyword)) {
+    return SECTION_WEIGHTS.skills
+  }
+
   return 0
+}
+
+function experienceBackedMatchRatio(
+  breakdown: TermScoreBreakdown[],
+  sections: ResumeScoringSections
+): number {
+  const matched = breakdown.filter((entry) => entry.matched)
+  if (matched.length === 0) return 0
+
+  const inExperience = matched.filter(
+    (entry) =>
+      sections.experience?.trim() && resumeMatchesScoringTarget(sections.experience, entry.term)
+  ).length
+
+  return inExperience / matched.length
 }
 
 function computeRawPercent(breakdown: TermScoreBreakdown[]): number {
@@ -299,10 +319,12 @@ function scoreTerms(
   }
 
   const rawScore = computeRawPercent(breakdown)
-  const nearIdenticalProfile = isNearIdenticalProfile(breakdown, sections)
+  const nearIdenticalProfile =
+    resumeHasWorkExperience(options.structuredResume, sections) &&
+    isNearIdenticalProfile(breakdown, sections)
   const phase = options.phase ?? 'tailored'
   const normalizedScore = normalizeDisplayScore(rawScore, nearIdenticalProfile, phase)
-  const matchScore = applyExperienceScoreFloor(
+  const flooredScore = applyExperienceScoreFloor(
     normalizedScore,
     rawScore,
     sections.fullText,
@@ -313,17 +335,25 @@ function scoreTerms(
     }
   )
 
+  const structural = applyStructuralScoreAdjustments(flooredScore, {
+    structuredResume: options.structuredResume,
+    sections,
+    resumeText: sections.fullText,
+    experienceBackedMatchRatio: experienceBackedMatchRatio(breakdown, sections),
+  })
+
   const matchedKeywords = breakdown.filter((entry) => entry.matched).map((entry) => entry.term)
   const missingKeywords = breakdown.filter((entry) => !entry.matched).map((entry) => entry.term)
 
   return {
-    matchScore,
+    matchScore: structural.matchScore,
     rawScore,
     matchedKeywords,
     missingKeywords,
     nearIdenticalProfile,
     breakdown,
     targetTermCount: targetTerms.length,
+    structuralWarnings: structural.structuralWarnings,
   }
 }
 

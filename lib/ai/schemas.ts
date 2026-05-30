@@ -45,6 +45,7 @@ export const keywordReportSchema = z.object({
   matchedKeywords: z.array(z.string()),
   missingKeywords: z.array(z.string()),
   suggestions: z.array(z.string()),
+  structuralWarnings: z.array(z.string()).optional(),
 })
 
 export const aiGenerationResultSchema = z.object({

@@ -51,11 +51,14 @@ export function scoreAtsCompliance(
 ): KeywordReport {
   const weighted = computeWeightedMatchScore(resumeText, jobDescription, undefined, options)
 
+  const suggestions = formatSuggestions(weighted.missingKeywords, weighted.matchScore)
+
   return sanitizeKeywordReport({
     matchScore: weighted.matchScore,
     matchedKeywords: sanitizeKeywordList(weighted.matchedKeywords, resumeText),
     missingKeywords: sanitizeKeywordList(weighted.missingKeywords, resumeText),
-    suggestions: formatSuggestions(weighted.missingKeywords, weighted.matchScore),
+    suggestions,
+    structuralWarnings: weighted.structuralWarnings,
   })
 }
 
@@ -64,7 +67,8 @@ export function buildAtsComparison(
   afterText: string,
   jobDescription: string,
   aiSuggestions?: string[],
-  sourceResumeText?: string
+  sourceResumeText?: string,
+  tailoredResume?: import('@/lib/ai/schemas').TailoredResume
 ): { baselineKeywordReport: KeywordReport; keywordReport: KeywordReport; improvement: number } {
   const qualificationText = sourceResumeText?.trim() || beforeText
 
@@ -76,6 +80,7 @@ export function buildAtsComparison(
     phase: 'tailored',
     sourceResumeText: qualificationText,
     baselineScore: baselineKeywordReport.matchScore,
+    structuredResume: tailoredResume,
   })
 
   const keywordReport: KeywordReport = sanitizeKeywordReport({

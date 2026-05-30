@@ -192,6 +192,7 @@ export function KeywordReportPanel({
               label="Match score"
               isUpdating={isRecalculatingScore}
               size="compact"
+              structuralWarnings={report.structuralWarnings}
             />
           ) : null}
         </CardContent>

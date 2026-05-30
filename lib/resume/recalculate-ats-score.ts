@@ -30,6 +30,7 @@ export function recalculateAtsScore(input: RecalculateAtsScoreInput): KeywordRep
     phase: input.phase ?? 'tailored',
     sourceResumeText: input.sourceResumeText?.trim() || undefined,
     baselineScore: input.baselineScore,
+    structuredResume: input.resume,
   })
 }
 

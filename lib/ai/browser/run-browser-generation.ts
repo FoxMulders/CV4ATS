@@ -173,7 +173,8 @@ export async function runBrowserGeneration(
     serializeTailoredResume(aiResult.tailoredResume),
     jobDescription,
     undefined,
-    resumeText
+    resumeText,
+    aiResult.tailoredResume
   )
 
   const normalized = normalizeGenerationDraftForApi(aiResult, resumeText)

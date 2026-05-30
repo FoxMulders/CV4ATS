@@ -71,6 +71,7 @@ export function PreviewScoreBanner({
                 size="compact"
                 isUpdating={isAfterUpdating}
                 baselineScore={liveBaseline}
+                structuralWarnings={after.structuralWarnings}
               />
               {showPanelScore ? (
                 <div className="text-sm">

@@ -109,7 +109,8 @@ export async function POST(request: Request) {
       serializeTailoredResume(panelRun.aiResult.tailoredResume),
       jobDescription,
       sanitizeKeywordReport(panelRun.aiResult.keywordReport).suggestions,
-      sourceResumeText
+      sourceResumeText,
+      panelRun.aiResult.tailoredResume
     )
 
     const rawKeywordScore = comparison.keywordReport.matchScore
