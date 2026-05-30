@@ -20,7 +20,6 @@ import { ResumeDiffView } from '@/components/results/resume-diff-view'
 import { ResumePreview } from '@/components/results/resume-preview'
 import { UndoRedoToolbar } from '@/components/results/undo-redo-toolbar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
 import { PreviewScoreBanner } from '@/components/workspace/preview-score-banner'
 import { ResumeLetterPage } from '@/components/workspace/resume-letter-page'
 import { SplitWorkspaceLayout } from '@/components/workspace/split-workspace-layout'
@@ -60,6 +59,7 @@ import {
   type PanelExperienceQuestion,
 } from '@/lib/resume/panel-experience-gaps'
 import { requestPanelRevise } from '@/lib/api/panel-revise-client'
+import { requestHiringPanelReview } from '@/lib/api/hiring-panel-client'
 
 type GenerationResultWithMeta = GenerationResult & {
   refinementPasses?: number
@@ -400,23 +400,69 @@ export function TailorWorkspacePage({
           },
         })
 
-        setResult({ ...data, generationSource: 'browser' })
-        resetEditedResume(data.tailoredResume)
-        setBaselineTailoredResume(data.tailoredResume)
-        setEditedKeywordReport(data.keywordReport)
-        setBaselineKeywordReport(data.baselineKeywordReport)
-        if (data.preScan) {
-          setBaselinePreScan(data.preScan)
-          setEditedPreScan(data.preScan)
-        }
-        setCoverLetter(data.coverLetter)
-        setPanelExperienceQuestions([])
+        let nextResult: GenerationResultWithMeta = { ...data, generationSource: 'browser' }
+        let nextCoverLetter = data.coverLetter
 
-        const injected = data.incorporatedKeywords?.length ?? 0
+        setLoadingLabel('Running 10-manager hiring panel review…')
+        setLoadingStep(6)
+
+        try {
+          const panelResponse = await requestHiringPanelReview({
+            jobDescription: jobDescription.trim(),
+            sourceResumeText: resumeForGeneration.trim(),
+            draft: data,
+          })
+
+          nextResult = {
+            ...nextResult,
+            hiringPanel: panelResponse.hiringPanel,
+            keywordReport: panelResponse.keywordReport ?? data.keywordReport,
+            rawKeywordScore: panelResponse.rawKeywordScore ?? data.rawKeywordScore,
+          }
+
+          if (panelResponse.coverLetter?.trim()) {
+            nextCoverLetter = panelResponse.coverLetter
+          }
+
+          if (panelResponse.hiringPanel.reviewFailed) {
+            toast.message('Browser tailoring finished, but the hiring panel could not complete. Try again shortly.')
+          }
+        } catch (panelError) {
+          console.warn('Hiring panel after browser generation failed:', panelError)
+          toast.message(
+            panelError instanceof Error
+              ? panelError.message
+              : 'Browser tailoring finished, but hiring panel review failed.'
+          )
+        }
+
+        setResult(nextResult)
+        resetEditedResume(nextResult.tailoredResume)
+        setBaselineTailoredResume(nextResult.tailoredResume)
+        setEditedKeywordReport(nextResult.keywordReport)
+        setBaselineKeywordReport(nextResult.baselineKeywordReport)
+        if (nextResult.preScan) {
+          setBaselinePreScan(nextResult.preScan)
+          setEditedPreScan(nextResult.preScan)
+        }
+        setCoverLetter(nextCoverLetter)
+
+        if (nextResult.hiringPanel && !nextResult.hiringPanel.reviewFailed) {
+          const panelGaps = detectPanelExperienceGaps(nextResult.hiringPanel)
+          setPanelExperienceQuestions(panelGaps)
+        } else {
+          setPanelExperienceQuestions([])
+        }
+
+        const injected = nextResult.incorporatedKeywords?.length ?? 0
         toast.success(
-          injected > 0
-            ? `Ready (browser AI) — ${injected} keyword${injected === 1 ? '' : 's'} woven in. No server quota used.`
-            : 'Ready (browser AI) — unlimited, no server quota used. Hiring panel skipped in this mode.'
+          nextResult.hiringPanel && !nextResult.hiringPanel.reviewFailed
+            ? injected > 0
+              ? `Ready — ${injected} keyword${injected === 1 ? '' : 's'} woven in. Panel score: ${nextResult.hiringPanel.aggregateScore}%.`
+              : `Ready — panel score ${nextResult.hiringPanel.aggregateScore}%. See final assessment below.`
+            : injected > 0
+              ? `Ready (browser AI) — ${injected} keyword${injected === 1 ? '' : 's'} woven in.`
+              : 'Ready (browser AI) — resume and cover letter generated on your device.'
         )
         return
       }
@@ -750,8 +796,8 @@ export function TailorWorkspacePage({
                   ? 'Review unavailable — regenerate to retry'
                   : result.hiringPanel
                     ? `${result.hiringPanel.aggregateScore}% interview readiness · ${result.hiringPanel.managers.filter((m) => m.approved).length}/10 approved`
-                    : result.generationSource === 'browser'
-                      ? 'Optional server panel (browser AI on)'
+                    : result.generationSource === 'browser' && !result.hiringPanel
+                      ? 'Panel review pending or unavailable'
                       : 'Manager critique runs after each generation'
               }
               defaultOpen
@@ -765,26 +811,11 @@ export function TailorWorkspacePage({
                 />
               ) : result.generationSource === 'browser' ? (
                 <div className="rounded-lg border border-border/80 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                  <p className="font-medium text-foreground">Optional: 10-manager hiring panel</p>
+                  <p className="font-medium text-foreground">Hiring panel did not run</p>
                   <p className="mt-1">
-                    Browser AI (on by default) keeps generation unlimited on your device. The hiring
-                    panel is a separate server review — turn browser AI off only when you want that
-                    critique.
+                    Browser tailoring completed, but the server panel review failed or was rate-limited.
+                    Regenerate in a moment, or turn off browser AI for the full server pipeline.
                   </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="mt-3"
-                    onClick={() => {
-                      setUseBrowserAi(false)
-                      toast.message(
-                        'Browser AI off — click Generate again for the 10-manager hiring panel.'
-                      )
-                    }}
-                  >
-                    Turn off browser AI & regenerate for panel
-                  </Button>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">

@@ -1,6 +1,10 @@
 import type { AiGenerationResult, TailoredResume } from '@/lib/ai/schemas'
 import { buildCoreCompetencyChecklist } from '@/lib/resume/core-competency-checklist'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
+import {
+  extractCompanyFromDescription,
+  extractJobTitleFromDescription,
+} from '@/lib/resume/extract-job-title'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
 import { injectIntoTailoredResume } from '@/lib/resume/tailored-resume-injection'
 import { parseResumeTextToTailoredResume } from '@/lib/resume/text-to-structured'
@@ -18,16 +22,71 @@ const LOCAL_KEYWORD_TARGETS = [
   'sdlc',
 ] as const
 
-function extractJobTitle(jobDescription: string): string {
-  const titleMatch = jobDescription.match(/Job Title:\s*(.+)/i)
-  if (titleMatch?.[1]) return titleMatch[1].trim()
+const KEYWORD_SOUP =
+  /(?:utilizing|leveraging|delivering)\s+.+\s+(?:utilizing|leveraging|delivering)|initiatives with measurable impact|aligned to business outcomes/i
 
-  const firstLine = jobDescription.split('\n').find((line) => line.trim().length > 0)
-  return firstLine?.trim().slice(0, 80) ?? 'this role'
+function isBulletLine(line: string): boolean {
+  return /^[\s•\-*–—]\s*\S/.test(line.trim())
 }
 
-function formatContactHeader(resume: TailoredResume): string[] {
-  const lines: string[] = [resume.contact.name]
+function stripBullet(line: string): string {
+  return line.trim().replace(/^[\s•\-*–—]+\s*/, '').trim()
+}
+
+function titleCaseName(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function resolveContactName(resume: TailoredResume, sourceResumeText: string): string {
+  if (resume.contact.name && resume.contact.name !== 'Professional Candidate') {
+    return resume.contact.name
+  }
+
+  const lines = sourceResumeText
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const capsName = lines.find(
+    (line) =>
+      /^[A-Z][A-Z\s.'-]{2,50}$/.test(line) &&
+      line.split(/\s+/).length <= 5 &&
+      !line.includes('@')
+  )
+  if (capsName) return titleCaseName(capsName)
+
+  return resume.contact.name || 'Candidate'
+}
+
+function pickProofBullet(sourceResumeText: string): string | null {
+  const bullets = sourceResumeText
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(stripBullet)
+    .filter((line) => line.length >= 35 && line.length <= 220)
+    .filter((line) => !KEYWORD_SOUP.test(line))
+
+  return bullets[0] ?? null
+}
+
+function pickRecentRole(resume: TailoredResume) {
+  return (
+    resume.experience.find(
+      (entry) =>
+        entry.company !== 'Previous Employer' &&
+        entry.title !== 'Professional Experience' &&
+        entry.bullets.length > 0
+    ) ?? resume.experience[0]
+  )
+}
+
+function formatContactHeader(resume: TailoredResume, name: string): string[] {
+  const lines: string[] = [name]
   const contactParts = [
     resume.contact.location,
     resume.contact.phone,
@@ -45,42 +104,46 @@ function formatContactHeader(resume: TailoredResume): string[] {
 function buildLocalCoverLetter(
   resume: TailoredResume,
   jobDescription: string,
-  matchedKeywords: string[]
+  sourceResumeText: string
 ): string {
-  const role = extractJobTitle(jobDescription)
-  const recentRole = resume.experience[0]
-  const topBullet = recentRole?.bullets[0]?.trim()
-  const proofKeywords =
-    matchedKeywords.slice(0, 5).join(', ') ||
-    'delivery leadership, technical program execution, and process optimization'
+  const role = extractJobTitleFromDescription(jobDescription)
+  const company = extractCompanyFromDescription(jobDescription)
+  const name = resolveContactName(resume, sourceResumeText)
+  const recentRole = pickRecentRole(resume)
+  const proofBullet = pickProofBullet(sourceResumeText)
+  const salutation = company ? `Dear ${company} Hiring Team,` : 'Dear Hiring Manager,'
 
-  const hook =
-    `Delivering on ${role} commitments rarely fails in the planning deck—it fails when teams cannot translate scope into shippable work under real constraints.`
+  const opening = company
+    ? `The ${role} opening at ${company} aligns with my track record in technical program delivery, release coordination, and cross-functional execution.`
+    : `The ${role} opening aligns with my track record in technical program delivery, release coordination, and cross-functional execution.`
 
-  const proofOne =
-    `${recentRole?.title ?? 'Senior delivery leadership'} at ${recentRole?.company ?? 'enterprise organizations'} sharpened that instinct: strategic ownership over checklist execution.${topBullet ? ` One concrete win: ${topBullet}` : ''}`
+  const experienceParagraph = recentRole
+    ? `In my recent work as ${recentRole.title} at ${recentRole.company}, I focused on shipping reliable releases, tightening delivery workflows, and aligning engineering, product, and operations stakeholders.${
+        proofBullet ? ` One example: ${proofBullet}` : ''
+      }`
+    : proofBullet
+      ? `A recent example from my work: ${proofBullet}`
+      : `My recent work centers on release coordination, delivery risk reduction, and measurable improvements to engineering throughput.`
 
-  const proofTwo =
-    `Recent work maps directly to ${proofKeywords}. Bottlenecks get removed, workflows tightened, and manual drag replaced with durable automation when cycles are at stake. Capacity gets evaluated with engineering fluency; architectural risk gets surfaced before it hits the roadmap.`
-
-  const close =
-    `A brief conversation on how that execution-first approach supports your ${role} priorities would be worth the time.`
+  const close = company
+    ? `I would welcome a conversation about how this experience can support ${company}'s ${role} priorities.`
+    : `I would welcome a conversation about how this experience can support your team's priorities.`
 
   return [
-    ...formatContactHeader(resume),
+    ...formatContactHeader(resume, name),
     '',
-    'Dear Hiring Manager,',
+    '[Date]',
     '',
-    hook,
+    salutation,
     '',
-    proofOne,
+    opening,
     '',
-    proofTwo,
+    experienceParagraph,
     '',
     close,
     '',
     'Sincerely,',
-    resume.contact.name,
+    name,
   ].join('\n')
 }
 
@@ -129,11 +192,7 @@ export function generateTailoredResumeLocally(
   ].join('\n')
 
   const keywordReport = scoreAtsCompliance(serialized, jobDescription)
-  const coverLetter = buildLocalCoverLetter(
-    tailoredResume,
-    jobDescription,
-    keywordReport.matchedKeywords
-  )
+  const coverLetter = buildLocalCoverLetter(tailoredResume, jobDescription, resumeText)
 
   return {
     tailoredResume,
@@ -146,7 +205,7 @@ export function refineTailoredResumeLocally(
   jobDescription: string,
   sourceResumeText: string,
   _currentScore: number,
-  missingKeywords: string[]
+  _missingKeywords: string[]
 ): AiGenerationResult {
   return generateTailoredResumeLocally(jobDescription, sourceResumeText)
 }

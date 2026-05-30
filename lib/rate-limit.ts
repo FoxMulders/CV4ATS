@@ -11,6 +11,7 @@ export type RateLimitBucket =
   | 'verify-skill'
   | 'panel-revise'
   | 'prescan'
+  | 'hiring-panel'
 
 const BUCKET_LIMITS: Record<RateLimitBucket, number> = {
   generate: 15,
@@ -22,6 +23,7 @@ const BUCKET_LIMITS: Record<RateLimitBucket, number> = {
   'verify-skill': 40,
   'panel-revise': 20,
   prescan: 200,
+  'hiring-panel': 20,
 }
 
 type Entry = { count: number; resetAt: number }

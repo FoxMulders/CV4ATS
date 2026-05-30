@@ -24,16 +24,44 @@ function extractContact(text: string) {
     text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+/i)?.[0] ?? ''
 
   const lines = splitLines(text).map((line) => line.trim()).filter(Boolean)
+
+  const capsName = lines.find(
+    (line) =>
+      /^[A-Z][A-Z\s.'-]{2,50}$/.test(line) &&
+      line.split(/\s+/).length <= 5 &&
+      !line.includes('@') &&
+      !SECTION_HEADING.test(line)
+  )
+
+  const locationMatch = text.match(
+    /\b([A-Za-z .'-]+,\s*(?:Canada|United States|USA|US|UK)[^|\n@]{0,40})/i
+  )
+
   const name =
+    capsName ??
     lines.find(
       (line) =>
         !line.includes('@') &&
         !SECTION_HEADING.test(line) &&
         line.length <= 80 &&
-        !/^https?:\/\//i.test(line)
-    ) ?? 'Professional Candidate'
+        !/^https?:\/\//i.test(line) &&
+        !/^\(?\d{3}\)?/.test(line) &&
+        !/\d{5}/.test(line)
+    ) ??
+    'Professional Candidate'
 
-  return { name, email, phone, linkedin, location: '' }
+  return {
+    name: capsName
+      ? capsName
+          .split(/\s+/)
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(' ')
+      : name,
+    email,
+    phone,
+    linkedin,
+    location: locationMatch?.[1]?.trim() ?? '',
+  }
 }
 
 function extractSection(lines: string[], heading: RegExp): string[] {

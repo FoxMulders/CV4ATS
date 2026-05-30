@@ -57,7 +57,10 @@ export function HiringPanelReviewPanel({
             <Badge variant="outline">{panel.revisionRounds} revision round(s)</Badge>
           ) : null}
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{panel.finalVerdict}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Final assessment
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-foreground">{panel.finalVerdict}</p>
         {!panel.unanimousApproval ? (
           <p className="mt-2 text-sm leading-relaxed text-amber-800 dark:text-amber-200">
             When managers flag missing tool evidence (e.g. Jenkins CI/CD) or banned cover letter
