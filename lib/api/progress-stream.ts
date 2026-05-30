@@ -205,10 +205,14 @@ export async function consumeGenerationStreamLegacy<T extends GenerationResult =
 }
 
 export const GENERATION_TIMEOUT_MS = 270_000
+/** Legacy edge cap — generate/tailor routes now run on Node.js with maxDuration. */
 export const EDGE_GENERATION_TIMEOUT_MS = 28_000
 
 export function getGenerationTimeoutMs(): number {
-  return process.env.NEXT_RUNTIME === 'edge' ? EDGE_GENERATION_TIMEOUT_MS : GENERATION_TIMEOUT_MS
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    return EDGE_GENERATION_TIMEOUT_MS
+  }
+  return GENERATION_TIMEOUT_MS
 }
 
 export function withGenerationTimeout<T>(

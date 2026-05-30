@@ -12,7 +12,8 @@ import { runStreamedGeneration } from '@/lib/api/run-streamed-generation'
 import { safeErrorMessage } from '@/lib/api/safe-error'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)

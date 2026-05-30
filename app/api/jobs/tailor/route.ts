@@ -14,7 +14,8 @@ import { safeErrorMessage } from '@/lib/api/safe-error'
 import { formatJobDescriptionForAi, jobListingSchema } from '@/lib/jobs/types'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
+export const maxDuration = 300
 
 const tailorRequestSchema = z.object({
   job: jobListingSchema,
