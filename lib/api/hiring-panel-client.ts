@@ -20,12 +20,16 @@ export type HiringPanelReviewResponse = {
 export async function requestHiringPanelReview(
   payload: HiringPanelReviewRequest
 ): Promise<HiringPanelReviewResponse> {
+  const normalizedDraft = normalizeGenerationDraftForApi(payload.draft, payload.sourceResumeText)
+
   const response = await fetch('/api/hiring-panel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      ...payload,
-      draft: normalizeGenerationDraftForApi(payload.draft, payload.sourceResumeText),
+      jobDescription: payload.jobDescription,
+      sourceResumeText: payload.sourceResumeText,
+      achievementSupplement: payload.achievementSupplement,
+      draft: normalizedDraft,
     }),
   })
 

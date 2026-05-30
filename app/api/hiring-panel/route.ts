@@ -7,7 +7,9 @@ import {
   aiGenerationResultSchema,
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_RESUME_TEXT_LENGTH,
+  type AiGenerationResult,
 } from '@/lib/ai/schemas'
+import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { safeErrorMessage } from '@/lib/api/safe-error'
 import { assertGeminiConfigured } from '@/lib/ai/gemini'
@@ -19,7 +21,7 @@ export const maxDuration = 120
 const hiringPanelRequestSchema = z.object({
   jobDescription: z.string().min(1).max(MAX_JOB_DESCRIPTION_LENGTH),
   sourceResumeText: z.string().min(1).max(MAX_RESUME_TEXT_LENGTH),
-  draft: aiGenerationResultSchema,
+  draft: z.unknown(),
   achievementSupplement: z.string().max(4000).optional(),
 })
 
@@ -50,7 +52,22 @@ export async function POST(request: Request) {
       )
     }
 
-    const { jobDescription, sourceResumeText, draft, achievementSupplement } = parsed.data
+    const { jobDescription, sourceResumeText, achievementSupplement } = parsed.data
+
+    let draft: AiGenerationResult
+    try {
+      draft = normalizeGenerationDraftForApi(
+        parsed.data.draft as AiGenerationResult,
+        sourceResumeText
+      )
+      aiGenerationResultSchema.parse(draft)
+    } catch (normalizeError) {
+      console.error('Hiring panel draft normalization failed:', normalizeError)
+      return NextResponse.json(
+        { error: 'Invalid hiring panel request. Regenerate or turn off browser AI for the full server path.' },
+        { status: 400 }
+      )
+    }
 
     const review = await runHiringPanelReview(jobDescription, sourceResumeText, draft)
 

@@ -430,11 +430,23 @@ export function TailorWorkspacePage({
           }
         } catch (panelError) {
           console.warn('Hiring panel after browser generation failed:', panelError)
-          toast.message(
+          const message =
             panelError instanceof Error
               ? panelError.message
               : 'Browser tailoring finished, but hiring panel review failed.'
-          )
+          toast.message(message)
+          nextResult = {
+            ...nextResult,
+            hiringPanel: {
+              unanimousApproval: false,
+              aggregateScore: 0,
+              revisionRounds: 0,
+              managers: [],
+              finalVerdict: message,
+              revisionRecommendations: [],
+              reviewFailed: true,
+            },
+          }
         }
 
         setResult(nextResult)

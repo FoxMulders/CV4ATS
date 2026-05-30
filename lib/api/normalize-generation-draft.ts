@@ -1,4 +1,5 @@
 import type { AiGenerationResult } from '@/lib/ai/schemas'
+import { ensureApiSafeGenerationResult } from '@/lib/api/ensure-api-safe-draft'
 import { applyStructuralPreservation } from '@/lib/ai/preserve-and-enrich'
 
 /** Ensures browser/local/server drafts preserve the locked source timeline before review. */
@@ -13,8 +14,11 @@ export function normalizeGenerationDraftForApi(
     }
   }
 
-  return applyStructuralPreservation(sourceResumeText, draft, {
-    jobDescription: undefined,
-    missingKeywords: draft.keywordReport?.missingKeywords,
-  })
+  return ensureApiSafeGenerationResult(
+    applyStructuralPreservation(sourceResumeText, draft, {
+      jobDescription: undefined,
+      missingKeywords: draft.keywordReport?.missingKeywords,
+    }),
+    sourceResumeText
+  )
 }
