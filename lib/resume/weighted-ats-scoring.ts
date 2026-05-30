@@ -212,9 +212,17 @@ function isNearIdenticalProfile(
   )
 }
 
-/** Map raw weighted score into a realistic 75–88 band; reserve 95%+ for near-identical profiles. */
-export function normalizeDisplayScore(rawPercent: number, nearIdenticalProfile: boolean): number {
+/** Map raw weighted score into display range. Baseline uses raw alignment; tailored uses a compressed band. */
+export function normalizeDisplayScore(
+  rawPercent: number,
+  nearIdenticalProfile: boolean,
+  phase: 'baseline' | 'tailored' = 'tailored'
+): number {
   const clampedRaw = Math.max(0, Math.min(100, rawPercent))
+
+  if (phase === 'baseline') {
+    return Math.round(Math.max(DISPLAY_SCORE_FLOOR, Math.min(DISPLAY_SCORE_CEILING, clampedRaw)))
+  }
 
   if (nearIdenticalProfile) {
     return Math.round(
@@ -289,12 +297,13 @@ function scoreTerms(
 
   const rawScore = computeRawPercent(breakdown)
   const nearIdenticalProfile = isNearIdenticalProfile(breakdown, sections)
-  const normalizedScore = normalizeDisplayScore(rawScore, nearIdenticalProfile)
+  const phase = options.phase ?? 'tailored'
+  const normalizedScore = normalizeDisplayScore(rawScore, nearIdenticalProfile, phase)
   const matchScore = applyExperienceScoreFloor(
     normalizedScore,
     rawScore,
     sections.fullText,
-    options.phase ?? 'tailored',
+    phase,
     {
       sourceResumeText: options.sourceResumeText,
       baselineScore: options.baselineScore,
