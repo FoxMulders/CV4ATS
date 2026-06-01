@@ -17,6 +17,7 @@ export function SystemDebugConsole({ variant = 'footer' }: SystemDebugConsolePro
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const logPanelRef = useRef<HTMLPreElement>(null)
+  const isDock = variant === 'dock'
 
   useEffect(() => {
     if (!expanded || !logPanelRef.current) return
@@ -40,26 +41,57 @@ export function SystemDebugConsole({ variant = 'footer' }: SystemDebugConsolePro
     }
   }, [appendLog, logs])
 
+  const logPanel = (
+    <pre
+      ref={logPanelRef}
+      className={cn(
+        'system-debug-console__log',
+        isDock && 'system-debug-console__log--dock'
+      )}
+      aria-label="System debug log output"
+      aria-live="polite"
+    >
+      {logs.length > 0 ? logs.join('\n') : 'Waiting for system events…'}
+    </pre>
+  )
+
   return (
-    <div className={cn(variant === 'footer' && 'border-t border-border/60 pt-4')}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div
+      className={cn(
+        'system-debug-console',
+        isDock ? 'system-debug-console--dock' : 'system-debug-console--footer',
+        variant === 'footer' && 'border-t border-border/60 pt-4'
+      )}
+    >
+      {isDock && expanded ? (
+        <div
+          id="system-debug-console-panel"
+          className="system-debug-console__popover"
+          role="region"
+          aria-label="System debug log stream"
+        >
+          {logPanel}
+        </div>
+      ) : null}
+
+      <div className="system-debug-console__bar">
         <button
           type="button"
           onClick={() => setExpanded((open) => !open)}
-          className="inline-flex items-center gap-2 text-xs font-semibold tracking-wide text-foreground hover:text-brand-gold"
+          className="inline-flex h-full min-w-0 flex-1 items-center gap-2 text-xs font-semibold tracking-wide text-foreground hover:text-brand-gold"
           aria-expanded={expanded}
           aria-controls="system-debug-console-panel"
         >
           <span aria-hidden="true">🛠️</span>
-          <span>[ System Debug Console ]</span>
+          <span className="truncate">[ System Debug Console ]</span>
           {expanded ? (
-            <ChevronUp className="size-3.5" aria-hidden="true" />
+            <ChevronUp className="size-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <ChevronDown className="size-3.5" aria-hidden="true" />
+            <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
           )}
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <span className="text-[11px] text-muted-foreground tabular-nums">{logs.length} entries</span>
           <Button
             type="button"
@@ -74,23 +106,20 @@ export function SystemDebugConsole({ variant = 'footer' }: SystemDebugConsolePro
         </div>
       </div>
 
-      <div
-        id="system-debug-console-panel"
-        className={cn(
-          'overflow-hidden transition-[max-height,opacity] duration-200',
-          expanded ? 'mt-2 opacity-100' : 'max-h-0 opacity-0'
-        )}
-        hidden={!expanded}
-      >
-        <pre
-          ref={logPanelRef}
-          className="max-h-[min(150px,28vh)] overflow-y-auto rounded-md border border-emerald-900/40 bg-[#1a1a1a] p-3 font-mono text-[11px] leading-relaxed text-[#00ff00] shadow-inner"
-          aria-label="System debug log output"
-          aria-live="polite"
+      {!isDock ? (
+        <div
+          id="system-debug-console-panel"
+          className={cn(
+            'system-debug-console__inline-panel',
+            expanded ? 'system-debug-console__inline-panel--open' : 'system-debug-console__inline-panel--closed'
+          )}
+          hidden={!expanded}
+          role="region"
+          aria-label="System debug log stream"
         >
-          {logs.length > 0 ? logs.join('\n') : 'Waiting for system events…'}
-        </pre>
-      </div>
+          {logPanel}
+        </div>
+      ) : null}
     </div>
   )
 }

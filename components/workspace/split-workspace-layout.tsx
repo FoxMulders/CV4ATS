@@ -40,7 +40,7 @@ export function SplitWorkspaceLayout({
           showRightPane && 'max-lg:min-h-0'
         )}
       >
-        <div className="workspace-pane min-h-0 flex-1 pb-14">
+        <div className="workspace-pane min-h-0 flex-1 pb-10">
           <div className="space-y-3 p-4 sm:p-5">{leftPane}</div>
         </div>
       </aside>
@@ -50,7 +50,7 @@ export function SplitWorkspaceLayout({
           aria-label="Live resume preview"
           className="flex min-h-0 flex-col overflow-hidden bg-muted/40"
         >
-          <div className="workspace-pane min-h-0 flex-1 pb-14">{rightPane}</div>
+          <div className="workspace-pane min-h-0 flex-1 pb-10">{rightPane}</div>
         </section>
       ) : null}
     </div>
