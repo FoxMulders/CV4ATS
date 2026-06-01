@@ -1,5 +1,11 @@
 'use client'
 
+/**
+ * Purpose: Global debug log buffer and append/clear API for QA instrumentation.
+ * Upstream dependencies: localStorage (saved resume), window viewport dimensions,
+ * Chrome Language Model probe (`inspectBrowserAi`), AI token config from `@/lib/ai/provider`.
+ */
+
 import {
   createContext,
   useCallback,
@@ -14,10 +20,9 @@ import {
 import { inspectBrowserAi } from '@/lib/ai/browser/chrome-language-model'
 import { AI_GENERATION_MAX_TOKENS } from '@/lib/ai/provider'
 import { describeResumePayloadStats } from '@/lib/debug/resume-payload-stats'
-import { loadSavedResume } from '@/lib/resume/saved-resume'
-import { SAVED_RESUME_STORAGE_KEY } from '@/lib/resume/saved-resume'
+import { loadSavedResume, SAVED_RESUME_STORAGE_KEY } from '@/lib/resume/saved-resume'
 
-type SystemDebugContextValue = {
+export type SystemDebugContextValue = {
   logs: string[]
   appendLog: (message: string) => void
   clearLogs: () => void

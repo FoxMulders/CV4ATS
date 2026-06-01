@@ -34,7 +34,6 @@ import {
   tailoredResumeSchema,
   type AiGenerationResult,
 } from '@/lib/ai/schemas'
-import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import {
   auditCoverLetterCompliance,
   findCoverLetterBannedPhrases,
@@ -78,8 +77,6 @@ async function generateHiringPanelText(params: HiringPanelGenerateParams) {
     `${message} Set HIRING_PANEL_MODEL_ID=gemini-2.5-flash (or gemini-flash-latest) in Vercel and redeploy.`
   )
 }
-
-export const MAX_HIRING_PANEL_REVISION_ROUNDS = 4
 
 export type HiringPanelRunOptions = {
   achievementSupplement?: string
@@ -170,7 +167,7 @@ function tryRecoverRevision(
   }
 }
 
-async function enforceCoverLetterCompliance(
+export async function enforceCoverLetterComplianceForPanel(
   draft: AiGenerationResult,
   jobDescription: string,
   sourceResumeText: string,
@@ -327,27 +324,6 @@ export function buildSessionResult(
   }
 }
 
-function needsAnotherRevisionRound(
-  review: HiringPanelReview,
-  coverLetter: string,
-  revisionRounds: number
-): boolean {
-  if (revisionRounds >= MAX_HIRING_PANEL_REVISION_ROUNDS) return false
-
-  const unanimous = review.managers.every((m) => m.approved)
-  const bannedRemaining = findCoverLetterBannedPhrases(coverLetter).length > 0
-  const hasActionItems = review.revisionRecommendations.length > 0
-
-  return bannedRemaining || hasActionItems || !unanimous
-}
-
-function preserveDraft(
-  draft: AiGenerationResult,
-  sourceResumeText: string
-): AiGenerationResult {
-  return normalizeGenerationDraftForApi(draft, sourceResumeText)
-}
-
 export function buildFailedPanelSession(
   failureReason: string,
   partialCritiques: HiringManagerReview[] = []
@@ -364,111 +340,3 @@ export function buildFailedPanelSession(
   }
 }
 
-export async function runHiringPanelWithRevisions(
-  jobDescription: string,
-  sourceResumeText: string,
-  draft: AiGenerationResult,
-  onProgress?: (label: string) => void | Promise<void>,
-  options: HiringPanelRunOptions = {}
-): Promise<{ aiResult: AiGenerationResult; panel: HiringPanelSessionResult | null }> {
-  let current: AiGenerationResult = draft
-  let revisionRounds = 0
-  let lastReview: HiringPanelReview | null = null
-
-  while (true) {
-    await onProgress?.(
-      revisionRounds === 0
-        ? 'Hiring panel review…'
-        : `Hiring panel review (round ${revisionRounds + 1})…`
-    )
-
-    const { review, partialCritiques, failureReason } = await runHiringPanelReview(
-      jobDescription,
-      sourceResumeText,
-      current
-    )
-    if (!review) {
-      return {
-        aiResult: current,
-        panel:
-          lastReview != null
-            ? buildSessionResult(lastReview, revisionRounds)
-            : buildFailedPanelSession(
-                failureReason ??
-                  'Hiring panel review could not be completed. Regenerate to retry manager feedback.',
-                partialCritiques
-              ),
-      }
-    }
-
-    lastReview = review
-
-    if (!needsAnotherRevisionRound(review, current.coverLetter, revisionRounds)) {
-      current = preserveDraft(
-        await enforceCoverLetterCompliance(
-          current,
-          jobDescription,
-          sourceResumeText,
-          review,
-          options.achievementSupplement
-        ),
-        sourceResumeText
-      )
-      return {
-        aiResult: current,
-        panel: buildSessionResult(review, revisionRounds),
-      }
-    }
-
-    await onProgress?.('Applying all panel improvement suggestions…')
-
-    const revision = await runHiringPanelRevision(
-      jobDescription,
-      sourceResumeText,
-      current,
-      review,
-      options
-    )
-
-    if (!revision?.coverLetter.trim()) {
-      current = preserveDraft(
-        await enforceCoverLetterCompliance(
-          current,
-          jobDescription,
-          sourceResumeText,
-          review,
-          options.achievementSupplement
-        ),
-        sourceResumeText
-      )
-      return {
-        aiResult: current,
-        panel: buildSessionResult(review, revisionRounds),
-      }
-    }
-
-    current = preserveDraft(
-      {
-        ...current,
-        tailoredResume: revision.tailoredResume,
-        coverLetter: revision.coverLetter,
-      },
-      sourceResumeText
-    )
-
-    await onProgress?.('Re-running hiring panel after applying suggestions…')
-
-    current = preserveDraft(
-      await enforceCoverLetterCompliance(
-        current,
-        jobDescription,
-        sourceResumeText,
-        review,
-        options.achievementSupplement
-      ),
-      sourceResumeText
-    )
-
-    revisionRounds += 1
-  }
-}

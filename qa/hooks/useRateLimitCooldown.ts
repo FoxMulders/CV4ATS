@@ -1,8 +1,20 @@
 'use client'
 
+/**
+ * Purpose: Client-side countdown state machine for API rate-limit backoff UI.
+ * Upstream dependencies: window timers; consumed by hiring panel retry controls.
+ */
+
 import { useCallback, useEffect, useState } from 'react'
 
-export function useRateLimitCooldown() {
+export type RateLimitCooldownState = {
+  secondsLeft: number
+  isCoolingDown: boolean
+  startCooldown: (seconds: number) => void
+  clearCooldown: () => void
+}
+
+export function useRateLimitCooldown(): RateLimitCooldownState {
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(0)
 

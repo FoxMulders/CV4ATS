@@ -3,8 +3,8 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 
-import { SystemDebugProvider } from '@/components/debug/system-debug-provider'
-import { SystemDebugDock } from '@/components/layout/system-debug-dock'
+import { SystemDebugProvider } from '@/qa/components/SystemDebugProvider'
+import { SystemDebugDock } from '@/qa/components/SystemDebugDock'
 import { SiteFooter } from '@/components/layout/site-footer'
 import { WORKSPACE_MAIN_CLASS } from '@/components/workspace/split-workspace-layout'
 

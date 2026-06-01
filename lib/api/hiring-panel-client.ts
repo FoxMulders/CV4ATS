@@ -1,11 +1,14 @@
-import { parseGeminiRetrySeconds } from '@/lib/ai/errors'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
-import { ApiRateLimitError, readRetryAfterSeconds } from '@/lib/api/rate-limit-error'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { ensureApiSafeGenerationResult } from '@/lib/api/ensure-api-safe-draft'
 import type { HiringManagerReview, HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 import type { HiringPanelApiErrorBody } from '@/lib/api/hiring-panel-response'
+import {
+  ApiRateLimitError,
+  readRetryAfterSeconds,
+  throwIfGeminiQuotaLimited,
+} from '@/qa/lib/GeminiQuotaInterceptor'
 
 export type HiringPanelReviewRequest = {
   jobDescription: string
@@ -74,20 +77,7 @@ export async function requestHiringPanelReview(
     throw new Error(await parseApiErrorResponse(response, 'Hiring panel review failed'))
   }
 
-  if (response.status === 429) {
-    throw new ApiRateLimitError(
-      readRetryAfterSeconds(response, data),
-      data.failureReason ?? data.error ?? 'Gemini API rate limit exceeded.'
-    )
-  }
-
-  const failureText = `${data.failureReason ?? ''} ${data.error ?? ''}`
-  if (/quota exceeded for metric|resource exhausted|rate limit|too many requests/i.test(failureText)) {
-    throw new ApiRateLimitError(
-      parseGeminiRetrySecondsFromBody(data) ?? readRetryAfterSeconds(response, data),
-      data.failureReason ?? data.error
-    )
-  }
+  throwIfGeminiQuotaLimited(response, data)
 
   if (data.error || data.failureReason) {
     console.error('[Hiring Panel] Review failed:', data.failureReason ?? data.error, {
@@ -117,9 +107,4 @@ export async function requestHiringPanelReview(
     retryAfterSeconds: data.retryAfterSeconds,
     partialCritiques: data.partialCritiques,
   }
-}
-
-function parseGeminiRetrySecondsFromBody(body: HiringPanelApiErrorBody): number | undefined {
-  const corpus = `${body.failureReason ?? ''} ${body.error ?? ''}`
-  return parseGeminiRetrySeconds(corpus)
 }

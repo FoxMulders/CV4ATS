@@ -1,4 +1,4 @@
-import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
+import { runHiringPanelWithRevisions } from '@/qa/lib/IterativePanelLoop'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { KeywordReport } from '@/lib/ai/schemas'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'

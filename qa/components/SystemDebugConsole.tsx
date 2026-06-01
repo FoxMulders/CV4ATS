@@ -1,15 +1,25 @@
 'use client'
 
+/**
+ * Purpose: Maintains layout isolation for real-time logging hooks via a hardlocked 40px bar
+ * and an absolute popover overlay (dock variant) or inline expand panel (footer variant).
+ * Upstream dependencies: `SystemDebugProvider` context, sonner toasts, clipboard API.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { useSystemDebugLogOptional } from '@/components/debug/system-debug-provider'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-type SystemDebugConsoleProps = {
-  variant?: 'footer' | 'dock'
+import { useSystemDebugLogOptional } from '@/qa/components/SystemDebugProvider'
+import '@/qa/styles/system-debug.css'
+
+export type SystemDebugConsoleVariant = 'footer' | 'dock'
+
+export type SystemDebugConsoleProps = {
+  variant?: SystemDebugConsoleVariant
 }
 
 export function SystemDebugConsole({ variant = 'footer' }: SystemDebugConsoleProps) {

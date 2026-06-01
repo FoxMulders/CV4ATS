@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
+import { runHiringPanelWithRevisions } from '@/qa/lib/IterativePanelLoop'
 import { isRateLimitOrQuotaError, parseGeminiRetrySeconds } from '@/lib/ai/errors'
 import { applyKeywordImprovementsToDraft } from '@/lib/api/apply-keyword-improvements'
 import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-report'

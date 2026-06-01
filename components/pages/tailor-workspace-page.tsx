@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 import { PremiumUnlockBanner } from '@/components/billing/premium-unlock-banner'
 import { SquareCheckoutModal } from '@/components/billing/square-checkout-modal'
-import { useSystemDebugLog } from '@/components/debug/system-debug-provider'
+import { useSystemDebugLog } from '@/qa/components/SystemDebugProvider'
 import { SiteHeader } from '@/components/layout/site-header'
 import { TrustBanner } from '@/components/layout/trust-banner'
 import { SeoFaqSection } from '@/components/marketing/seo-faq-section'
@@ -70,8 +70,8 @@ import { requestPanelRetailor } from '@/lib/api/panel-retailor-client'
 import { shouldOfferPanelFeedbackRetailor } from '@/lib/ai/panel-feedback-retailor'
 import { PANEL_PASS_2_LOADING_LABEL } from '@/lib/ai/generation-integrity'
 import { requestHiringPanelReview, type HiringPanelReviewResponse } from '@/lib/api/hiring-panel-client'
-import { isApiRateLimitError } from '@/lib/api/rate-limit-error'
-import { useRateLimitCooldown } from '@/hooks/use-rate-limit-cooldown'
+import { isApiRateLimitError } from '@/qa/lib/GeminiQuotaInterceptor'
+import { useRateLimitCooldown } from '@/qa/hooks/useRateLimitCooldown'
 
 type GenerationResultWithMeta = GenerationResult & {
   refinementPasses?: number
