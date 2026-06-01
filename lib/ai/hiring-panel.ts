@@ -1,7 +1,12 @@
 import { generateText, NoObjectGeneratedError, Output } from 'ai'
 
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
-import { isGeminiModelNotFoundError, shouldFallbackToNextGeminiModel, unwrapAiError } from '@/lib/ai/errors'
+import {
+  isGeminiModelNotFoundError,
+  isRateLimitOrQuotaError,
+  shouldFallbackToNextGeminiModel,
+  unwrapAiError,
+} from '@/lib/ai/errors'
 import {
   createGeminiModel,
   geminiProviderOptions,
@@ -55,7 +60,9 @@ async function generateHiringPanelText(params: HiringPanelGenerateParams) {
     } catch (error) {
       lastError = error
       if (shouldFallbackToNextGeminiModel(error)) {
-        const reason = isGeminiModelNotFoundError(error) ? 'unavailable' : 'quota blocked on free tier'
+        const reason = isGeminiModelNotFoundError(error)
+          ? 'unavailable'
+          : 'rate limited or quota blocked on free tier'
         console.warn(`[Hiring Panel] Model "${modelId}" ${reason} — trying next fallback.`)
         continue
       }
@@ -208,6 +215,10 @@ export async function runHiringPanelReview(
       })
       return { review: hiringPanelReviewSchema.parse(response.output), partialCritiques: [] }
     } catch (error) {
+      if (isRateLimitOrQuotaError(error)) {
+        throw error
+      }
+
       const recovered = tryRecoverReview(error)
       if (recovered) {
         return { review: recovered, partialCritiques: [] }

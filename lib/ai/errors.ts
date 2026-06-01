@@ -18,16 +18,22 @@ export function isVercelAiGatewayError(error: unknown): boolean {
 }
 
 export function isRateLimitOrQuotaError(error: unknown): boolean {
-  if (isVercelAiGatewayError(error)) {
-    return true
-  }
+  const candidates = [error, unwrapAiError(error)]
 
-  if (APICallError.isInstance(error)) {
-    return error.statusCode === 429 || error.statusCode === 503
-  }
+  for (const candidate of candidates) {
+    if (isVercelAiGatewayError(candidate)) {
+      return true
+    }
 
-  if (error instanceof Error) {
-    return RATE_LIMIT_PATTERN.test(error.message)
+    if (APICallError.isInstance(candidate)) {
+      if (candidate.statusCode === 429 || candidate.statusCode === 503) {
+        return true
+      }
+    }
+
+    if (candidate instanceof Error && RATE_LIMIT_PATTERN.test(candidate.message)) {
+      return true
+    }
   }
 
   return false
@@ -98,8 +104,33 @@ export function parseGeminiRetrySeconds(message: string): number | undefined {
   return undefined
 }
 
+/** Per-model RPM/RPD cap hit — try another Flash model before failing the panel. */
+export function isGeminiModelRateLimitedError(error: unknown): boolean {
+  const root = unwrapAiError(error)
+  const message =
+    root instanceof Error
+      ? root.message
+      : error instanceof Error
+        ? error.message
+        : String(root ?? error ?? '')
+
+  return (
+    /quota exceeded for metric/i.test(message) ||
+    /resource exhausted/i.test(message) ||
+    (/rate limit|too many requests/i.test(message) && /model:\s*gemini/i.test(message))
+  )
+}
+
 export function shouldFallbackToNextGeminiModel(error: unknown): boolean {
-  return isGeminiModelNotFoundError(error) || isGeminiModelQuotaBlockedError(error)
+  return (
+    isGeminiModelNotFoundError(error) ||
+    isGeminiModelQuotaBlockedError(error) ||
+    isGeminiModelRateLimitedError(error)
+  )
+}
+
+export function isHiringPanelRateLimitReason(reason: string): boolean {
+  return RATE_LIMIT_PATTERN.test(reason)
 }
 
 /** Short, user-facing hiring panel failure text (avoid raw API quota dumps). */
@@ -111,9 +142,10 @@ export function formatHiringPanelFailureReason(reason: string): string {
     return 'Gemini free tier does not include gemini-2.5-pro on this API key. ATS4CV uses Flash models for the hiring panel instead — regenerate to retry.'
   }
 
-  if (/quota exceeded|resource exhausted|free_tier/i.test(trimmed)) {
-    if (/please retry in/i.test(trimmed)) {
-      return 'Gemini API quota temporarily exceeded. Wait about one minute, then regenerate to retry the hiring panel. Your tailored resume is still ready.'
+  if (/quota exceeded|resource exhausted|free_tier|you exceeded your current quota/i.test(trimmed)) {
+    const retrySeconds = parseGeminiRetrySeconds(trimmed)
+    if (retrySeconds != null) {
+      return `Gemini API quota temporarily exceeded. Retry the hiring panel in about ${retrySeconds} second${retrySeconds === 1 ? '' : 's'}. Your tailored resume is still ready.`
     }
     return 'Gemini API quota exceeded for cloud hiring panel review. Your tailored resume is still available — retry in about a minute.'
   }

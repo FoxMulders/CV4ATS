@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2, Users, XCircle } from 'lucide-react'
 
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
+import { formatHiringPanelFailureReason } from '@/lib/ai/errors'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,7 @@ interface HiringPanelReviewPanelProps {
   onDeEscalateRetailor?: () => void
   deEscalateLoading?: boolean
   hasExperienceGaps?: boolean
+  rateLimitSecondsLeft?: number
 }
 
 export function HiringPanelReviewPanel({
@@ -23,15 +25,22 @@ export function HiringPanelReviewPanel({
   onDeEscalateRetailor,
   deEscalateLoading = false,
   hasExperienceGaps = false,
+  rateLimitSecondsLeft = 0,
 }: HiringPanelReviewPanelProps) {
   if (panel.reviewFailed) {
+    const message = formatHiringPanelFailureReason(panel.failureReason ?? panel.finalVerdict ?? '')
     return (
       <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm leading-relaxed text-amber-950 dark:text-amber-100">
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <div>
             <p className="font-semibold">Hiring panel review unavailable</p>
-            <p className="mt-1">{panel.failureReason ?? panel.finalVerdict}</p>
+            <p className="mt-1">{message}</p>
+            {rateLimitSecondsLeft > 0 ? (
+              <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-200">
+                Retry available in {rateLimitSecondsLeft}s
+              </p>
+            ) : null}
             {panel.managers.length > 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 Partial manager feedback ({panel.managers.length}) was recovered before the review failed.

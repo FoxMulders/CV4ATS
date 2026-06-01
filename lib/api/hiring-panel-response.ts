@@ -1,5 +1,5 @@
 import type { HiringManagerReview, HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
-import { formatHiringPanelFailureReason } from '@/lib/ai/errors'
+import { formatHiringPanelFailureReason, parseGeminiRetrySeconds } from '@/lib/ai/errors'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 
 export type HiringPanelApiErrorBody = {
@@ -20,11 +20,14 @@ export function buildHiringPanelFailureResponse(
   draft: AiGenerationResult,
   partialCritiques: HiringManagerReview[] = []
 ): HiringPanelApiErrorBody {
-  const failureReason = formatHiringPanelFailureReason(reason.trim() || 'timeout or parsing failed')
+  const trimmedReason = reason.trim() || 'timeout or parsing failed'
+  const failureReason = formatHiringPanelFailureReason(trimmedReason)
+  const retryAfterSeconds = parseGeminiRetrySeconds(trimmedReason)
 
   return {
     error: 'timeout or parsing failed',
     failureReason,
+    ...(retryAfterSeconds != null ? { retryAfterSeconds } : {}),
     partialCritiques,
     hiringPanel: {
       unanimousApproval: false,

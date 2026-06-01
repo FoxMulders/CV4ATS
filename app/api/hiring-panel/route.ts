@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { buildFailedPanelSession, runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
+import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
 import { isRateLimitOrQuotaError, parseGeminiRetrySeconds } from '@/lib/ai/errors'
 import { applyKeywordImprovementsToDraft } from '@/lib/api/apply-keyword-improvements'
 import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-report'
@@ -179,9 +179,14 @@ export async function POST(request: Request) {
         panelRun.panel?.finalVerdict ??
         'Hiring panel review could not be completed.'
 
+      const failureResponse = buildHiringPanelFailureResponse(
+        failureReason,
+        panelRun.aiResult,
+        panelRun.panel?.managers ?? []
+      )
+
       return NextResponse.json({
-        ...buildHiringPanelFailureResponse(failureReason, panelRun.aiResult, panelRun.panel?.managers ?? []),
-        hiringPanel: panelRun.panel ?? buildFailedPanelSession(failureReason),
+        ...failureResponse,
         tailoredResume: panelRun.aiResult.tailoredResume,
         coverLetter: panelRun.aiResult.coverLetter,
         keywordReport: draft.keywordReport,

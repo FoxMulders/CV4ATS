@@ -393,6 +393,17 @@ export function TailorWorkspacePage({
     return true
   }
 
+  function handleHiringPanelQuotaCooldown(panelResponse: HiringPanelReviewResponse) {
+    if (!panelResponse.retryAfterSeconds || panelResponse.retryAfterSeconds <= 0) return
+    panelRateLimitCooldown.startCooldown(panelResponse.retryAfterSeconds)
+    appendLog(
+      `LOG: [Hiring Panel] Rate limit — retry available in ${panelResponse.retryAfterSeconds}s`
+    )
+    toast.message(
+      `Gemini rate limit reached. Retry available in ${panelResponse.retryAfterSeconds} second${panelResponse.retryAfterSeconds === 1 ? '' : 's'}.`
+    )
+  }
+
   function hiringPanelRetryButtonLabel(defaultLabel: string): string {
     if (panelReviewLoading) return 'Running cloud panel review…'
     if (panelRateLimitCooldown.isCoolingDown) {
@@ -462,7 +473,10 @@ export function TailorWorkspacePage({
           panelResponse.failureReason ?? panelResponse.error,
           panelResponse.partialCritiques ?? []
         )
-        toast.message('Hiring panel could not complete. Details are in the browser console.')
+        handleHiringPanelQuotaCooldown(panelResponse)
+        if (!panelResponse.retryAfterSeconds) {
+          toast.message('Hiring panel could not complete. Use Retry hiring panel when ready.')
+        }
       } else {
         toast.success(`Hiring panel complete — ${panelResponse.hiringPanel.aggregateScore}% readiness`)
       }
@@ -708,7 +722,10 @@ export function TailorWorkspacePage({
                 panelResponse.failureReason ?? panelResponse.error,
                 panelResponse.partialCritiques ?? []
               )
-              toast.message('Browser tailoring finished, but the hiring panel could not complete. See console for details.')
+              handleHiringPanelQuotaCooldown(panelResponse)
+              if (!panelResponse.retryAfterSeconds) {
+                toast.message('Browser tailoring finished, but the hiring panel could not complete.')
+              }
             }
           } else {
             nextResult = {
@@ -1149,6 +1166,11 @@ export function TailorWorkspacePage({
                 <div className="space-y-3">
                   <HiringPanelReviewPanel
                     panel={result.hiringPanel}
+                    rateLimitSecondsLeft={
+                      result.hiringPanel.reviewFailed && panelRateLimitCooldown.isCoolingDown
+                        ? panelRateLimitCooldown.secondsLeft
+                        : 0
+                    }
                     onAddMetrics={openAchievementIntakeFromPanel}
                     onVerifyExperience={() => openPanelExperienceIntake(result.hiringPanel!)}
                     onDeEscalateRetailor={

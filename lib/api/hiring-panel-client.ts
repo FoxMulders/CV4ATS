@@ -23,6 +23,7 @@ export type HiringPanelReviewResponse = {
   incorporatedKeywords?: string[]
   error?: string
   failureReason?: string
+  retryAfterSeconds?: number
   partialCritiques?: HiringManagerReview[]
 }
 
@@ -113,6 +114,7 @@ export async function requestHiringPanelReview(
     incorporatedKeywords: data.incorporatedKeywords,
     error: data.error,
     failureReason: data.failureReason,
+    retryAfterSeconds: data.retryAfterSeconds,
     partialCritiques: data.partialCritiques,
   }
 }
