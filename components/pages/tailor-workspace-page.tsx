@@ -69,6 +69,8 @@ import { requestPanelRetailor } from '@/lib/api/panel-retailor-client'
 import { shouldOfferPanelFeedbackRetailor } from '@/lib/ai/panel-feedback-retailor'
 import { PANEL_PASS_2_LOADING_LABEL } from '@/lib/ai/generation-integrity'
 import { requestHiringPanelReview, type HiringPanelReviewResponse } from '@/lib/api/hiring-panel-client'
+import { isApiRateLimitError } from '@/lib/api/rate-limit-error'
+import { useRateLimitCooldown } from '@/hooks/use-rate-limit-cooldown'
 
 type GenerationResultWithMeta = GenerationResult & {
   refinementPasses?: number
@@ -148,6 +150,7 @@ export function TailorWorkspacePage({
   const [panelReviseLoading, setPanelReviseLoading] = useState(false)
   const [panelRetailorLoading, setPanelRetailorLoading] = useState(false)
   const [panelReviewLoading, setPanelReviewLoading] = useState(false)
+  const panelRateLimitCooldown = useRateLimitCooldown()
   const { appendLog, clearLogs } = useSystemDebugLog()
   const lastLoggedJobRef = useRef('')
   const lastLoggedResumeRef = useRef('')
@@ -378,6 +381,29 @@ export function TailorWorkspacePage({
     }
   }
 
+  function handleHiringPanelRateLimit(error: unknown): boolean {
+    if (!isApiRateLimitError(error)) return false
+    panelRateLimitCooldown.startCooldown(error.retryAfterSeconds)
+    appendLog(
+      `LOG: [Hiring Panel] Rate limit — retry available in ${error.retryAfterSeconds}s`
+    )
+    toast.message(
+      `Gemini rate limit reached. Retry available in ${error.retryAfterSeconds} second${error.retryAfterSeconds === 1 ? '' : 's'}.`
+    )
+    return true
+  }
+
+  function hiringPanelRetryButtonLabel(defaultLabel: string): string {
+    if (panelReviewLoading) return 'Running cloud panel review…'
+    if (panelRateLimitCooldown.isCoolingDown) {
+      return `⏳ Rate Limit cooling down... Retry available in ${panelRateLimitCooldown.secondsLeft}s`
+    }
+    return defaultLabel
+  }
+
+  const hiringPanelRetryDisabled =
+    panelReviewLoading || panelRateLimitCooldown.isCoolingDown
+
   async function runCloudHiringPanelReview(
     draft: GenerationResult,
     sourceResumeText: string
@@ -389,6 +415,9 @@ export function TailorWorkspacePage({
         draft,
       })
     } catch (panelError) {
+      if (isApiRateLimitError(panelError)) {
+        throw panelError
+      }
       console.error('[Hiring Panel] Cloud review request failed:', panelError)
       return null
     }
@@ -437,6 +466,9 @@ export function TailorWorkspacePage({
       } else {
         toast.success(`Hiring panel complete — ${panelResponse.hiringPanel.aggregateScore}% readiness`)
       }
+    } catch (error) {
+      if (handleHiringPanelRateLimit(error)) return
+      toast.error(error instanceof Error ? error.message : 'Hiring panel review failed.')
     } finally {
       setPanelReviewLoading(false)
     }
@@ -694,7 +726,24 @@ export function TailorWorkspacePage({
             }
           }
         } catch (panelError) {
-          console.error('[Hiring Panel] Browser tailoring panel step failed:', panelError)
+          if (handleHiringPanelRateLimit(panelError)) {
+            nextResult = {
+              ...nextResult,
+              hiringPanel: {
+                unanimousApproval: false,
+                aggregateScore: 0,
+                revisionRounds: 0,
+                managers: [],
+                finalVerdict: 'Hiring panel rate limited — retry when cooldown completes.',
+                revisionRecommendations: [],
+                reviewFailed: true,
+                failureReason: isApiRateLimitError(panelError)
+                  ? `Gemini rate limit — retry in ${panelError.retryAfterSeconds}s`
+                  : 'Cloud hiring panel rate limited.',
+              },
+            }
+          } else {
+            console.error('[Hiring Panel] Browser tailoring panel step failed:', panelError)
           nextResult = {
             ...nextResult,
             hiringPanel: {
@@ -719,6 +768,7 @@ export function TailorWorkspacePage({
               ? panelError.message
               : 'Browser tailoring finished, but hiring panel review failed.'
           )
+          }
         }
 
         setResult(nextResult)
@@ -1114,10 +1164,10 @@ export function TailorWorkspacePage({
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={panelReviewLoading}
+                      disabled={hiringPanelRetryDisabled}
                       onClick={() => void handleRetryHiringPanelReview()}
                     >
-                      {panelReviewLoading ? 'Running cloud panel review…' : 'Retry hiring panel (cloud)'}
+                      {hiringPanelRetryButtonLabel('Retry hiring panel (cloud)')}
                     </Button>
                   ) : null}
                 </div>
@@ -1132,10 +1182,10 @@ export function TailorWorkspacePage({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={panelReviewLoading}
+                    disabled={hiringPanelRetryDisabled}
                     onClick={() => void handleRetryHiringPanelReview()}
                   >
-                    {panelReviewLoading ? 'Running cloud panel review…' : 'Run hiring panel review (cloud)'}
+                    {hiringPanelRetryButtonLabel('Run hiring panel review (cloud)')}
                   </Button>
                 </div>
               ) : (

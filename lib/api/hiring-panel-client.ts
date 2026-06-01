@@ -1,4 +1,6 @@
+import { parseGeminiRetrySeconds } from '@/lib/ai/errors'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
+import { ApiRateLimitError, readRetryAfterSeconds } from '@/lib/api/rate-limit-error'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { ensureApiSafeGenerationResult } from '@/lib/api/ensure-api-safe-draft'
 import type { HiringManagerReview, HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
@@ -65,7 +67,25 @@ export async function requestHiringPanelReview(
     data = (await response.json()) as HiringPanelReviewResponse & HiringPanelApiErrorBody
   } catch (parseError) {
     console.error('[Hiring Panel] Failed to parse API response JSON:', parseError)
+    if (response.status === 429) {
+      throw new ApiRateLimitError(readRetryAfterSeconds(response))
+    }
     throw new Error(await parseApiErrorResponse(response, 'Hiring panel review failed'))
+  }
+
+  if (response.status === 429) {
+    throw new ApiRateLimitError(
+      readRetryAfterSeconds(response, data),
+      data.failureReason ?? data.error ?? 'Gemini API rate limit exceeded.'
+    )
+  }
+
+  const failureText = `${data.failureReason ?? ''} ${data.error ?? ''}`
+  if (/quota exceeded for metric|resource exhausted|rate limit|too many requests/i.test(failureText)) {
+    throw new ApiRateLimitError(
+      parseGeminiRetrySecondsFromBody(data) ?? readRetryAfterSeconds(response, data),
+      data.failureReason ?? data.error
+    )
   }
 
   if (data.error || data.failureReason) {
@@ -95,4 +115,9 @@ export async function requestHiringPanelReview(
     failureReason: data.failureReason,
     partialCritiques: data.partialCritiques,
   }
+}
+
+function parseGeminiRetrySecondsFromBody(body: HiringPanelApiErrorBody): number | undefined {
+  const corpus = `${body.failureReason ?? ''} ${body.error ?? ''}`
+  return parseGeminiRetrySeconds(corpus)
 }

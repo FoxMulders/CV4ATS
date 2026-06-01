@@ -77,6 +77,27 @@ export function isGeminiModelQuotaBlockedError(error: unknown): boolean {
   )
 }
 
+/** Parse "Please retry in 42.5s" style messages from Gemini quota errors. */
+export function parseGeminiRetrySeconds(message: string): number | undefined {
+  const retryMatch = message.match(/retry in ([\d.]+)\s*s/i)
+  if (retryMatch?.[1]) {
+    const seconds = Number(retryMatch[1])
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return Math.ceil(seconds)
+    }
+  }
+
+  const quotaMatch = message.match(/Quota exceeded for metric[^.]*?retry in ([\d.]+)\s*s/i)
+  if (quotaMatch?.[1]) {
+    const seconds = Number(quotaMatch[1])
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return Math.ceil(seconds)
+    }
+  }
+
+  return undefined
+}
+
 export function shouldFallbackToNextGeminiModel(error: unknown): boolean {
   return isGeminiModelNotFoundError(error) || isGeminiModelQuotaBlockedError(error)
 }

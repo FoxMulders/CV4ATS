@@ -5,6 +5,7 @@ import type { AiGenerationResult } from '@/lib/ai/schemas'
 export type HiringPanelApiErrorBody = {
   error: string
   failureReason?: string
+  retryAfterSeconds?: number
   partialCritiques: HiringManagerReview[]
   hiringPanel?: HiringPanelSessionResult
   tailoredResume?: AiGenerationResult['tailoredResume']

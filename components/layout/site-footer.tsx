@@ -2,8 +2,6 @@ import Link from 'next/link'
 
 import { ShieldCheck } from 'lucide-react'
 
-import { SystemDebugConsole } from '@/components/layout/system-debug-console'
-
 export function SiteFooter() {
   return (
     <footer className="mt-auto shrink-0 border-t border-border/80 bg-muted/40">
@@ -31,7 +29,6 @@ export function SiteFooter() {
           <ShieldCheck className="size-3.5 shrink-0 text-brand-gold" aria-hidden="true" />
           <span>Processed in memory · Never stored · No account required</span>
         </div>
-        <SystemDebugConsole />
       </div>
     </footer>
   )

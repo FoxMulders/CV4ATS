@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { buildFailedPanelSession, runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
+import { isRateLimitOrQuotaError, parseGeminiRetrySeconds } from '@/lib/ai/errors'
 import { applyKeywordImprovementsToDraft } from '@/lib/api/apply-keyword-improvements'
 import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-report'
 import {
@@ -214,6 +215,13 @@ export async function POST(request: Request) {
       partialCritiques: [],
     })
   } catch (error) {
+    if (isRateLimitOrQuotaError(error)) {
+      const message = error instanceof Error ? error.message : String(error)
+      const retryAfterSeconds = parseGeminiRetrySeconds(message) ?? 60
+      console.error('Hiring panel rate limit:', message)
+      return rateLimitExceededResponse(retryAfterSeconds)
+    }
+
     const failureReason = safeErrorMessage(error, 'Hiring panel review failed.')
     console.error('Hiring panel error:', error)
 

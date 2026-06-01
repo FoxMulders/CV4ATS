@@ -207,47 +207,63 @@ html.app-viewport-lock {
   background-color: rgba(255, 255, 255, 0.18);
 }
 
-/* Fixed debug dock — overlays workspace; bar height never grows with log count */
+/* Fixed debug dock — 40px bar only; log terminal floats above as absolute overlay */
 .system-debug-dock {
   position: fixed;
   inset-inline: 0;
   bottom: 0;
-  z-index: 60;
-  height: var(--debug-dock-height, 40px);
-  max-height: var(--debug-dock-height, 40px);
+  z-index: 9998;
+  height: 40px !important;
+  max-height: 40px !important;
+  min-height: 40px !important;
+  overflow: visible !important;
   border-top: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
   background: color-mix(in oklch, var(--muted) 92%, transparent);
   backdrop-filter: blur(10px);
   box-shadow: 0 -4px 24px oklch(0.24 0.04 260 / 0.08);
+  pointer-events: none;
+}
+
+.system-debug-dock__inner {
+  position: relative;
+  height: 40px !important;
+  max-height: 40px !important;
+  min-height: 40px !important;
+  overflow: visible !important;
 }
 
 .system-debug-console--dock {
   position: relative;
-  height: var(--debug-dock-height, 40px);
-  max-height: var(--debug-dock-height, 40px);
+  height: 40px !important;
+  max-height: 40px !important;
+  min-height: 40px !important;
+  overflow: visible !important;
 }
 
 .system-debug-console__bar {
   display: flex;
-  height: 40px;
-  min-height: 40px;
-  max-height: 40px;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
 .system-debug-console__popover {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 100%;
-  z-index: 1;
-  margin-bottom: 0.25rem;
-  max-height: 200px;
-  overflow: hidden;
-  border-radius: 0.375rem;
+  position: absolute !important;
+  bottom: 40px !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 200px !important;
+  max-height: 200px !important;
+  overflow: hidden !important;
+  z-index: 9999 !important;
+  margin-bottom: 0 !important;
+  border-radius: 0.375rem 0.375rem 0 0;
   border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  border-bottom: 0;
   background: color-mix(in oklch, var(--muted) 96%, transparent);
   box-shadow: 0 -8px 24px oklch(0.24 0.04 260 / 0.12);
   pointer-events: auto;
@@ -289,8 +305,9 @@ html.app-viewport-lock {
 }
 
 .system-debug-console__log--dock {
-  max-height: 200px;
-  height: 200px;
+  height: 200px !important;
+  max-height: 200px !important;
+  overflow-y: scroll !important;
   border: 0;
   border-radius: 0;
   box-shadow: none;
