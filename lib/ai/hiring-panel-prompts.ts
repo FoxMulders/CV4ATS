@@ -2,6 +2,8 @@ import {
   COVER_LETTER_BANNED_PHRASES,
   RESUME_STYLISTIC_BLACKLIST,
 } from '@/lib/ai/prompts'
+import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
+import { PERSONAL_PROJECT_PRESERVATION_DIRECTIVE } from '@/lib/ai/personal-projects-strategy'
 import {
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_RESUME_TEXT_LENGTH,
@@ -70,8 +72,9 @@ Mandatory revision rules:
 2. Read EVERY dissenting manager comment and fix the exact problem cited (cover letter paragraph, missing JD mandate, vague bullet, banned cliché, missing metric, etc.).
 3. Replace ALL detected banned phrases listed in the user prompt. Do not paraphrase them slightly — rewrite the surrounding sentence with fresh, specific language grounded in the source resume.
 4. Do not invent employers, dates, metrics, or credentials absent from the source resume or user supplement.
-5. Cover letter: name the target role/team from the JD in paragraph 1; cite at least 2 JD-specific responsibilities; 3–4 body paragraphs; quantified proof when supported; professional closing with candidate name.
-6. Resume: Action + Scope + Business Impact bullets; preserve contact info and factual employers.
+5. ${ANTI_FABRICATION_DIRECTIVE}
+6. Cover letter: name the target role/team from the JD in paragraph 1; cite at least 2 JD-specific responsibilities; 3–4 body paragraphs; quantified proof when supported; professional closing with candidate name.
+7. Resume: Action + Scope + Business Impact bullets; preserve contact info and factual employers. When a Down-Tailoring addendum is present, down-level leadership verbs to execution/support framing without deleting factual history. ${PERSONAL_PROJECT_PRESERVATION_DIRECTIVE}
 
 Never use these banned cover letter patterns:
 ${[...COVER_LETTER_BANNED_PHRASES, ...HIRING_PANEL_COVER_LETTER_BANNED].map((p) => `- "${p}"`).join('\n')}
@@ -108,7 +111,11 @@ export function buildHiringPanelRevisionPrompt(
   sourceResumeText: string,
   draft: AiGenerationResult,
   review: HiringPanelReview,
-  options: { achievementSupplement?: string; bannedPhrasesInLetter?: string[] } = {}
+  options: {
+    achievementSupplement?: string
+    bannedPhrasesInLetter?: string[]
+    panelFeedbackAddendum?: string
+  } = {}
 ): string {
   const dissent = review.managers.filter((m) => !m.approved)
   const dissentBlock = dissent
@@ -118,13 +125,16 @@ export function buildHiringPanelRevisionPrompt(
   const supplementBlock = options.achievementSupplement?.trim()
     ? `\nUSER-VERIFIED CONTEXT (ground truth — metrics and/or panel-confirmed experience; weave into bullets and cover letter):\n${options.achievementSupplement.trim()}\n`
     : ''
+  const panelFeedbackBlock = options.panelFeedbackAddendum?.trim()
+    ? `\n${options.panelFeedbackAddendum.trim()}\n`
+    : ''
 
   return `JOB DESCRIPTION:
 ${truncate(jobDescription.trim(), MAX_JOB_DESCRIPTION_LENGTH)}
 
 SOURCE RESUME (ground truth):
 ${truncate(sourceResumeText.trim(), MAX_RESUME_TEXT_LENGTH)}
-${supplementBlock}
+${supplementBlock}${panelFeedbackBlock}
 CURRENT TAILORED RESUME:
 ${truncate(serializeTailoredResume(draft.tailoredResume), MAX_RESUME_TEXT_LENGTH)}
 

@@ -8,6 +8,12 @@ import {
   DUAL_FILTER_MERGE_DIRECTIVE,
   HUMAN_RECRUITER_REVIEW_DIRECTIVE,
 } from '@/lib/ai/ats-human-rules'
+import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
+import {
+  COVER_LETTER_PERSONAL_PROJECTS_ANCHOR_DIRECTIVE,
+  PERSONAL_PROJECT_PRESERVATION_DIRECTIVE,
+  buildPersonalProjectsPromptAddendum,
+} from '@/lib/ai/personal-projects-strategy'
 
 /** Banned cover letter phrases — AI clichés and repetitive openers. */
 export const COVER_LETTER_BANNED_PHRASES = [
@@ -169,7 +175,8 @@ Transform passive duties into active, metric-or-scope-driven ownership:
 - When the source resume includes personal, freelance, or side projects, treat them with the same executive rigor as corporate roles.
 - Frame under a role title such as **Product Delivery & Technical Innovation** (or the closest truthful title from the source).
 - Highlight full-stack architectures, AI integration, end-to-end product ownership, and shipped outcomes — not hobbyist language.
-- Use the same bullet standards: Action + Scope + Business Impact, twin-auditor compliance, diversified mechanics.`
+- Use the same bullet standards: Action + Scope + Business Impact, twin-auditor compliance, diversified mechanics.
+- **Preservation whitelist:** Never omit or compress personal project entries — see Personal AI Projects preservation directive in SYSTEM_PROMPT.`
 
 /** Hook-first resume narrative engine — summary + accomplishment bullets. */
 export const RESUME_NARRATIVE_DIRECTIVE = `## Resume Narrative Engine — hook-first summary & impact bullets (mandatory)
@@ -263,6 +270,9 @@ Engineer every cover letter so that **re-submitting the same resume and job desc
 - Do not attribute a project, system, or application built at Employer A to Employer B — cross-contamination fails hiring panel review.
 - Before output, verify each cover letter proof point against the resume: company, role, and timeframe must align.
 
+### 8. Personal projects anchor (when source includes personal AI projects)
+${COVER_LETTER_PERSONAL_PROJECTS_ANCHOR_DIRECTIVE}
+
 ### 10. Tone, style, and format
 - Elite, confident, execution-oriented — an authoritative peer addressing the hiring team.
 - Crisp, scannable paragraphs (typically 3–4 body paragraphs); avoid dense walls of text.
@@ -321,6 +331,8 @@ export const SYSTEM_PROMPT = `You are an expert Executive Resume Writer speciali
 
 Your job is to tailor a candidate's resume for a specific job description and produce a keyword match report plus a cover letter.
 
+${ANTI_FABRICATION_DIRECTIVE}
+
 ${ANTI_COPY_CONSTRAINT}
 
 ${SEMANTIC_MATCHING_DIRECTIVE}
@@ -340,6 +352,8 @@ ${RESUME_NARRATIVE_DIRECTIVE}
 ${COVER_LETTER_ENGINE_DIRECTIVE}
 
 ${GENERATION_HYGIENE_DIRECTIVE}
+
+${PERSONAL_PROJECT_PRESERVATION_DIRECTIVE}
 
 ## Voice & tone
 - Write for a seasoned technical executive: confident, concise, and outcome-driven.
@@ -394,9 +408,10 @@ Apply the **Resume Narrative Engine** (impact-first, hook-first) to every rewrit
 - Connect engineering delivery to business outcomes — not bare tool names.
 
 **Personal / side projects / freelance / product builds** (when present in source):
+- **Whitelist:** Never drop or compress — output in \`projects[]\` with full bullets; see preservation directive above.
 - Reframe with executive rigor under titles like Product Delivery & Technical Innovation when truthful.
 - Bullets must highlight full-stack architecture, AI integration, secure data pipelines, and end-to-end product ownership.
-- Same Action + Scope + Business Impact and twin-auditor standards as corporate roles — no hobbyist tone.
+- When the target role is foundational/coordinator-level and career history exceeds JD experience requirements, position personal projects as the candidate's **current focus** and down-level corporate history verbs — see foundational-role reframing addendum when provided.
 
 **General rule:** If a checklist term fits a role's historical context, that role's bullets are the primary injection target. Spread terms across 2-3 roles when multiple apply — never repeat the same term in adjacent bullets.
 
@@ -415,12 +430,12 @@ Integration rules:
 - Single tool names and standard methodology labels (Kanban, Jira, Agile) may match verbatim when truthful.
 - Use lemma variants naturally (manage/managed/managing, automate/automation/automated) — do not repeat the same term in adjacent bullets.
 - Never invent tools, certifications, employers, titles, dates, or achievements not grounded in the source resume.
-- **Certifications are immutable** — copy only credentials already listed in the source resume CERTIFICATIONS section. If the source has no certifications section or it is empty, set certifications to []. Never add credentials because the job description mentions Agile, Scrum, ITIL, PMP, or similar requirements.
+- **Certifications and education are immutable** — copy only credentials and degrees already listed in the source resume. If the source has no certifications section or it is empty, set certifications to []. If the source has no education section, set education to []. Never add PMP Coursework, Lean Principles, in-progress credentials, or JD-required certs unless verbatim in the source. See ANTI-FABRICATION directive above.
 
 ## ATS formatting (mandatory)
 Rebuild every resume for ATS parsing and human hiring managers:
 
-1. **Structure** — Single-column layout with standard section headers only: PROFESSIONAL SUMMARY, SKILLS, WORK EXPERIENCE, EDUCATION, CERTIFICATIONS. Reverse-chronological work experience. No tables, columns, text boxes, or graphics.
+1. **Structure** — Single-column layout with standard section headers only: PROFESSIONAL SUMMARY, SKILLS, WORK EXPERIENCE, PERSONAL AI PROJECTS (when source includes personal/side/product-innovation projects), EDUCATION, CERTIFICATIONS. Reverse-chronological work experience. No tables, columns, text boxes, or graphics.
 
 2. **Bullets & characters** — Impact-first accomplishment bullets with rotated high-velocity verbs. No passive openers (Managed, Directed, Oversaw, Responsible for). No special characters that break parsing (fancy bullets, zero-width spaces, odd Unicode dashes). Fix formatting inconsistencies and hyphenation (e.g., end-to-end, cross-functional, high-quality — never endtoend, crossfunctional, highquality).
 
@@ -447,12 +462,14 @@ tailoredResume must use these exact field names:
 - summary (not professionalSummary)
 - contact.name, contact.email, contact.phone, contact.location, contact.linkedin
 - experience[].title, experience[].company, experience[].location, experience[].startDate, experience[].endDate, experience[].bullets
+- projects[] — same shape as experience[]; **required** when source resume has personal AI projects, side ventures, or product innovations (never omit or empty-out)
 - education[].degree, education[].school (not institution), education[].graduationDate, education[].details
 - skills, certifications
 
 - contact.email, contact.phone, contact.location, contact.linkedin: always include every key; use "" when absent.
 - experience.location, education.graduationDate, education.details: use "" when not applicable.
 - education: use [] when the source resume has no education section.
+- projects: use [] only when the source resume has no personal projects section. When personal AI projects exist in the source, copy every entry into projects[] — preserve employers/product names, titles, dates, and bullet count.
 - certifications: use [] when the candidate has none. Never infer certifications from job requirements — only copy credentials from the source resume CERTIFICATIONS section verbatim (minor formatting cleanup only).
 - coverLetter: a single plain-text string following the Cover Letter Generation Engine format (contact header, salutation, 3–4 scannable body paragraphs, closing). Not a nested object.
 
@@ -468,6 +485,8 @@ export interface UserPromptOptions {
   achievementSupplement?: string
   /** Frozen structured resume from the frontend — strict state preservation source of truth. */
   currentResume?: import('@/lib/ai/schemas').TailoredResume
+  /** Hiring panel closed-loop constraints (sanitized — no fabrication suggestions). */
+  panelFeedbackAddendum?: string
 }
 
 export function buildUserPrompt(
@@ -475,7 +494,7 @@ export function buildUserPrompt(
   resumeText: string,
   options: UserPromptOptions = {}
 ): string {
-  const { targetSkills = [], coreCompetencyChecklist = '', missingKeywords = [], achievementSupplement = '' } = options
+  const { targetSkills = [], coreCompetencyChecklist = '', missingKeywords = [], achievementSupplement = '', panelFeedbackAddendum = '' } = options
 
   const checklistBlock = coreCompetencyChecklist
     ? `\n${coreCompetencyChecklist}\n`
@@ -495,9 +514,18 @@ export function buildUserPrompt(
     ? `\nUSER-PROVIDED ACHIEVEMENT DETAILS (ground truth — use for quantified cover letter proof points and resume bullets; do not invent beyond this supplement and the source resume):\n${achievementSupplement.trim()}\n`
     : ''
 
+  const panelFeedbackBlock = panelFeedbackAddendum.trim()
+    ? `\n${panelFeedbackAddendum.trim()}\n`
+    : ''
+
+  const personalProjectsBlock = buildPersonalProjectsPromptAddendum(resumeText, jobDescription)
+  const personalProjectsSection = personalProjectsBlock.trim()
+    ? `\n${personalProjectsBlock.trim()}\n`
+    : ''
+
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}
+${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}${panelFeedbackBlock}${personalProjectsSection}
 SOURCE RESUME:
 ${resumeText}
 
@@ -509,10 +537,11 @@ TASK:
 5. Weave Core Competency Checklist terms and absent keywords into the summary (including Core Expertise line), skills section, and experience bullets — use **exact JD competency tokens** where truthful, embedded in Action + Scope + Business Impact statements. Every checklist term must appear at least once in the final output. Do not mirror full posting sentences or duty clauses.
 6. For PM/consulting roles (e.g., Pleasant Solutions): impact-first bullets for scope ownership, roadmap sequencing, delivery strategy, proactive unblocking, Agile/Kanban/Jira, and product ownership/backlog coaching.
 7. For technical/infrastructure roles (e.g., Alberta Motor Association): frame workflows, automation platforms, internal tools, custom software, and AI agents as strategic business wins with measurable operational impact.
-8. Generate the cover letter using the Cover Letter Generation Engine rules: core moat → distinct JD-specific hook → quantified proof points → role-fit close. Apply Adaptive Phrase Diversification standards (varied sentence openers, mixed sentence lengths, banned AI clichés, regeneration variance). Include the candidate's contact details from the resume in the letter header.
-9. Produce the keyword report — score should reflect keywords already present in your rewritten resume text.
-10. Before finishing, run the **Twin-Auditor** check on the resume: (a) summary has Executive Value Proposition + Core Expertise pipe line — no stylistic blacklist phrases; (b) every bullet follows Action + Scope + Business Impact; (c) no bullet starts with banned passive openers; (d) no two consecutive bullets share the same verb or sentence mechanics; (e) no ${PHRASING_COMPLIANCE_WORD_LIMIT}+ consecutive JD words anywhere. Audit the cover letter: (f) no banned AI phrases; (g) no three consecutive sentences with the same grammatical opener. Rewrite any failures.
-11. Run the **Dual-Filter Structural Merger**: exact JD competency tokens where truthful, Action + Scope + Impact bullets, anti-plagiarism pass, no AI footprints, standard single-column section headers. Then run **Generation Hygiene & Validation**: every bullet and cover letter paragraph must be complete (no trailing "and"/"missing"/commas); no "Recent – Present" placeholder dates on historical roles; cover letter achievements must match resume employer timelines exactly.
+8. Generate the cover letter using the Cover Letter Generation Engine rules: core moat → distinct JD-specific hook → quantified proof points → role-fit close. When personal AI projects exist in the source, anchor "Why this role?" on those projects by name (PopUpHub, Tipsy Fox, etc. — source only). Apply Adaptive Phrase Diversification standards (varied sentence openers, mixed sentence lengths, banned AI clichés, regeneration variance). Include the candidate's contact details from the resume in the letter header.
+9. When personal AI projects exist in the source, populate tailoredResume.projects[] with every project entry — never merge them into experience[] or omit them.
+10. Produce the keyword report — score should reflect keywords already present in your rewritten resume text.
+11. Before finishing, run the **Twin-Auditor** check on the resume: (a) summary has Executive Value Proposition + Core Expertise pipe line — no stylistic blacklist phrases; (b) every bullet follows Action + Scope + Business Impact; (c) no bullet starts with banned passive openers; (d) no two consecutive bullets share the same verb or sentence mechanics; (e) no ${PHRASING_COMPLIANCE_WORD_LIMIT}+ consecutive JD words anywhere; (f) personal projects from source appear in projects[] with full bullets. Audit the cover letter: (g) no banned AI phrases; (h) no three consecutive sentences with the same grammatical opener; (i) personal projects referenced by name when present in source. Rewrite any failures.
+12. Run the **Dual-Filter Structural Merger**: exact JD competency tokens where truthful, Action + Scope + Impact bullets, anti-plagiarism pass, no AI footprints, standard single-column section headers including PERSONAL AI PROJECTS when applicable. Then run **Generation Hygiene & Validation**: every bullet and cover letter paragraph must be complete (no trailing "and"/"missing"/commas); no "Recent – Present" placeholder dates on historical roles; cover letter achievements must match resume employer timelines exactly.
 
 The final tailored resume must already contain integrated keywords — the user downloads it directly without manual editing.`
 }
@@ -547,6 +576,7 @@ ${missingKeywords.join(', ')}
 
 Rules for this pass:
 - ${ANTI_COPY_CONSTRAINT}
+- Preserve all personal AI projects from the source in \`projects[]\` — never drop or compress whitelisted project sections.
 - Re-apply the **Executive Resume Writer** and **Resume Narrative Engine** rules: Executive Value Proposition + Core Expertise summary, Action + Scope + Business Impact bullets, stylistic blacklist enforced, twin-auditor diversification.
 - Prioritize the candidate's core professional edge and strategic ownership narrative over superficial keyword insertion.
 - Rewrite existing bullets to adopt missing terms contextually — each term must read as a human accomplishment, not a keyword fragment or copied posting clause.

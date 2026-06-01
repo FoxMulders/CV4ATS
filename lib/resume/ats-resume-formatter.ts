@@ -264,6 +264,22 @@ export function serializeFormattedResume(resume: TailoredResume): string {
     lines.push('')
   }
 
+  if ((formatted.projects ?? []).length > 0) {
+    lines.push('PERSONAL AI PROJECTS')
+    for (const job of formatted.projects) {
+      const header = [job.title, job.company].filter(Boolean).join(' — ')
+      const locationPart = job.location ? ` | ${job.location}` : ''
+      lines.push(`${header}${locationPart}`)
+      if (job.startDate || job.endDate) {
+        lines.push(`${job.startDate} – ${job.endDate}`.trim())
+      }
+      for (const bullet of job.bullets) {
+        lines.push(`• ${bullet}`)
+      }
+      lines.push('')
+    }
+  }
+
   if (formatted.education.length > 0) {
     lines.push('EDUCATION')
     for (const edu of formatted.education) {

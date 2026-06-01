@@ -76,6 +76,8 @@ export const MAX_HIRING_PANEL_REVISION_ROUNDS = 4
 
 export type HiringPanelRunOptions = {
   achievementSupplement?: string
+  /** Sanitized closed-loop panel constraints (anti-fabrication, down-tailoring). */
+  panelFeedbackAddendum?: string
 }
 
 const REVIEW_OUTPUT = Output.object({

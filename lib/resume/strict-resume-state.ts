@@ -4,6 +4,7 @@ import {
   isRealExperienceBullet,
   looksLikeRogueExperienceBlock,
 } from '@/lib/resume/parse-experience-blocks'
+import { isPersonalProjectEntry } from '@/lib/resume/personal-project-detection'
 
 export type FrozenExperienceBlock = {
   blockKey: string
@@ -56,10 +57,7 @@ function formatDatesDisplay(startDate: string, endDate: string): string {
 }
 
 function isProjectEntry(entry: Experience): boolean {
-  return (
-    /personal ai project|side project|freelance project|personal project/i.test(entry.title) ||
-    /^tipsy fox/i.test(entry.company.trim())
-  )
+  return isPersonalProjectEntry(entry)
 }
 
 function toFrozenBlock(entry: Experience, index: number, kind: 'work' | 'project'): FrozenExperienceBlock {

@@ -83,6 +83,31 @@ export async function buildResumeDocx(resume: TailoredResume): Promise<Buffer> {
     }
   }
 
+  if (resume.projects?.length) {
+    children.push(sectionHeading('PERSONAL AI PROJECTS'))
+    for (const job of resume.projects) {
+      const locationPart = job.location ? ` | ${job.location}` : ''
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: job.title, bold: true }),
+            new TextRun({ text: ` — ${job.company}${locationPart}` }),
+          ],
+          spacing: { before: 120, after: 40 },
+        })
+      )
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `${job.startDate} – ${job.endDate}`, italics: true })],
+          spacing: { after: 60 },
+        })
+      )
+      for (const bullet of job.bullets) {
+        children.push(bulletParagraph(bullet))
+      }
+    }
+  }
+
   children.push(sectionHeading('EDUCATION'))
   for (const edu of resume.education) {
     const datePart = edu.graduationDate ? ` — ${edu.graduationDate}` : ''

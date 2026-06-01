@@ -21,6 +21,7 @@ export function ResumePreview({ resume, jobDescription, variant = 'card' }: Resu
   const displayResume = useMemo(() => prepareResumeForDisplay(resume), [resume])
 
   const experienceEntries = displayResume.experience ?? []
+  const projectEntries = displayResume.projects ?? []
   const educationEntries = displayResume.education ?? []
   const contactParts = [
     displayResume.contact.email,
@@ -113,6 +114,41 @@ export function ResumePreview({ resume, jobDescription, variant = 'card' }: Resu
           )}
         </div>
       </section>
+
+      {projectEntries.length > 0 ? (
+        <section>
+          <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">
+            Personal AI Projects
+          </h3>
+          <div className="space-y-4">
+            {projectEntries.map((job, jobIndex) => {
+              const bullets = job.bullets ?? []
+              const jobKey = `${job.company}-${job.title}-${job.startDate}-${jobIndex}`
+
+              return (
+                <div key={jobKey}>
+                  <p className="font-semibold">
+                    {job.title} — {job.company}
+                    {job.location ? ` | ${job.location}` : ''}
+                  </p>
+                  {!isPlaceholderDateRange(job.startDate, job.endDate) ? (
+                    <p className="text-muted-foreground">
+                      {[job.startDate, job.endDate].filter(Boolean).join(' – ')}
+                    </p>
+                  ) : null}
+                  {bullets.length > 0 ? (
+                    <ul className="mt-2 list-disc space-y-2 pl-5">
+                      {bullets.map((bullet, bulletIndex) => (
+                        <li key={`${jobKey}-bullet-${bulletIndex}`}>{bullet}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section>
         <h3 className="mb-2 border-b border-primary/30 pb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary">

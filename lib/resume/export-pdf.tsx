@@ -97,6 +97,28 @@ function ResumeDocument({ resume }: { resume: TailoredResume }) {
           </View>
         ))}
 
+        {(resume.projects ?? []).length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Personal AI Projects</Text>
+            {resume.projects!.map((job, index) => (
+              <View key={`${job.company}-project-${index}`}>
+                <Text style={styles.jobHeader}>
+                  {job.title} — {job.company}
+                  {job.location ? ` | ${job.location}` : ''}
+                </Text>
+                <Text style={styles.jobMeta}>
+                  {job.startDate} – {job.endDate}
+                </Text>
+                {job.bullets.map((bullet, bulletIndex) => (
+                  <Text key={bulletIndex} style={styles.bullet}>
+                    • {bullet}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </>
+        ) : null}
+
         <Text style={styles.sectionTitle}>Education</Text>
         {resume.education.map((edu, index) => (
           <View key={`${edu.school}-${index}`}>

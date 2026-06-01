@@ -15,7 +15,7 @@ import {
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 
 const SECTION_HEADING =
-  /^(professional summary|summary|skills|technical skills|core competencies|(?:professional\s+)?(?:work\s+)?experience|employment|education|certifications?|personal ai projects|personal projects)\s*:?\s*$/i
+  /^(professional summary|summary|skills|technical skills|core competencies|(?:professional\s+)?(?:work\s+)?experience|employment|education|certifications?|personal ai projects|personal projects|side ventures?|product innovations?)\s*:?\s*$/i
 
 const INFERRED_SKILL_TERMS = [
   'release management',

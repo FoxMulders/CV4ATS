@@ -10,6 +10,7 @@ export type RateLimitBucket =
   | 'search'
   | 'verify-skill'
   | 'panel-revise'
+  | 'panel-retailor'
   | 'prescan'
   | 'hiring-panel'
 
@@ -22,6 +23,7 @@ const BUCKET_LIMITS: Record<RateLimitBucket, number> = {
   search: 80,
   'verify-skill': 40,
   'panel-revise': 20,
+  'panel-retailor': 15,
   prescan: 200,
   'hiring-panel': 20,
 }

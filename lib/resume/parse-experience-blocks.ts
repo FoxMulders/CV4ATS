@@ -10,7 +10,8 @@ const COMPANY_HINT =
 const SECTION_STOP =
   /^(education|certifications?|skills|technical skills|references|interests)\s*:?\s*$/i
 
-const PROJECTS_SECTION = /^personal ai projects|^personal projects|^projects\s*:?\s*$/i
+const PROJECTS_SECTION =
+  /^personal ai projects|^personal projects|^side ventures?|^product innovations?|^projects\s*:?\s*$/i
 
 function isBulletLine(line: string): boolean {
   return /^[\s•\-*–—]\s*\S/.test(line.trim())

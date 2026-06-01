@@ -11,6 +11,8 @@ interface HiringPanelReviewPanelProps {
   panel: HiringPanelSessionResult
   onAddMetrics?: () => void
   onVerifyExperience?: () => void
+  onDeEscalateRetailor?: () => void
+  deEscalateLoading?: boolean
   hasExperienceGaps?: boolean
 }
 
@@ -18,6 +20,8 @@ export function HiringPanelReviewPanel({
   panel,
   onAddMetrics,
   onVerifyExperience,
+  onDeEscalateRetailor,
+  deEscalateLoading = false,
   hasExperienceGaps = false,
 }: HiringPanelReviewPanelProps) {
   if (panel.reviewFailed) {
@@ -70,7 +74,9 @@ export function HiringPanelReviewPanel({
           <p className="mt-2 text-sm leading-relaxed text-amber-800 dark:text-amber-200">
             When managers flag missing tool evidence (e.g. Jenkins CI/CD) or banned cover letter
             phrasing, use Verify flagged experience below to confirm what you actually used — the
-            AI will rewrite bullets and the letter from your answers.
+            AI will rewrite bullets and the letter from your answers. If the panel says you look
+            overqualified for the role level, use De-escalate & re-tailor to down-level wording
+            without inventing credentials.
           </p>
         ) : null}
         {!panel.unanimousApproval && onVerifyExperience ? (
@@ -82,6 +88,18 @@ export function HiringPanelReviewPanel({
             onClick={onVerifyExperience}
           >
             {hasExperienceGaps ? 'Verify flagged experience' : 'Confirm experience & improve draft'}
+          </Button>
+        ) : null}
+        {!panel.unanimousApproval && onDeEscalateRetailor ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="mt-3 ml-0 sm:ml-2"
+            disabled={deEscalateLoading}
+            onClick={onDeEscalateRetailor}
+          >
+            {deEscalateLoading ? 'De-escalating…' : 'De-escalate & re-tailor'}
           </Button>
         ) : null}
       </div>

@@ -65,6 +65,8 @@ import {
   type PanelExperienceQuestion,
 } from '@/lib/resume/panel-experience-gaps'
 import { requestPanelRevise } from '@/lib/api/panel-revise-client'
+import { requestPanelRetailor } from '@/lib/api/panel-retailor-client'
+import { shouldOfferPanelFeedbackRetailor } from '@/lib/ai/panel-feedback-retailor'
 import { requestHiringPanelReview, type HiringPanelReviewResponse } from '@/lib/api/hiring-panel-client'
 
 type GenerationResultWithMeta = GenerationResult & {
@@ -143,6 +145,7 @@ export function TailorWorkspacePage({
   const [panelExperienceOpen, setPanelExperienceOpen] = useState(false)
   const [panelExperienceQuestions, setPanelExperienceQuestions] = useState<PanelExperienceQuestion[]>([])
   const [panelReviseLoading, setPanelReviseLoading] = useState(false)
+  const [panelRetailorLoading, setPanelRetailorLoading] = useState(false)
   const [panelReviewLoading, setPanelReviewLoading] = useState(false)
   const { appendLog } = useSystemDebugLog()
   const lastLoggedJobRef = useRef('')
@@ -500,6 +503,67 @@ export function TailorWorkspacePage({
       toast.error(error instanceof Error ? error.message : 'Failed to apply verified experience.')
     } finally {
       setPanelReviseLoading(false)
+    }
+  }
+
+  async function handleDeEscalateRetailor() {
+    if (!result?.hiringPanel || !originalResumeText?.trim()) {
+      toast.error('Generate a resume first, then run de-escalate & re-tailor.')
+      return
+    }
+
+    if (result.hiringPanel.reviewFailed) {
+      toast.error('Hiring panel review failed — retry the panel before re-tailoring.')
+      return
+    }
+
+    setPanelRetailorLoading(true)
+    appendLog('LOG: [PANEL-RETAILOR] Starting de-escalate & re-tailor from sanitized panel feedback…')
+
+    try {
+      const updated = await requestPanelRetailor({
+        jobDescription: jobDescription.trim(),
+        sourceResumeText: originalResumeText.trim(),
+        draft: {
+          tailoredResume: editedResume ?? result.tailoredResume,
+          coverLetter,
+          keywordReport: editedKeywordReport ?? result.keywordReport,
+        },
+        panel: result.hiringPanel,
+      })
+
+      setResult((current) =>
+        current
+          ? {
+              ...current,
+              tailoredResume: updated.tailoredResume,
+              coverLetter: updated.coverLetter,
+              keywordReport: updated.keywordReport,
+              hiringPanel: updated.hiringPanel,
+              rawKeywordScore: updated.rawKeywordScore ?? current.rawKeywordScore,
+            }
+          : current
+      )
+      resetEditedResume(updated.tailoredResume)
+      setCoverLetter(updated.coverLetter)
+      setEditedKeywordReport(updated.keywordReport)
+
+      if (updated.hiringPanel && !updated.hiringPanel.unanimousApproval) {
+        setPanelExperienceQuestions(detectPanelExperienceGaps(updated.hiringPanel))
+      } else {
+        setPanelExperienceQuestions([])
+      }
+
+      appendLog(
+        `LOG: [PANEL-RETAILOR] Complete — panel score ${updated.hiringPanel?.aggregateScore ?? 'n/a'}%`
+      )
+      toast.success('Draft re-tailored from hiring panel feedback.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to de-escalate and re-tailor.'
+      appendLog(`LOG: [PANEL-RETAILOR] Failed — ${message}`)
+      toast.error(message)
+    } finally {
+      setPanelRetailorLoading(false)
     }
   }
 
@@ -1012,6 +1076,12 @@ export function TailorWorkspacePage({
                     panel={result.hiringPanel}
                     onAddMetrics={openAchievementIntakeFromPanel}
                     onVerifyExperience={() => openPanelExperienceIntake(result.hiringPanel!)}
+                    onDeEscalateRetailor={
+                      shouldOfferPanelFeedbackRetailor(result.hiringPanel)
+                        ? () => void handleDeEscalateRetailor()
+                        : undefined
+                    }
+                    deEscalateLoading={panelRetailorLoading}
                     hasExperienceGaps={panelExperienceQuestions.length > 0}
                   />
                   {result.hiringPanel.reviewFailed ? (
