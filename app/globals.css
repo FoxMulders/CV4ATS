@@ -88,6 +88,7 @@
   --debug-dock-height: 40px;
   --workspace-header-height: 3.25rem;
   --workspace-body-height: calc(100dvh - var(--workspace-header-height) - var(--debug-dock-height));
+  --workspace-main-height: calc(100dvh - var(--debug-dock-height));
 }
 
 .dark {
@@ -148,7 +149,7 @@
   }
 }
 
-/* ── Workspace viewport shell (no blank band above debug dock) ─────────────── */
+/* ── Workspace viewport — explicit heights; debug dock fixed at bottom only ── */
 html:has(.workspace-page),
 html.app-viewport-lock {
   height: 100%;
@@ -161,23 +162,24 @@ html.app-viewport-lock body {
 }
 
 .app-shell {
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
   width: 100%;
 }
 
-/* Workspace: main + dock in one grid — dock is in-flow, never creates a dead strip */
+.app-shell--scrollable {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
 .app-shell--workspace {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) var(--debug-dock-height);
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--workspace-main-height);
+  max-height: var(--workspace-main-height);
   overflow: hidden;
 }
 
 .app-shell--workspace .app-shell-main {
-  min-height: 0;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -188,27 +190,25 @@ html.app-viewport-lock body {
   overscroll-behavior: contain;
 }
 
-/* Page frame: fixed header row + split body row */
 .workspace-page {
   display: grid;
   grid-template-rows: var(--workspace-header-height) minmax(0, 1fr);
-  height: 100%;
-  max-height: 100%;
+  height: var(--workspace-main-height);
+  max-height: var(--workspace-main-height);
   overflow: hidden;
 }
 
 .workspace-header {
-  grid-row: 1;
   height: var(--workspace-header-height);
   min-height: var(--workspace-header-height);
   max-height: var(--workspace-header-height);
 }
 
-/* Split body always consumes the remaining band below the header */
+/* Absolute height — never depends on a broken flex/% chain */
 .workspace-split {
-  grid-row: 2;
+  height: var(--workspace-body-height);
+  max-height: var(--workspace-body-height);
   min-height: 0;
-  height: 100%;
   overflow: hidden;
 }
 
@@ -217,27 +217,27 @@ html.app-viewport-lock body {
     display: grid;
     grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
     grid-template-rows: minmax(0, 1fr);
-    align-items: stretch;
   }
 
-  /* Editor hugs the top; scrolls when long — no empty stretch below short forms */
-  .workspace-split__pane--editor {
-    align-self: start;
+  .workspace-split__pane--editor,
+  .workspace-split__pane--preview {
+    height: 100%;
     max-height: 100%;
-    width: 100%;
+    min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
   }
 
-  /* Preview column always fills the full body height */
   .workspace-split__pane--preview {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    min-height: 0;
     overflow: hidden;
+  }
+
+  .workspace-split__pane--preview > * {
+    min-height: 0;
   }
 }
 
@@ -245,6 +245,8 @@ html.app-viewport-lock body {
   .workspace-split:not(.workspace-split--single) {
     display: flex;
     flex-direction: column;
+    height: auto;
+    max-height: none;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -252,6 +254,8 @@ html.app-viewport-lock body {
 
   .workspace-split:not(.workspace-split--single) .workspace-split__pane {
     flex: none;
+    height: auto;
+    max-height: none;
     overflow: visible;
   }
 
@@ -268,20 +272,6 @@ html.app-viewport-lock body {
 .workspace-split__pane {
   min-height: 0;
   overscroll-behavior: contain;
-}
-
-/* In-flow debug dock — part of the shell grid, not a fixed overlay gap */
-.app-shell--workspace .system-debug-dock {
-  position: relative;
-  inset: auto;
-  height: var(--debug-dock-height) !important;
-  max-height: var(--debug-dock-height) !important;
-  min-height: var(--debug-dock-height) !important;
-  pointer-events: none;
-}
-
-.app-shell--workspace .system-debug-dock__inner {
-  pointer-events: auto;
 }
 
 /* Independent pane scroll — slim scrollbars */
@@ -309,15 +299,15 @@ html.app-viewport-lock body {
   background-color: rgba(255, 255, 255, 0.18);
 }
 
-/* Fixed debug dock for non-workspace pages; workspace uses in-flow dock in app-shell grid */
+/* Fixed debug dock — always 40px at viewport bottom; popover floats upward only */
 .system-debug-dock {
   position: fixed;
   inset-inline: 0;
   bottom: 0;
   z-index: 9998;
-  height: 40px !important;
-  max-height: 40px !important;
-  min-height: 40px !important;
+  height: var(--debug-dock-height) !important;
+  max-height: var(--debug-dock-height) !important;
+  min-height: var(--debug-dock-height) !important;
   overflow: visible !important;
   border-top: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
   background: color-mix(in oklch, var(--muted) 92%, transparent);
@@ -328,17 +318,17 @@ html.app-viewport-lock body {
 
 .system-debug-dock__inner {
   position: relative;
-  height: 40px !important;
-  max-height: 40px !important;
-  min-height: 40px !important;
+  height: var(--debug-dock-height) !important;
+  max-height: var(--debug-dock-height) !important;
+  min-height: var(--debug-dock-height) !important;
   overflow: visible !important;
 }
 
 .system-debug-console--dock {
   position: relative;
-  height: 40px !important;
-  max-height: 40px !important;
-  min-height: 40px !important;
+  height: var(--debug-dock-height) !important;
+  max-height: var(--debug-dock-height) !important;
+  min-height: var(--debug-dock-height) !important;
   overflow: visible !important;
 }
 

@@ -85,7 +85,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`}>
+    <html lang="en" className={`${inter.variable} ${sourceSerif.variable} h-full`}>
       <body className="h-full antialiased font-sans">
         <SiteJsonLd />
         <GlobalAppShell>{children}</GlobalAppShell>

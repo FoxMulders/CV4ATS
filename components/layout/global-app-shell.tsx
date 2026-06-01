@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { SystemDebugProvider } from '@/components/debug/system-debug-provider'
@@ -11,17 +11,22 @@ function isWorkspaceRoute(pathname: string): boolean {
   return pathname === '/' || pathname.startsWith('/tailor/')
 }
 
+function lockWorkspaceViewport(active: boolean) {
+  document.documentElement.classList.toggle('app-viewport-lock', active)
+  document.body.classList.toggle('app-viewport-lock', active)
+}
+
 export function GlobalAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const workspaceMode = isWorkspaceRoute(pathname ?? '/')
 
+  useLayoutEffect(() => {
+    lockWorkspaceViewport(workspaceMode)
+    return () => lockWorkspaceViewport(false)
+  }, [workspaceMode])
+
   useEffect(() => {
-    document.documentElement.classList.toggle('app-viewport-lock', workspaceMode)
-    document.body.classList.toggle('app-viewport-lock', workspaceMode)
-    return () => {
-      document.documentElement.classList.remove('app-viewport-lock')
-      document.body.classList.remove('app-viewport-lock')
-    }
+    lockWorkspaceViewport(workspaceMode)
   }, [workspaceMode])
 
   if (workspaceMode) {
@@ -29,8 +34,8 @@ export function GlobalAppShell({ children }: { children: ReactNode }) {
       <SystemDebugProvider>
         <div className="app-shell app-shell--workspace">
           <div className="app-shell-main">{children}</div>
-          <SystemDebugDock />
         </div>
+        <SystemDebugDock />
       </SystemDebugProvider>
     )
   }
