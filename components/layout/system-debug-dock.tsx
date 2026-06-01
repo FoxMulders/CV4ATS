@@ -2,7 +2,7 @@
 
 import { SystemDebugConsole } from '@/components/layout/system-debug-console'
 
-/** Fixed bottom overlay — 40px bar only; log stream pops upward without resizing the workspace. */
+/** Debug dock — in-flow on workspace routes; log stream pops upward as absolute overlay. */
 export function SystemDebugDock() {
   return (
     <div className="system-debug-dock">
