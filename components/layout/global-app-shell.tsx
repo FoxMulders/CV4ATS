@@ -34,8 +34,9 @@ export function GlobalAppShell({ children }: { children: ReactNode }) {
         )}
       >
         <div className="app-shell-main">{children}</div>
-        {workspaceMode ? <SystemDebugDock /> : <SiteFooter />}
+        {!workspaceMode ? <SiteFooter /> : null}
       </div>
+      {workspaceMode ? <SystemDebugDock /> : null}
     </SystemDebugProvider>
   )
 }

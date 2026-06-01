@@ -143,16 +143,15 @@
   }
 }
 
-/* Premium app shell — no document-level scroll on workspace routes */
+/* Premium app shell — workspace scrolls inside main; debug dock is fixed overlay */
 html.app-viewport-lock,
 html.app-viewport-lock body {
-  overflow: hidden;
   height: 100%;
   width: 100%;
 }
 
-html.app-viewport-lock {
-  height: 100%;
+html.app-viewport-lock body {
+  overflow: hidden;
 }
 
 .app-shell {
@@ -163,15 +162,19 @@ html.app-viewport-lock {
 }
 
 .app-shell--workspace {
-  height: 100dvh;
+  height: 100%;
+  min-height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
 }
 
 .app-shell--workspace .app-shell-main {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--debug-dock-height, 40px);
 }
 
 .app-shell--scrollable .app-shell-main {
@@ -181,9 +184,8 @@ html.app-viewport-lock {
   overscroll-behavior: contain;
 }
 
-/* Independent left/right pane scroll — slim scrollbars in the center gutter */
+/* Independent pane scroll — slim scrollbars */
 .workspace-pane {
-  height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
