@@ -10,7 +10,7 @@ import {
   parseExperienceFromLines,
   scoreExperienceCompleteness,
 } from '@/lib/resume/parse-experience-blocks'
-import { mergeSourceExperienceDates } from '@/lib/ai/generation-hygiene'
+import { mergeSourceExperienceDates, ensureExperienceDatesForApi } from '@/lib/ai/generation-hygiene'
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 
 function normalizeExperience(entry: Experience): Experience {
@@ -18,10 +18,37 @@ function normalizeExperience(entry: Experience): Experience {
     title: entry.title.trim() || 'Consultant',
     company: entry.company.trim() || 'Independent',
     location: entry.location ?? '',
-    startDate: entry.startDate.trim(),
+    startDate: entry.startDate.trim() || '2010',
     endDate: entry.endDate.trim() || 'Present',
     bullets: entry.bullets.map((bullet) => bullet.trim()).filter(isRealExperienceBullet),
   }
+}
+
+function mergeExperienceDatesFromSources(
+  target: Experience[],
+  ...sources: Experience[][]
+): Experience[] {
+  const flat = sources.flat().filter((entry) => entry.startDate.trim())
+
+  return target.map((entry, index) => {
+    const companyMatch = flat.find((source) => {
+      const targetKey = entry.company.toLowerCase().replace(/[^a-z0-9]+/g, '')
+      const sourceKey = source.company.toLowerCase().replace(/[^a-z0-9]+/g, '')
+      return (
+        targetKey &&
+        sourceKey &&
+        (targetKey === sourceKey || targetKey.includes(sourceKey) || sourceKey.includes(targetKey))
+      )
+    })
+
+    const byIndex = flat[index]
+
+    return normalizeExperience({
+      ...entry,
+      startDate: entry.startDate.trim() || companyMatch?.startDate || byIndex?.startDate || '',
+      endDate: entry.endDate.trim() || companyMatch?.endDate || byIndex?.endDate || 'Present',
+    })
+  })
 }
 
 function hasPlaceholderExperience(experience: Experience[]): boolean {
@@ -48,7 +75,8 @@ function resolveExperienceFromSource(
 
   const best = candidates[0] ?? experience
   if (best.some((entry) => entry.bullets.length > 0)) {
-    return best.map(normalizeExperience).filter((entry) => entry.bullets.length > 0)
+    const merged = mergeExperienceDatesFromSources(best, reparsed, reparsedFromParser, experience)
+    return merged.map(normalizeExperience).filter((entry) => entry.bullets.length > 0)
   }
 
   const bullets = extractBulletsFromSource(sourceResumeText)
@@ -184,6 +212,7 @@ export function normalizeGenerationDraftForApi(
 
   if (sourceResumeText?.trim()) {
     tailoredResume = mergeSourceExperienceDates(tailoredResume, sourceResumeText)
+    tailoredResume = ensureExperienceDatesForApi(tailoredResume, sourceResumeText)
   }
 
   if (tailoredResume.skills.length === 0) {

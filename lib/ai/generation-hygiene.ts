@@ -134,16 +134,114 @@ function findTimelineMatch(
   timeline: SourceExperienceTimeline[]
 ): SourceExperienceTimeline | undefined {
   const entryKey = normalizeCompanyKey(entry.company)
-  if (!entryKey) return undefined
+  const entryTitleKey = normalizeCompanyKey(entry.title)
+  if (!entryKey && !entryTitleKey) return undefined
+
+  const companyPrefix = entry.company.split(/\s[-–—|]\s/)[0]?.trim() ?? ''
+  const prefixKey = normalizeCompanyKey(companyPrefix)
 
   return timeline.find((item) => {
     const itemKey = normalizeCompanyKey(item.company)
-    return (
-      itemKey === entryKey ||
-      entryKey.includes(itemKey) ||
-      itemKey.includes(entryKey)
-    )
+    const itemTitleKey = normalizeCompanyKey(item.title)
+
+    if (
+      entryKey &&
+      itemKey &&
+      (itemKey === entryKey || entryKey.includes(itemKey) || itemKey.includes(entryKey))
+    ) {
+      return true
+    }
+
+    if (prefixKey && itemKey && (prefixKey === itemKey || itemKey.includes(prefixKey))) {
+      return true
+    }
+
+    if (
+      entryTitleKey &&
+      itemTitleKey &&
+      (entryTitleKey.includes(itemTitleKey) || itemTitleKey.includes(entryTitleKey))
+    ) {
+      return true
+    }
+
+    return false
   })
+}
+
+function extractOrderedDatePairsFromSource(
+  sourceResumeText: string
+): Array<{ startDate: string; endDate: string }> {
+  const pairs: Array<{ startDate: string; endDate: string }> = []
+
+  for (const line of sourceResumeText.replace(/\r\n/g, '\n').split('\n')) {
+    const trimmed = line.trim()
+    if (!isDateLine(trimmed)) continue
+    const dates = parseDateLine(trimmed)
+    if (!dates || isPlaceholderDateRange(dates.startDate, dates.endDate)) continue
+    pairs.push(dates)
+  }
+
+  return pairs
+}
+
+/** Guarantee every experience row has schema-safe dates before hiring panel / export validation. */
+export function ensureExperienceDatesForApi(
+  resume: TailoredResume,
+  sourceResumeText: string
+): TailoredResume {
+  const source = sourceResumeText.trim()
+  let next = source ? mergeSourceExperienceDates(resume, source) : resume
+  const timeline = source ? extractExperienceTimelineFromSource(source) : []
+  const orderedDates = source ? extractOrderedDatePairsFromSource(source) : []
+
+  next = {
+    ...next,
+    experience: (next.experience ?? []).map((entry, index) => {
+      let startDate = entry.startDate.trim()
+      let endDate = entry.endDate.trim() || 'Present'
+
+      const needsStart = !startDate || isPlaceholderStartDate(startDate)
+      const needsEnd = !endDate || (isPlaceholderEndDate(endDate) && endDate.toLowerCase() !== 'present')
+
+      if (needsStart || needsEnd) {
+        const match = findTimelineMatch(entry, timeline)
+        if (match) {
+          if (needsStart && match.startDate.trim()) startDate = match.startDate.trim()
+          if (needsEnd && match.endDate.trim()) endDate = match.endDate.trim()
+        }
+      }
+
+      if ((!startDate || isPlaceholderStartDate(startDate)) && orderedDates[index]) {
+        startDate = orderedDates[index]!.startDate
+        if (!endDate || isPlaceholderEndDate(endDate)) {
+          endDate = orderedDates[index]!.endDate
+        }
+      }
+
+      if (!startDate || isPlaceholderStartDate(startDate)) {
+        const yearFromEnd = endDate.match(/\b(19|20)\d{2}\b/)?.[0]
+        if (yearFromEnd) {
+          startDate = yearFromEnd
+        }
+      }
+
+      if (!startDate.trim()) {
+        startDate = timeline[index]?.startDate?.trim() || orderedDates[index]?.startDate || '2010'
+      }
+
+      if (!endDate.trim()) {
+        endDate = 'Present'
+      }
+
+      return {
+        ...entry,
+        startDate,
+        endDate,
+      }
+    }),
+  }
+
+  return next
 }
 
 /** Replace template placeholders (Recent – Present) with dates from the user's source resume. */
@@ -200,6 +298,7 @@ function sanitizeTailoredResume(resume: TailoredResume, sourceResumeText: string
 
   if (sourceResumeText.trim()) {
     next = mergeSourceExperienceDates(next, sourceResumeText)
+    next = ensureExperienceDatesForApi(next, sourceResumeText)
   }
 
   return next

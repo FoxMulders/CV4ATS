@@ -1,6 +1,6 @@
 import type { AiGenerationResult, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { aiGenerationResultSchema } from '@/lib/ai/schemas'
-import { mergeSourceExperienceDates } from '@/lib/ai/generation-hygiene'
+import { mergeSourceExperienceDates, ensureExperienceDatesForApi } from '@/lib/ai/generation-hygiene'
 import { inferNameFromEmail, titleCaseName } from '@/lib/resume/contact-extraction'
 import { isRealExperienceBullet } from '@/lib/resume/parse-experience-blocks'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
@@ -57,7 +57,7 @@ function ensureExperienceEntry(entry: Experience, lockedEntry?: Experience): Exp
     title: entry.title?.trim() || lockedEntry?.title?.trim() || 'Consultant',
     company: entry.company?.trim() || lockedEntry?.company?.trim() || 'Independent',
     location: entry.location ?? lockedEntry?.location ?? '',
-    startDate: entry.startDate?.trim() || lockedEntry?.startDate?.trim() || '',
+    startDate: entry.startDate?.trim() || lockedEntry?.startDate?.trim() || '2010',
     endDate: entry.endDate?.trim() || lockedEntry?.endDate?.trim() || 'Present',
     bullets: ensureBullets(entry.bullets, lockedEntry?.bullets),
   }
@@ -110,7 +110,7 @@ function ensureTailoredResume(
     })
   )
 
-  return mergeSourceExperienceDates(
+  return ensureExperienceDatesForApi(
     {
       contact: {
         name: resolveContactName(resume, sourceResumeText),

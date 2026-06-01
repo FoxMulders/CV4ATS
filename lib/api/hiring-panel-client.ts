@@ -1,5 +1,6 @@
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
+import { ensureApiSafeGenerationResult } from '@/lib/api/ensure-api-safe-draft'
 import type { HiringManagerReview, HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 import type { HiringPanelApiErrorBody } from '@/lib/api/hiring-panel-response'
@@ -30,6 +31,22 @@ export async function requestHiringPanelReview(
   payload: HiringPanelReviewRequest
 ): Promise<HiringPanelReviewResponse> {
   const normalizedDraft = normalizeGenerationDraftForApi(payload.draft, payload.sourceResumeText)
+  let safeDraft: AiGenerationResult
+
+  try {
+    safeDraft = ensureApiSafeGenerationResult(
+      normalizedDraft,
+      payload.sourceResumeText,
+      payload.jobDescription
+    )
+  } catch (error) {
+    console.error('[Hiring Panel] Draft failed API-safe normalization:', error)
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : 'Tailored resume could not be validated for hiring panel review.'
+    )
+  }
 
   const response = await fetch('/api/hiring-panel', {
     method: 'POST',
@@ -38,7 +55,7 @@ export async function requestHiringPanelReview(
       jobDescription: payload.jobDescription,
       sourceResumeText: payload.sourceResumeText,
       achievementSupplement: payload.achievementSupplement,
-      draft: normalizedDraft,
+      draft: safeDraft,
     }),
   })
 
