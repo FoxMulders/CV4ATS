@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { SystemDebugProvider } from '@/components/debug/system-debug-provider'
 import { SystemDebugDock } from '@/components/layout/system-debug-dock'
 import { SiteFooter } from '@/components/layout/site-footer'
+import { WORKSPACE_MAIN_CLASS } from '@/components/workspace/split-workspace-layout'
 
 function isWorkspaceRoute(pathname: string): boolean {
   return pathname === '/' || pathname.startsWith('/tailor/')
@@ -32,8 +33,8 @@ export function GlobalAppShell({ children }: { children: ReactNode }) {
   if (workspaceMode) {
     return (
       <SystemDebugProvider>
-        <div className="app-shell app-shell--workspace">
-          <div className="app-shell-main">{children}</div>
+        <div className={WORKSPACE_MAIN_CLASS}>
+          {children}
         </div>
         <SystemDebugDock />
       </SystemDebugProvider>
@@ -42,7 +43,7 @@ export function GlobalAppShell({ children }: { children: ReactNode }) {
 
   return (
     <SystemDebugProvider>
-      <div className="app-shell app-shell--scrollable">
+      <div className="app-shell app-shell--scrollable min-h-dvh">
         <div className="app-shell-main">{children}</div>
         <SiteFooter />
       </div>

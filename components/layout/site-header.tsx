@@ -2,7 +2,9 @@ import { FileCheck2 } from 'lucide-react'
 import Link from 'next/link'
 
 import { AppNav } from '@/components/nav/app-nav'
+import { WORKSPACE_HEADER_CLASS } from '@/components/workspace/split-workspace-layout'
 import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand'
+import { cn } from '@/lib/utils'
 
 interface SiteHeaderProps {
   current: 'tailor' | 'jobs'
@@ -14,7 +16,7 @@ export function SiteHeader({ current, variant = 'default' }: SiteHeaderProps) {
   const compact = variant === 'compact'
 
   return (
-    <header className="workspace-header z-50 shrink-0 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className={cn('workspace-header z-50 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80', compact && WORKSPACE_HEADER_CLASS)}>
       <div
         className={
           compact

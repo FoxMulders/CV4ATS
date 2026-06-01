@@ -149,38 +149,21 @@
   }
 }
 
-/* ── Workspace viewport — explicit heights; debug dock fixed at bottom only ── */
-html:has(.workspace-page),
+/* ── Workspace viewport lock (heights live on Tailwind classes in components) ── */
+html:has([id='tailor-workspace']),
 html.app-viewport-lock {
   height: 100%;
 }
 
-body:has(.workspace-page),
+body:has([id='tailor-workspace']),
 html.app-viewport-lock body {
   height: 100%;
   overflow: hidden;
 }
 
-.app-shell {
-  width: 100%;
-}
-
 .app-shell--scrollable {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
-}
-
-.app-shell--workspace {
-  height: var(--workspace-main-height);
-  max-height: var(--workspace-main-height);
-  overflow: hidden;
-}
-
-.app-shell--workspace .app-shell-main {
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
 }
 
 .app-shell--scrollable .app-shell-main {
@@ -190,88 +173,10 @@ html.app-viewport-lock body {
   overscroll-behavior: contain;
 }
 
-.workspace-page {
-  display: grid;
-  grid-template-rows: var(--workspace-header-height) minmax(0, 1fr);
-  height: var(--workspace-main-height);
-  max-height: var(--workspace-main-height);
-  overflow: hidden;
-}
-
 .workspace-header {
-  height: var(--workspace-header-height);
-  min-height: var(--workspace-header-height);
-  max-height: var(--workspace-header-height);
-}
-
-/* Absolute height — never depends on a broken flex/% chain */
-.workspace-split {
-  height: var(--workspace-body-height);
-  max-height: var(--workspace-body-height);
-  min-height: 0;
-  overflow: hidden;
-}
-
-@media (min-width: 1024px) {
-  .workspace-split {
-    display: grid;
-    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .workspace-split__pane--editor,
-  .workspace-split__pane--preview {
-    height: 100%;
-    max-height: 100%;
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-  }
-
-  .workspace-split__pane--preview {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .workspace-split__pane--preview > * {
-    min-height: 0;
-  }
-}
-
-@media (max-width: 1023px) {
-  .workspace-split:not(.workspace-split--single) {
-    display: flex;
-    flex-direction: column;
-    height: auto;
-    max-height: none;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  .workspace-split:not(.workspace-split--single) .workspace-split__pane {
-    flex: none;
-    height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .workspace-split__pane--preview {
-    min-height: min(65dvh, 640px);
-  }
-}
-
-.workspace-split--single {
-  display: flex;
-  flex-direction: column;
-}
-
-.workspace-split__pane {
-  min-height: 0;
-  overscroll-behavior: contain;
+  height: 3.25rem;
+  min-height: 3.25rem;
+  max-height: 3.25rem;
 }
 
 /* Independent pane scroll — slim scrollbars */

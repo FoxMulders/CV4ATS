@@ -1308,7 +1308,7 @@ export function TailorWorkspacePage({
   )
 
   return (
-    <div className="workspace-page bg-muted/30">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-muted/30">
       <SiteHeader current="tailor" variant="compact" />
 
       <SplitWorkspaceLayout
