@@ -4,12 +4,13 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
-/** Viewport math — literal calcs on elements, not CSS-variable chains. */
-export const WORKSPACE_DOCK_PX = 40
-export const WORKSPACE_HEADER_CLASS = 'h-[3.25rem] min-h-[3.25rem] max-h-[3.25rem] shrink-0'
+/** Shell above the fixed 40px debug dock. */
 export const WORKSPACE_MAIN_CLASS = 'h-[calc(100dvh-40px)] max-h-[calc(100dvh-40px)] overflow-hidden'
-export const WORKSPACE_SPLIT_CLASS =
-  'grid h-[calc(100dvh-3.25rem-40px)] max-h-[calc(100dvh-3.25rem-40px)] min-h-0 w-full grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]'
+
+export const WORKSPACE_HEADER_CLASS = 'h-[3.25rem] min-h-[3.25rem] max-h-[3.25rem] shrink-0'
+
+/** Body band below header — preview is absolute-filled; editor is content-height on the left. */
+export const WORKSPACE_BODY_CLASS = 'relative min-h-0 flex-1 overflow-hidden'
 
 interface SplitWorkspaceLayoutProps {
   leftPane: ReactNode
@@ -18,6 +19,10 @@ interface SplitWorkspaceLayoutProps {
   className?: string
 }
 
+/**
+ * Desktop: left editor is only as tall as its content (scrolls if long).
+ * Right preview is pinned absolute full-height — no dead column void.
+ */
 export function SplitWorkspaceLayout({
   leftPane,
   rightPane,
@@ -25,13 +30,14 @@ export function SplitWorkspaceLayout({
   className,
 }: SplitWorkspaceLayoutProps) {
   return (
-    <div
-      id="tailor-workspace"
-      className={cn(WORKSPACE_SPLIT_CLASS, !showRightPane && 'grid-cols-1', className)}
-    >
+    <div id="tailor-workspace" className={cn(WORKSPACE_BODY_CLASS, className)}>
       <aside
         aria-label="Resume editor controls"
-        className="min-h-0 overflow-y-auto overscroll-contain border-b border-border/80 bg-muted/20 lg:h-full lg:max-h-full lg:border-b-0 lg:border-r"
+        className={cn(
+          'relative z-10 w-full overflow-x-hidden overflow-y-auto overscroll-contain',
+          'border-b border-border/80 bg-muted/20 pb-4',
+          'lg:w-[45%] lg:max-h-full lg:border-b-0 lg:border-r'
+        )}
       >
         <div className="space-y-3 p-4 sm:p-5">{leftPane}</div>
       </aside>
@@ -39,7 +45,11 @@ export function SplitWorkspaceLayout({
       {showRightPane ? (
         <section
           aria-label="Live resume preview"
-          className="flex min-h-0 flex-col overflow-hidden bg-muted/40 lg:h-full lg:max-h-full"
+          className={cn(
+            'flex flex-col overflow-hidden bg-muted/40',
+            'max-lg:min-h-[min(70dvh,640px)] max-lg:border-t',
+            'lg:absolute lg:inset-y-0 lg:right-0 lg:w-[55%] lg:border-l lg:border-border/80'
+          )}
         >
           {rightPane}
         </section>
