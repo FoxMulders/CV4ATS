@@ -1,7 +1,7 @@
 import { generateText, NoObjectGeneratedError, Output } from 'ai'
 
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
-import { isGeminiModelNotFoundError, unwrapAiError } from '@/lib/ai/errors'
+import { isGeminiModelNotFoundError, shouldFallbackToNextGeminiModel, unwrapAiError } from '@/lib/ai/errors'
 import {
   createGeminiModel,
   geminiProviderOptions,
@@ -54,8 +54,9 @@ async function generateHiringPanelText(params: HiringPanelGenerateParams) {
       } as Parameters<typeof generateText>[0])
     } catch (error) {
       lastError = error
-      if (isGeminiModelNotFoundError(error)) {
-        console.warn(`[Hiring Panel] Model "${modelId}" unavailable — trying next fallback.`)
+      if (shouldFallbackToNextGeminiModel(error)) {
+        const reason = isGeminiModelNotFoundError(error) ? 'unavailable' : 'quota blocked on free tier'
+        console.warn(`[Hiring Panel] Model "${modelId}" ${reason} — trying next fallback.`)
         continue
       }
       throw error
@@ -67,7 +68,7 @@ async function generateHiringPanelText(params: HiringPanelGenerateParams) {
       ? lastError.message
       : 'No supported Gemini model available for hiring panel review.'
   throw new Error(
-    `${message} Set HIRING_PANEL_MODEL_ID=gemini-2.5-pro (or gemini-2.5-flash) in Vercel and redeploy.`
+    `${message} Set HIRING_PANEL_MODEL_ID=gemini-2.5-flash (or gemini-flash-latest) in Vercel and redeploy.`
   )
 }
 

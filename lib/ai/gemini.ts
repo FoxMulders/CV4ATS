@@ -10,22 +10,25 @@ export const GEMINI_MODEL_ID =
   process.env.GEMINI_MODEL_ID?.trim() || 'gemini-flash-latest'
 
 /**
- * Cloud model for hiring panel review (complex structured JSON + multi-manager reasoning).
- * Override via HIRING_PANEL_MODEL_ID. `gemini-1.5-pro` is no longer served on v1beta.
+ * Cloud model for hiring panel review (structured JSON + multi-manager reasoning).
+ * Defaults to gemini-2.5-flash — gemini-2.5-pro often has free_tier limit: 0 on AI Studio keys.
+ * Override via HIRING_PANEL_MODEL_ID.
  */
 export const HIRING_PANEL_GEMINI_MODEL_ID =
-  process.env.HIRING_PANEL_MODEL_ID?.trim() || 'gemini-2.5-pro'
+  process.env.HIRING_PANEL_MODEL_ID?.trim() || 'gemini-2.5-flash'
 
-/** Ordered fallbacks when the configured hiring panel model is unavailable. */
+/** Ordered fallbacks — free-tier Flash models first, Pro last. */
 export function hiringPanelModelCandidates(): string[] {
   const configured = process.env.HIRING_PANEL_MODEL_ID?.trim()
   const candidates = [
     configured,
     HIRING_PANEL_GEMINI_MODEL_ID,
-    'gemini-2.5-pro',
-    'gemini-2.5-flash',
     GEMINI_MODEL_ID,
+    'gemini-2.5-flash',
     'gemini-flash-latest',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
   ].filter((id): id is string => Boolean(id?.trim()))
 
   return [...new Set(candidates)]

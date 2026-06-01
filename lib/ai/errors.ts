@@ -55,7 +55,49 @@ export function isGeminiModelNotFoundError(error: unknown): boolean {
         ? error.message
         : String(root ?? error ?? '')
 
-  return /is not found for API version|not supported for generateContent|models\/gemini/i.test(message)
+  return /is not found for API version|not supported for generateContent/i.test(message)
+}
+
+/**
+ * Model-specific quota block (e.g. free tier limit: 0 for gemini-2.5-pro).
+ * Try the next fallback model instead of failing the whole hiring panel.
+ */
+export function isGeminiModelQuotaBlockedError(error: unknown): boolean {
+  const root = unwrapAiError(error)
+  const message =
+    root instanceof Error
+      ? root.message
+      : error instanceof Error
+        ? error.message
+        : String(root ?? error ?? '')
+
+  return (
+    /free_tier_.*limit:\s*0/i.test(message) ||
+    (/quota exceeded|resource exhausted/i.test(message) && /limit:\s*0/i.test(message))
+  )
+}
+
+export function shouldFallbackToNextGeminiModel(error: unknown): boolean {
+  return isGeminiModelNotFoundError(error) || isGeminiModelQuotaBlockedError(error)
+}
+
+/** Short, user-facing hiring panel failure text (avoid raw API quota dumps). */
+export function formatHiringPanelFailureReason(reason: string): string {
+  const trimmed = reason.trim()
+  if (!trimmed) return 'Hiring panel review could not be completed.'
+
+  if (/free_tier_.*limit:\s*0/i.test(trimmed) && /gemini-2\.5-pro/i.test(trimmed)) {
+    return 'Gemini free tier does not include gemini-2.5-pro on this API key. ATS4CV uses Flash models for the hiring panel instead — regenerate to retry.'
+  }
+
+  if (/quota exceeded|resource exhausted|free_tier/i.test(trimmed)) {
+    if (/please retry in/i.test(trimmed)) {
+      return 'Gemini API quota temporarily exceeded. Wait about one minute, then regenerate to retry the hiring panel. Your tailored resume is still ready.'
+    }
+    return 'Gemini API quota exceeded for cloud hiring panel review. Your tailored resume is still available — retry in about a minute.'
+  }
+
+  return trimmed.length > 320 ? `${trimmed.slice(0, 317)}…` : trimmed
 }
 
 /** Unwrap RetryError / Error.cause so fallback logic sees the root provider failure. */
