@@ -12,8 +12,6 @@ interface WorkspaceAccordionProps {
   badge?: ReactNode
   children: ReactNode
   className?: string
-  /** Keep expanded content scroll-contained so accordions don't blow the viewport. */
-  scrollableContent?: boolean
 }
 
 export function WorkspaceAccordion({
@@ -24,7 +22,6 @@ export function WorkspaceAccordion({
   badge,
   children,
   className,
-  scrollableContent = true,
 }: WorkspaceAccordionProps) {
   return (
     <details
@@ -54,14 +51,7 @@ export function WorkspaceAccordion({
           </div>
         </div>
       </summary>
-      <div
-        className={cn(
-          'border-t border-border/60 px-4 py-4',
-          scrollableContent && 'max-h-[min(480px,52vh)] overflow-y-auto overscroll-contain'
-        )}
-      >
-        {children}
-      </div>
+      <div className="border-t border-border/60 px-4 py-4">{children}</div>
     </details>
   )
 }

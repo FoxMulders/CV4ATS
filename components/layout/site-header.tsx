@@ -14,7 +14,7 @@ export function SiteHeader({ current, variant = 'default' }: SiteHeaderProps) {
   const compact = variant === 'compact'
 
   return (
-    <header className="sticky top-0 z-50 shrink-0 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="z-50 shrink-0 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div
         className={
           compact

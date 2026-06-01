@@ -86,7 +86,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`}>
-      <body className="min-h-screen antialiased font-sans">
+      <body className="h-full antialiased font-sans">
         <SiteJsonLd />
         <GlobalAppShell>{children}</GlobalAppShell>
         <Toaster richColors position="top-center" />

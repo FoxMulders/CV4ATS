@@ -852,7 +852,6 @@ export function TailorWorkspacePage({
         title="Job description"
         description="Paste the role you are applying for"
         defaultOpen={!result}
-        scrollableContent
       >
         <JobDescriptionStep
           value={jobDescription}
@@ -893,7 +892,6 @@ export function TailorWorkspacePage({
         title="Generate tailored materials"
         description="Create an ATS-formatted resume, keyword report, and cover letter"
         defaultOpen={!result}
-        scrollableContent={false}
       >
         <GenerateStep
           onGenerate={() => requestGenerate()}
@@ -1135,7 +1133,7 @@ export function TailorWorkspacePage({
   )
 
   return (
-    <div className="flex h-svh max-h-svh flex-col overflow-hidden bg-muted/30">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-muted/30">
       <SiteHeader current="tailor" variant="compact" />
 
       <SplitWorkspaceLayout

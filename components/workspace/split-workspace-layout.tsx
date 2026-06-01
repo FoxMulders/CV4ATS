@@ -13,8 +13,8 @@ interface SplitWorkspaceLayoutProps {
 }
 
 /**
- * Industry-standard split workspace: inputs left (45%), live document right (55%),
- * each pane scrolls independently inside a fixed viewport shell.
+ * Split workspace: inputs left (45%), live document right (55%).
+ * Each pane is the only vertical scroll container in its column.
  */
 export function SplitWorkspaceLayout({
   leftPane,
@@ -26,7 +26,7 @@ export function SplitWorkspaceLayout({
     <div
       id="tailor-workspace"
       className={cn(
-        'grid min-h-0 flex-1 overflow-hidden',
+        'grid h-full min-h-0 overflow-hidden',
         showRightPane
           ? 'grid-cols-1 max-lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,45vw)_minmax(0,55vw)] lg:grid-rows-1'
           : 'grid-cols-1 grid-rows-1',
@@ -36,11 +36,11 @@ export function SplitWorkspaceLayout({
       <aside
         aria-label="Resume editor controls"
         className={cn(
-          'flex min-h-0 flex-col overflow-hidden overscroll-contain border-b border-border/80 bg-muted/20 lg:border-b-0 lg:border-r',
-          showRightPane ? 'max-lg:max-h-[50svh]' : 'h-auto'
+          'flex min-h-0 flex-col overflow-hidden border-b border-border/80 bg-muted/20 lg:border-b-0 lg:border-r',
+          showRightPane && 'max-lg:min-h-0'
         )}
       >
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+        <div className="workspace-pane min-h-0 flex-1 pb-14">
           <div className="space-y-3 p-4 sm:p-5">{leftPane}</div>
         </div>
       </aside>
@@ -48,11 +48,9 @@ export function SplitWorkspaceLayout({
       {showRightPane ? (
         <section
           aria-label="Live resume preview"
-          className="flex min-h-0 flex-col overflow-hidden bg-muted/40 max-lg:max-h-[50svh] lg:max-h-none"
+          className="flex min-h-0 flex-col overflow-hidden bg-muted/40"
         >
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-            {rightPane}
-          </div>
+          <div className="workspace-pane min-h-0 flex-1 pb-14">{rightPane}</div>
         </section>
       ) : null}
     </div>

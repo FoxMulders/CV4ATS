@@ -1,22 +1,21 @@
 /** Shared layout tokens for the side-by-side Job Description + Resume workspace. */
 
-/** Minimum height of the primary editing viewport in both panels. */
-export const WORKSPACE_EDITOR_HEIGHT_CLASS = 'h-[min(360px,42vh)] min-h-[280px]'
+/** Minimum comfortable height for primary editing regions — no fixed max; pane scrolls. */
+export const WORKSPACE_EDITOR_HEIGHT_CLASS = 'min-h-[12rem]'
 
 /** Compact read-only preview region (resume source preview). */
-export const WORKSPACE_PREVIEW_HEIGHT_CLASS = 'h-40 min-h-[10rem]'
+export const WORKSPACE_PREVIEW_HEIGHT_CLASS = 'min-h-[10rem]'
 
-/** Outer shell — identical border, padding, and scroll gutter on both panels. */
+/** Outer shell — border and padding; scrolling is handled by the workspace pane only. */
 export const WORKSPACE_VIEWPORT_SHELL_CLASS =
-  'flex flex-col overflow-hidden rounded-lg border border-border/80 bg-muted/20 shadow-inner'
+  'rounded-lg border border-border/80 bg-muted/20 shadow-inner'
 
-/** Inner scroll region for text areas and tag lists. */
-export const WORKSPACE_VIEWPORT_BODY_CLASS =
-  'flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]'
+/** Inner content region — grows with content, no nested scroll. */
+export const WORKSPACE_VIEWPORT_BODY_CLASS = 'min-h-[12rem]'
 
-/** Primary textarea — borderless inside the shell; scrolling handled by body. */
+/** Primary textarea — borderless inside the shell; grows with field-sizing-content. */
 export const WORKSPACE_TEXTAREA_CLASS =
-  'field-sizing-content min-h-full w-full resize-none rounded-none border-0 bg-transparent px-3 py-3 text-sm leading-relaxed shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm'
+  'field-sizing-content min-h-[12rem] w-full resize-y rounded-none border-0 bg-transparent px-3 py-3 text-sm leading-relaxed shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm'
 
 /** Tag / chip row container inside a viewport. */
 export const WORKSPACE_TAG_REGION_CLASS =

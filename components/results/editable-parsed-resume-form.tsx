@@ -82,7 +82,6 @@ function FormSection({
         description={description}
         defaultOpen={defaultOpen}
         className={className}
-        scrollableContent={id === 'resume-experience'}
       >
         {children}
       </WorkspaceAccordion>

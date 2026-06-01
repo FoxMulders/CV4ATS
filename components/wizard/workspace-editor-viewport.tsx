@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 import {
-  WORKSPACE_EDITOR_HEIGHT_CLASS,
   WORKSPACE_VIEWPORT_BODY_CLASS,
   WORKSPACE_VIEWPORT_SHELL_CLASS,
 } from '@/lib/wizard/workspace-panel-styles'
@@ -19,7 +18,7 @@ interface WorkspaceEditorViewportProps {
 
 /**
  * Matched editing shell for Job Description and Resume panels —
- * same border, padding density, and scroll behavior.
+ * same border and padding; no inner scroll (parent pane scrolls).
  */
 export function WorkspaceEditorViewport({
   children,
@@ -29,9 +28,9 @@ export function WorkspaceEditorViewport({
   'aria-label': ariaLabel,
 }: WorkspaceEditorViewportProps) {
   return (
-    <div className={cn('flex flex-col', WORKSPACE_EDITOR_HEIGHT_CLASS, className)}>
+    <div className={cn('flex flex-col', className)}>
       <div
-        className={cn(WORKSPACE_VIEWPORT_SHELL_CLASS, 'h-full flex-1')}
+        className={cn(WORKSPACE_VIEWPORT_SHELL_CLASS, 'flex flex-col')}
         aria-label={ariaLabel}
       >
         <div className={cn(WORKSPACE_VIEWPORT_BODY_CLASS, bodyClassName)}>{children}</div>

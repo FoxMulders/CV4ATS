@@ -8,7 +8,11 @@ import { useSystemDebugLogOptional } from '@/components/debug/system-debug-provi
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-export function SystemDebugConsole() {
+type SystemDebugConsoleProps = {
+  variant?: 'footer' | 'dock'
+}
+
+export function SystemDebugConsole({ variant = 'footer' }: SystemDebugConsoleProps) {
   const { logs, appendLog } = useSystemDebugLogOptional()
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -37,7 +41,7 @@ export function SystemDebugConsole() {
   }, [appendLog, logs])
 
   return (
-    <div className="border-t border-border/60 pt-4">
+    <div className={cn(variant === 'footer' && 'border-t border-border/60 pt-4')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
@@ -72,12 +76,15 @@ export function SystemDebugConsole() {
 
       <div
         id="system-debug-console-panel"
-        className={cn('mt-3 overflow-hidden transition-[max-height,opacity] duration-200', expanded ? 'opacity-100' : 'max-h-0 opacity-0')}
+        className={cn(
+          'overflow-hidden transition-[max-height,opacity] duration-200',
+          expanded ? 'mt-2 opacity-100' : 'max-h-0 opacity-0'
+        )}
         hidden={!expanded}
       >
         <pre
           ref={logPanelRef}
-          className="max-h-[150px] overflow-y-auto rounded-md border border-emerald-900/40 bg-[#1a1a1a] p-3 font-mono text-[11px] leading-relaxed text-[#00ff00] shadow-inner"
+          className="max-h-[min(150px,28vh)] overflow-y-auto rounded-md border border-emerald-900/40 bg-[#1a1a1a] p-3 font-mono text-[11px] leading-relaxed text-[#00ff00] shadow-inner"
           aria-label="System debug log output"
           aria-live="polite"
         >

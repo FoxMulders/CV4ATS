@@ -124,6 +124,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
   body {
     @apply bg-background text-foreground;
   }
@@ -136,6 +141,82 @@
   .font-heading {
     font-family: var(--font-heading), Georgia, 'Times New Roman', serif;
   }
+}
+
+/* Premium app shell — no document-level scroll on workspace routes */
+html.app-viewport-lock,
+html.app-viewport-lock body {
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+html.app-viewport-lock {
+  height: 100%;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+.app-shell--workspace {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.app-shell--workspace .app-shell-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-shell--scrollable .app-shell-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Independent left/right pane scroll — slim scrollbars in the center gutter */
+.workspace-pane {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.workspace-pane::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.workspace-pane::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+}
+
+.workspace-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark .workspace-pane::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Fixed debug dock — overlays workspace without pushing pane scroll */
+.system-debug-dock {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 60;
+  border-top: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  background: color-mix(in oklch, var(--muted) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 -4px 24px oklch(0.24 0.04 260 / 0.08);
 }
 
 .copy-protected-workspace {
