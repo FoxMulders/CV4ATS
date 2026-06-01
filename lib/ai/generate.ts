@@ -19,6 +19,7 @@ import {
   generateTailoredResumeLocally,
   refineTailoredResumeLocally,
 } from '@/lib/ai/local-fallback'
+import { applyGenerationHygiene } from '@/lib/ai/generation-hygiene'
 import { normalizeAiGenerationOutput, parseJsonFromModelText } from '@/lib/ai/normalize-output'
 import {
   buildRefinementPrompt,
@@ -48,11 +49,17 @@ const STRUCTURED_OUTPUT = Output.object({
     'Structured ATS resume package with keywordReport, tailoredResume, and coverLetter. tailoredResume.summary must be Executive Value Proposition + Core Expertise pipe line; bullets must follow Action + Scope + Business Impact with twin-auditor compliance.',
 })
 
-function parseStructuredResult(raw: unknown): AiGenerationResult {
-  return aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw))
+function parseStructuredResult(raw: unknown, sourceResumeText = ''): AiGenerationResult {
+  return applyGenerationHygiene(
+    aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw)),
+    sourceResumeText
+  )
 }
 
-function tryRecoverStructuredOutput(error: unknown): AiGenerationResult | undefined {
+function tryRecoverStructuredOutput(
+  error: unknown,
+  sourceResumeText = ''
+): AiGenerationResult | undefined {
   const root = unwrapAiError(error)
   const text = NoObjectGeneratedError.isInstance(root) ? root.text : undefined
 
@@ -61,7 +68,7 @@ function tryRecoverStructuredOutput(error: unknown): AiGenerationResult | undefi
   }
 
   try {
-    return parseStructuredResult(parseJsonFromModelText(text))
+    return parseStructuredResult(parseJsonFromModelText(text), sourceResumeText)
   } catch {
     return undefined
   }
@@ -125,7 +132,8 @@ async function runStreamWithProvider(
   entry: ResolvedAiModel,
   prompt: string,
   temperature: number,
-  callbacks: AiStreamCallbacks
+  callbacks: AiStreamCallbacks,
+  sourceResumeText: string
 ): Promise<AiGenerationResult> {
   const stream = streamText({
     model: entry.model,
@@ -150,16 +158,16 @@ async function runStreamWithProvider(
 
   try {
     const raw = await stream.output
-    return parseStructuredResult(raw)
+    return parseStructuredResult(raw, sourceResumeText)
   } catch (error) {
-    const recovered = tryRecoverStructuredOutput(error)
+    const recovered = tryRecoverStructuredOutput(error, sourceResumeText)
     if (recovered) {
       return recovered
     }
 
     if (lastPartial?.tailoredResume?.summary && lastPartial?.coverLetter) {
       try {
-        return parseStructuredResult(normalizeAiGenerationOutput(lastPartial))
+        return parseStructuredResult(normalizeAiGenerationOutput(lastPartial), sourceResumeText)
       } catch {
         // fall through to raw text recovery
       }
@@ -168,7 +176,7 @@ async function runStreamWithProvider(
     try {
       const text = await stream.text
       if (text?.trim()) {
-        return parseStructuredResult(parseJsonFromModelText(text))
+        return parseStructuredResult(parseJsonFromModelText(text), sourceResumeText)
       }
     } catch {
       // fall through
@@ -181,7 +189,8 @@ async function runStreamWithProvider(
 async function streamStructuredGeneration(
   prompt: string,
   temperature: number,
-  callbacks: AiStreamCallbacks = {}
+  callbacks: AiStreamCallbacks = {},
+  sourceResumeText = ''
 ): Promise<AiGenerationResult> {
   assertDirectAiProviderConfigured()
 
@@ -191,7 +200,7 @@ async function streamStructuredGeneration(
   for (let index = 0; index < chain.length; index += 1) {
     const entry = chain[index]!
     try {
-      return await runStreamWithProvider(entry, prompt, temperature, callbacks)
+      return await runStreamWithProvider(entry, prompt, temperature, callbacks, sourceResumeText)
     } catch (error) {
       lastError = error
       const hasNext = index < chain.length - 1
@@ -214,10 +223,10 @@ export async function generateTailoredResume(
   const prompt = buildUserPrompt(jobDescription, resumeText, promptOptions)
 
   try {
-    return await streamStructuredGeneration(prompt, AI_GENERATION_TEMPERATURE, callbacks)
+    return await streamStructuredGeneration(prompt, AI_GENERATION_TEMPERATURE, callbacks, resumeText)
   } catch (error) {
     if (shouldUseLocalFallback(error)) {
-      return generateTailoredResumeLocally(jobDescription, resumeText)
+      return applyGenerationHygiene(generateTailoredResumeLocally(jobDescription, resumeText), resumeText)
     }
     throw error
   }
@@ -242,14 +251,22 @@ export async function refineTailoredResume(
   )
 
   try {
-    return await streamStructuredGeneration(prompt, AI_REFINEMENT_TEMPERATURE, callbacks)
+    return await streamStructuredGeneration(
+      prompt,
+      AI_REFINEMENT_TEMPERATURE,
+      callbacks,
+      sourceResumeText
+    )
   } catch (error) {
     if (shouldUseLocalFallback(error)) {
-      return refineTailoredResumeLocally(
-        jobDescription,
-        sourceResumeText,
-        currentScore,
-        missingKeywords
+      return applyGenerationHygiene(
+        refineTailoredResumeLocally(
+          jobDescription,
+          sourceResumeText,
+          currentScore,
+          missingKeywords
+        ),
+        sourceResumeText
       )
     }
     throw error

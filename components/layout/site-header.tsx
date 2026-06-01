@@ -2,6 +2,7 @@ import { FileCheck2 } from 'lucide-react'
 import Link from 'next/link'
 
 import { AppNav } from '@/components/nav/app-nav'
+import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand'
 
 interface SiteHeaderProps {
   current: 'tailor' | 'jobs'
@@ -39,10 +40,10 @@ export function SiteHeader({ current, variant = 'default' }: SiteHeaderProps) {
                   : 'font-heading truncate text-lg font-semibold leading-tight tracking-tight text-foreground'
               }
             >
-              ATS4CV
+              {BRAND_NAME}
             </p>
             {compact ? null : (
-              <p className="truncate text-xs text-muted-foreground">Professional resume tailoring</p>
+              <p className="truncate text-xs text-muted-foreground">{BRAND_TAGLINE}</p>
             )}
           </div>
         </Link>

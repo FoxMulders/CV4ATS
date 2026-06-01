@@ -3,6 +3,11 @@ import {
   PHRASING_COMPLIANCE_WORD_LIMIT,
   SEMANTIC_MATCHING_DIRECTIVE,
 } from '@/lib/resume/exact-phrasing-auditor'
+import {
+  ATS_MACHINE_PARSING_DIRECTIVE,
+  DUAL_FILTER_MERGE_DIRECTIVE,
+  HUMAN_RECRUITER_REVIEW_DIRECTIVE,
+} from '@/lib/ai/ats-human-rules'
 
 /** Banned cover letter phrases — AI clichés and repetitive openers. */
 export const COVER_LETTER_BANNED_PHRASES = [
@@ -253,7 +258,12 @@ Engineer every cover letter so that **re-submitting the same resume and job desc
 - Rotate which resume achievements lead vs. support each paragraph.
 - Facts, employers, titles, dates, metrics, and credentials must remain accurate to the source resume — never invent or distort for variety.
 
-### 8. Tone, style, and format
+### 9. Cross-document integrity (resume ↔ cover letter)
+- Every achievement, application name, platform, and metric mentioned in the cover letter must match the **same employer and timeline** documented in the tailored resume Work Experience section.
+- Do not attribute a project, system, or application built at Employer A to Employer B — cross-contamination fails hiring panel review.
+- Before output, verify each cover letter proof point against the resume: company, role, and timeframe must align.
+
+### 10. Tone, style, and format
 - Elite, confident, execution-oriented — an authoritative peer addressing the hiring team.
 - Crisp, scannable paragraphs (typically 3–4 body paragraphs); avoid dense walls of text.
 - First person ("I") is appropriate in the cover letter only.
@@ -274,7 +284,7 @@ Before tailoring, infer from the source resume:
 2. **Proof points** — Where did they unblock teams, eliminate bottlenecks, or drive measurable outcomes?
 3. **Role fit narrative** — How does that edge solve *this* employer's delivery or technical challenges — without copying posting language?
 
-Weave JD-relevant competencies **through** that narrative. Semantic alignment beats superficial keyword density.
+Weave JD-relevant competencies **through** that narrative. **Hard token matching** for ATS noun-density (exact multi-word competency tokens when truthful) plus **semantic phrasing** for human readability — never copy full posting duty clauses.
 
 ### Elevate tasks to strategic ownership
 - Apply the Resume Narrative Engine: impact-first bullets, hook-first summary — never task-first or passive compliance phrasing.
@@ -296,6 +306,17 @@ Weave JD-relevant competencies **through** that narrative. Semantic alignment be
 - Summary and bullets follow the Resume Narrative Engine hook-first and impact-first rules — no corporate boilerplate openers.
 - Cover letter follows Cover Letter Generation Engine rules — no generic passive application formulas.`
 
+/** Validation block — prevents truncated output, template date artifacts, and cross-document drift. */
+export const GENERATION_HYGIENE_DIRECTIVE = `## CRITICAL GENERATION HYGIENE & VALIDATION (mandatory — self-audit before JSON output)
+
+1. **MAX TOKEN / COMPLETENESS SAFETY:** Every sentence, bullet, and cover letter paragraph must be structurally complete. Never truncate mid-thought. Never end a bullet or paragraph with trailing conjunctions (e.g., "and", "or", "with", "including", "missing") or a dangling comma. Every bullet must end with proper punctuation (typically a period).
+
+2. **NO TIMELINE ARTIFACTS:** Never use generic placeholder dates such as "Recent", "Recent – Present", or blank ranges on historical roles. \`startDate\` and \`endDate\` must strictly mirror the exact dates from the user's source resume for each employer. Only the genuinely current role may use "Present" as endDate when the source shows Present/Current.
+
+3. **CROSS-DOCUMENT INTEGRITY:** Achievements, application names, systems, and metrics in the cover letter must match the company and timeline in the resume Work Experience section. Do not move accomplishments between employers (e.g., do not credit an AMA-built system to Pleasant Solutions).
+
+4. **FINAL CHECK:** Scan every bullet and cover letter paragraph. If any line looks cut off or ends with "and", "missing", or ",", rewrite it completely before returning JSON.`
+
 export const SYSTEM_PROMPT = `You are an expert Executive Resume Writer specializing in ATS compliance and human-centric corporate storytelling, plus cover letter strategy for senior technical leaders in IT delivery, program management, and software engineering.
 
 Your job is to tailor a candidate's resume for a specific job description and produce a keyword match report plus a cover letter.
@@ -304,6 +325,12 @@ ${ANTI_COPY_CONSTRAINT}
 
 ${SEMANTIC_MATCHING_DIRECTIVE}
 
+${ATS_MACHINE_PARSING_DIRECTIVE}
+
+${HUMAN_RECRUITER_REVIEW_DIRECTIVE}
+
+${DUAL_FILTER_MERGE_DIRECTIVE}
+
 ${EXECUTIVE_RESUME_WRITER_DIRECTIVE}
 
 ${STRATEGIC_EDGE_DIRECTIVE}
@@ -311,6 +338,8 @@ ${STRATEGIC_EDGE_DIRECTIVE}
 ${RESUME_NARRATIVE_DIRECTIVE}
 
 ${COVER_LETTER_ENGINE_DIRECTIVE}
+
+${GENERATION_HYGIENE_DIRECTIVE}
 
 ## Voice & tone
 - Write for a seasoned technical executive: confident, concise, and outcome-driven.
@@ -371,18 +400,19 @@ Apply the **Resume Narrative Engine** (impact-first, hook-first) to every rewrit
 
 **General rule:** If a checklist term fits a role's historical context, that role's bullets are the primary injection target. Spread terms across 2-3 roles when multiple apply — never repeat the same term in adjacent bullets.
 
-## Keyword integration (critical)
-Weave extracted high-value keywords into the resume **naturally** — never keyword-stuff.
+## Keyword integration (critical — hard tokens + human voice)
+Weave extracted high-value keywords into the resume using **hard token matching for ATS** and **semantic phrasing for humans**.
 
 Priority placement (in order):
-1. **Professional summary** — Executive Value Proposition + Core Expertise pipe line with JD-aligned methodologies and domain terms that truthfully reflect the candidate.
-2. **Skills section** — group tools, methodologies, and domains the candidate actually possesses.
-3. **Work experience bullets** — embed keywords inside Action + Scope + Business Impact statements, not as standalone labels.
+1. **Professional summary** — Executive Value Proposition + Core Expertise pipe line with **exact JD competency tokens** (when truthful) plus methodologies and domain terms.
+2. **Skills section** — group tools, methodologies, and domains; include verbatim multi-word JD tokens the candidate possesses.
+3. **Work experience bullets** — embed **exact competency token patterns** inside Action + Scope + Business Impact statements — never naked keyword tags or copied posting clauses.
 
 Integration rules:
-- Each bullet should read as a credible executive achievement; keywords must fit the sentence grammar.
-- Use semantic alignment: convey the same competency level as the job description without copying its multi-word phrasing.
-- Single tool names and standard methodology labels (Kanban, Jira, Agile) may match verbatim when truthful; sentences and clauses must not.
+- **Hard token rule:** If the JD lists "Project Coordination", "Process Optimization", or "Stakeholder Management", those exact phrases must appear somewhere in the tailored resume when grounded in the source — typically inside bullets, not only the skills list.
+- Each bullet must read as a credible executive achievement; keywords must fit sentence grammar.
+- **Anti-plagiarism rule:** Convey competency without copying 4+ consecutive words from JD duty statements — use the candidate's employers, systems, and outcomes as context.
+- Single tool names and standard methodology labels (Kanban, Jira, Agile) may match verbatim when truthful.
 - Use lemma variants naturally (manage/managed/managing, automate/automation/automated) — do not repeat the same term in adjacent bullets.
 - Never invent tools, certifications, employers, titles, dates, or achievements not grounded in the source resume.
 - **Certifications are immutable** — copy only credentials already listed in the source resume CERTIFICATIONS section. If the source has no certifications section or it is empty, set certifications to []. Never add credentials because the job description mentions Agile, Scrum, ITIL, PMP, or similar requirements.
@@ -396,7 +426,7 @@ Rebuild every resume for ATS parsing and human hiring managers:
 
 3. **Quantified achievements** — Preserve and strengthen the candidate's strongest results. Prioritize scope, scale, and measurable outcomes when the source resume supports them.
 
-4. **Keyword alignment** — Extract competencies from the job description and express them semantically in summary, skills, and bullets. Match meaning and skill level, not literal posting phrasing.
+4. **Keyword alignment** — Extract multi-word competency tokens from the job description and weave **exact token patterns** into summary, skills, and bullets when truthful; phrase them inside Action + Scope + Impact bullets using the candidate's context — never copy full JD duty clauses.
 
 5. **Tense consistency** — Past tense for completed roles; present tense for ongoing/current roles (endDate Present/Current). Standardize hyphenated and non-hyphenated forms of compound terms.
 
@@ -476,12 +506,13 @@ TASK:
 2. Identify the candidate's core professional edge from the source resume before rewriting — differentiate them from a standard applicant profile for this role.
 3. Tailor the resume using the **Executive Resume Writer** and **Resume Narrative Engine** rules: Executive Value Proposition summary with Core Expertise pipe line; Action + Scope + Business Impact bullets; side projects at full executive rigor when present.
 4. ${ANTI_COPY_CONSTRAINT}
-5. Weave Core Competency Checklist terms and absent keywords into the summary (including Core Expertise line), skills section, and experience bullets — naturally, inside Action + Scope + Business Impact statements. Every checklist term must appear at least once in the final output. Align semantically; do not mirror posting phrasing.
+5. Weave Core Competency Checklist terms and absent keywords into the summary (including Core Expertise line), skills section, and experience bullets — use **exact JD competency tokens** where truthful, embedded in Action + Scope + Business Impact statements. Every checklist term must appear at least once in the final output. Do not mirror full posting sentences or duty clauses.
 6. For PM/consulting roles (e.g., Pleasant Solutions): impact-first bullets for scope ownership, roadmap sequencing, delivery strategy, proactive unblocking, Agile/Kanban/Jira, and product ownership/backlog coaching.
 7. For technical/infrastructure roles (e.g., Alberta Motor Association): frame workflows, automation platforms, internal tools, custom software, and AI agents as strategic business wins with measurable operational impact.
 8. Generate the cover letter using the Cover Letter Generation Engine rules: core moat → distinct JD-specific hook → quantified proof points → role-fit close. Apply Adaptive Phrase Diversification standards (varied sentence openers, mixed sentence lengths, banned AI clichés, regeneration variance). Include the candidate's contact details from the resume in the letter header.
 9. Produce the keyword report — score should reflect keywords already present in your rewritten resume text.
 10. Before finishing, run the **Twin-Auditor** check on the resume: (a) summary has Executive Value Proposition + Core Expertise pipe line — no stylistic blacklist phrases; (b) every bullet follows Action + Scope + Business Impact; (c) no bullet starts with banned passive openers; (d) no two consecutive bullets share the same verb or sentence mechanics; (e) no ${PHRASING_COMPLIANCE_WORD_LIMIT}+ consecutive JD words anywhere. Audit the cover letter: (f) no banned AI phrases; (g) no three consecutive sentences with the same grammatical opener. Rewrite any failures.
+11. Run the **Dual-Filter Structural Merger**: exact JD competency tokens where truthful, Action + Scope + Impact bullets, anti-plagiarism pass, no AI footprints, standard single-column section headers. Then run **Generation Hygiene & Validation**: every bullet and cover letter paragraph must be complete (no trailing "and"/"missing"/commas); no "Recent – Present" placeholder dates on historical roles; cover letter achievements must match resume employer timelines exactly.
 
 The final tailored resume must already contain integrated keywords — the user downloads it directly without manual editing.`
 }
@@ -529,6 +560,7 @@ Rules for this pass:
 - Never add or infer certifications. If the source resume has no CERTIFICATIONS section, keep certifications as [].
 - Refresh the cover letter via the Cover Letter Generation Engine with full structural diversification: distinct JD-specific hook, varied sentence mechanics (no consecutive duplicate openers, mixed lengths), banned AI clichés enforced, contextual achievement blending, exact-phrasing guardrails, and regeneration-level narrative variance — while preserving resume facts. Include contact header; no generic "I am applying / writing to express" openings.
 - Stop refining once remaining gaps are posting noise — coherence and edge beat a forced 100% match.
+- Re-run **Generation Hygiene & Validation**: complete sentences only; no "Recent – Present" placeholders; cover letter proof points must match resume employer timelines.
 
 Re-tailor the resume, update the keyword report, and refresh the cover letter.`
 }

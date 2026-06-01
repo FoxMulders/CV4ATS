@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 
 import { JobSearchPanel } from '@/components/jobs/job-search-panel'
 import { PageHero } from '@/components/layout/page-hero'
-import { SiteFooter } from '@/components/layout/site-footer'
 import { SiteHeader } from '@/components/layout/site-header'
 import { TrustBanner } from '@/components/layout/trust-banner'
 
@@ -36,8 +35,6 @@ export default function JobsPage() {
 
         <JobSearchPanel />
       </main>
-
-      <SiteFooter />
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { generateText, NoObjectGeneratedError, Output } from 'ai'
 
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
 import { unwrapAiError } from '@/lib/ai/errors'
-import { createGeminiModel, GEMINI_MODEL_ID, geminiProviderOptions } from '@/lib/ai/gemini'
+import { createGeminiModel, geminiProviderOptions } from '@/lib/ai/gemini'
 import {
   buildHiringPanelReviewPrompt,
   buildHiringPanelRevisionPrompt,
@@ -10,11 +10,14 @@ import {
   HIRING_PANEL_REVIEW_SYSTEM_PROMPT,
 } from '@/lib/ai/hiring-panel-prompts'
 import {
+  hiringManagerReviewSchema,
   hiringPanelReviewSchema,
+  type HiringManagerReview,
   type HiringPanelReview,
   type HiringPanelSessionResult,
 } from '@/lib/ai/hiring-panel-schemas'
 import { parseJsonFromModelText } from '@/lib/ai/normalize-output'
+import { parseJsonFromSanitizedText, stripMarkdownJsonFences } from '@/lib/ai/sanitize-json-response'
 import { AI_GENERATION_MAX_TOKENS, AI_STREAM_MAX_RETRIES } from '@/lib/ai/provider'
 import {
   aiGenerationResultSchema,
@@ -27,8 +30,11 @@ import {
   findCoverLetterBannedPhrases,
 } from '@/lib/resume/cover-letter-compliance'
 
-export const HIRING_PANEL_MODEL_ID =
-  process.env.HIRING_PANEL_MODEL_ID?.trim() || GEMINI_MODEL_ID
+/** Cloud-only model for hiring panel — never routed to browser Nano / window.ai. */
+export const HIRING_PANEL_CLOUD_MODEL_ID =
+  process.env.HIRING_PANEL_MODEL_ID?.trim() || 'gemini-1.5-pro'
+
+export const HIRING_PANEL_MODEL_ID = HIRING_PANEL_CLOUD_MODEL_ID
 
 export const MAX_HIRING_PANEL_REVISION_ROUNDS = 4
 
@@ -48,15 +54,58 @@ const REVISION_OUTPUT = Output.object({
   description: 'Revised tailored resume and cover letter after panel feedback.',
 })
 
+function extractModelText(error: unknown): string | undefined {
+  const root = unwrapAiError(error)
+  if (NoObjectGeneratedError.isInstance(root) && root.text?.trim()) {
+    return root.text
+  }
+  if (error instanceof Error && error.message.includes('{')) {
+    return error.message
+  }
+  return undefined
+}
+
+function tryParsePartialManagers(text: string): HiringManagerReview[] {
+  try {
+    const parsed = parseJsonFromSanitizedText(stripMarkdownJsonFences(text)) as Record<
+      string,
+      unknown
+    >
+    const managers = parsed.managers
+    if (!Array.isArray(managers)) return []
+    return managers
+      .map((entry) => {
+        try {
+          return hiringManagerReviewSchema.parse(entry)
+        } catch {
+          return null
+        }
+      })
+      .filter((entry): entry is HiringManagerReview => entry != null)
+  } catch {
+    return []
+  }
+}
+
 function tryRecoverReview(error: unknown): HiringPanelReview | undefined {
   const root = unwrapAiError(error)
-  const text = NoObjectGeneratedError.isInstance(root) ? root.text : undefined
+  const text = NoObjectGeneratedError.isInstance(root) ? root.text : extractModelText(error)
   if (!text?.trim()) return undefined
-  try {
-    return hiringPanelReviewSchema.parse(parseJsonFromModelText(text))
-  } catch {
-    return undefined
+
+  const attempts = [text, stripMarkdownJsonFences(text)]
+  for (const candidate of attempts) {
+    try {
+      return hiringPanelReviewSchema.parse(parseJsonFromModelText(candidate))
+    } catch {
+      try {
+        return hiringPanelReviewSchema.parse(parseJsonFromSanitizedText(candidate))
+      } catch {
+        // try next candidate
+      }
+    }
   }
+
+  return undefined
 }
 
 function tryRecoverRevision(
@@ -105,8 +154,8 @@ export async function runHiringPanelReview(
   jobDescription: string,
   sourceResumeText: string,
   draft: AiGenerationResult
-): Promise<HiringPanelReview | null> {
-  const model = createGeminiModel(HIRING_PANEL_MODEL_ID)
+): Promise<{ review: HiringPanelReview | null; partialCritiques: HiringManagerReview[]; failureReason?: string }> {
+  const model = createGeminiModel(HIRING_PANEL_CLOUD_MODEL_ID)
   const prompt = buildHiringPanelReviewPrompt(jobDescription, sourceResumeText, draft)
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -121,17 +170,26 @@ export async function runHiringPanelReview(
         output: REVIEW_OUTPUT,
         providerOptions: geminiProviderOptions(),
       })
-      return hiringPanelReviewSchema.parse(response.output)
+      return { review: hiringPanelReviewSchema.parse(response.output), partialCritiques: [] }
     } catch (error) {
       const recovered = tryRecoverReview(error)
-      if (recovered) return recovered
+      if (recovered) {
+        return { review: recovered, partialCritiques: [] }
+      }
+
+      const rawText = extractModelText(error)
+      const partialCritiques = rawText ? tryParsePartialManagers(rawText) : []
+
       if (attempt === 0) continue
+
+      const failureReason =
+        error instanceof Error ? error.message : 'Hiring panel review parsing failed.'
       console.error('Hiring panel review failed:', error)
-      return null
+      return { review: null, partialCritiques, failureReason }
     }
   }
 
-  return null
+  return { review: null, partialCritiques: [], failureReason: 'Hiring panel review failed.' }
 }
 
 export async function runHiringPanelRevision(
@@ -141,7 +199,7 @@ export async function runHiringPanelRevision(
   review: HiringPanelReview,
   options: HiringPanelRunOptions = {}
 ): Promise<Pick<AiGenerationResult, 'tailoredResume' | 'coverLetter'> | null> {
-  const model = createGeminiModel(HIRING_PANEL_MODEL_ID)
+  const model = createGeminiModel(HIRING_PANEL_CLOUD_MODEL_ID)
   const prompt = buildHiringPanelRevisionPrompt(
     jobDescription,
     sourceResumeText,
@@ -184,7 +242,10 @@ export async function runHiringPanelRevision(
           maxRetries: AI_STREAM_MAX_RETRIES,
           providerOptions: geminiProviderOptions(),
         })
-        const parsed = parseJsonFromModelText(response.text) as Record<string, unknown>
+        const parsed = parseJsonFromSanitizedText(stripMarkdownJsonFences(response.text)) as Record<
+          string,
+          unknown
+        >
         return {
           tailoredResume: tailoredResumeSchema.parse(parsed.tailoredResume),
           coverLetter: String(parsed.coverLetter ?? '').trim(),
@@ -243,6 +304,22 @@ function preserveDraft(
   return normalizeGenerationDraftForApi(draft, sourceResumeText)
 }
 
+export function buildFailedPanelSession(
+  failureReason: string,
+  partialCritiques: HiringManagerReview[] = []
+): HiringPanelSessionResult {
+  return {
+    unanimousApproval: false,
+    aggregateScore: 0,
+    revisionRounds: 0,
+    managers: partialCritiques,
+    finalVerdict: failureReason,
+    revisionRecommendations: [],
+    reviewFailed: true,
+    failureReason,
+  }
+}
+
 export async function runHiringPanelWithRevisions(
   jobDescription: string,
   sourceResumeText: string,
@@ -261,22 +338,22 @@ export async function runHiringPanelWithRevisions(
         : `Hiring panel review (round ${revisionRounds + 1})…`
     )
 
-    const review = await runHiringPanelReview(jobDescription, sourceResumeText, current)
+    const { review, partialCritiques, failureReason } = await runHiringPanelReview(
+      jobDescription,
+      sourceResumeText,
+      current
+    )
     if (!review) {
       return {
         aiResult: current,
-        panel: lastReview
-          ? buildSessionResult(lastReview, revisionRounds)
-          : {
-              unanimousApproval: false,
-              aggregateScore: 0,
-              revisionRounds: 0,
-              managers: [],
-              finalVerdict:
-                'Hiring panel review could not be completed. Regenerate to retry manager feedback.',
-              revisionRecommendations: [],
-              reviewFailed: true,
-            },
+        panel:
+          lastReview != null
+            ? buildSessionResult(lastReview, revisionRounds)
+            : buildFailedPanelSession(
+                failureReason ??
+                  'Hiring panel review could not be completed. Regenerate to retry manager feedback.',
+                partialCritiques
+              ),
       }
     }
 

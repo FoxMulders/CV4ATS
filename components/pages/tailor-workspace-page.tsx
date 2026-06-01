@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PremiumUnlockBanner } from '@/components/billing/premium-unlock-banner'
 import { SquareCheckoutModal } from '@/components/billing/square-checkout-modal'
+import { useSystemDebugLog } from '@/components/debug/system-debug-provider'
 import { SiteHeader } from '@/components/layout/site-header'
 import { TrustBanner } from '@/components/layout/trust-banner'
 import { SeoFaqSection } from '@/components/marketing/seo-faq-section'
@@ -20,10 +21,10 @@ import { ResumeDiffView } from '@/components/results/resume-diff-view'
 import { ResumePreview } from '@/components/results/resume-preview'
 import { UndoRedoToolbar } from '@/components/results/undo-redo-toolbar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { PreviewScoreBanner } from '@/components/workspace/preview-score-banner'
 import { ResumeLetterPage } from '@/components/workspace/resume-letter-page'
 import { SplitWorkspaceLayout } from '@/components/workspace/split-workspace-layout'
-import { cn } from '@/lib/utils'
 import { WorkspaceAccordion } from '@/components/workspace/workspace-accordion'
 import { GenerateStep } from '@/components/wizard/generate-step'
 import { AchievementIntakeModal } from '@/components/wizard/achievement-intake-modal'
@@ -40,11 +41,15 @@ import { useJobPass } from '@/hooks/use-job-pass'
 import { useBrowserAiPreference } from '@/hooks/use-browser-ai-preference'
 import { useAtsScoreRecalculation } from '@/hooks/use-ats-score-recalculation'
 import { useSavedResume } from '@/hooks/use-saved-resume'
-import { RESUME_STEP_ANCHOR_ID } from '@/lib/wizard/workspace-focus-guide'
+import { guideWorkspaceFocusWhenInputsReady, RESUME_STEP_ANCHOR_ID } from '@/lib/wizard/workspace-focus-guide'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { runBrowserGeneration } from '@/lib/ai/browser/run-browser-generation'
+import { AI_GENERATION_MAX_TOKENS } from '@/lib/ai/provider'
+import { describeGenerationReceiveLog, estimateTokenCount } from '@/lib/debug/generation-receive-log'
+import { describeResumePayloadStats } from '@/lib/debug/resume-payload-stats'
+import { describeTailoredResumeEdit } from '@/lib/debug/resume-edit-log'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
@@ -60,7 +65,7 @@ import {
   type PanelExperienceQuestion,
 } from '@/lib/resume/panel-experience-gaps'
 import { requestPanelRevise } from '@/lib/api/panel-revise-client'
-import { requestHiringPanelReview } from '@/lib/api/hiring-panel-client'
+import { requestHiringPanelReview, type HiringPanelReviewResponse } from '@/lib/api/hiring-panel-client'
 
 type GenerationResultWithMeta = GenerationResult & {
   refinementPasses?: number
@@ -138,6 +143,12 @@ export function TailorWorkspacePage({
   const [panelExperienceOpen, setPanelExperienceOpen] = useState(false)
   const [panelExperienceQuestions, setPanelExperienceQuestions] = useState<PanelExperienceQuestion[]>([])
   const [panelReviseLoading, setPanelReviseLoading] = useState(false)
+  const [panelReviewLoading, setPanelReviewLoading] = useState(false)
+  const { appendLog } = useSystemDebugLog()
+  const lastLoggedJobRef = useRef('')
+  const lastLoggedResumeRef = useRef('')
+  const streamLoggedRef = useRef(false)
+  const loggedBrowserAiRef = useRef<boolean | null>(null)
   const [previewTab, setPreviewTab] = useState<'tailored' | 'audit'>('tailored')
   const {
     accessToken,
@@ -151,15 +162,60 @@ export function TailorWorkspacePage({
   const { useBrowserAi, setUseBrowserAi, status: browserAiStatus, refreshStatus: refreshBrowserAiStatus } =
     useBrowserAiPreference()
 
-  useSavedResume(resumeText, setResumeText, fileParse)
-
-  const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
-    setFileParse(state)
-  }, [])
-
   const activeResumeText =
     resumeText.trim() ||
     (fileParse.status === 'ready' ? fileParse.parsedText.trim() : '')
+
+  useSavedResume(resumeText, setResumeText, fileParse)
+
+  useEffect(() => {
+    const trimmed = jobDescription.trim()
+    if (!trimmed || trimmed === lastLoggedJobRef.current) return
+
+    const timer = window.setTimeout(() => {
+      lastLoggedJobRef.current = trimmed
+      appendLog(`LOG: User updated job description (${trimmed.length} chars)`)
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [appendLog, jobDescription])
+
+  useEffect(() => {
+    const trimmed = activeResumeText.trim()
+    if (!trimmed || trimmed === lastLoggedResumeRef.current) return
+
+    const timer = window.setTimeout(() => {
+      lastLoggedResumeRef.current = trimmed
+      appendLog(`LOG: User updated resume input (${trimmed.length} chars)`)
+      appendLog(`LOG: ${describeResumePayloadStats(trimmed)}`)
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [activeResumeText, appendLog])
+
+  useEffect(() => {
+    if (loggedBrowserAiRef.current === useBrowserAi) return
+    loggedBrowserAiRef.current = useBrowserAi
+    appendLog(
+      `LOG: Browser AI routing ${useBrowserAi ? 'enabled (local/Nano path when ready)' : 'disabled (server API path)'}`
+    )
+  }, [appendLog, useBrowserAi])
+
+  const pushEditedResumeWithLog = useCallback(
+    (nextResume: TailoredResume) => {
+      appendLog(describeTailoredResumeEdit(editedResume, nextResume))
+      pushEditedResume(nextResume)
+    },
+    [appendLog, editedResume, pushEditedResume]
+  )
+
+  const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
+    setFileParse(state)
+    if (state.status === 'ready' && state.parsedText.trim()) {
+      appendLog(`LOG: Resume file parsed (${state.parsedText.length} chars extracted)`)
+      appendLog(`LOG: ${describeResumePayloadStats(state.parsedText)}`)
+    }
+  }, [appendLog])
 
   useEffect(() => {
     const jobText = jobDescription.trim()
@@ -215,6 +271,21 @@ export function TailorWorkspacePage({
     jobDescription.trim().length > 0 &&
     isResumeInputReady(resumeText, resumeFile, fileParse) &&
     fileParse.status !== 'parsing'
+
+  const prevCanGenerateRef = useRef(false)
+
+  useEffect(() => {
+    if (result) {
+      prevCanGenerateRef.current = canGenerate
+      return
+    }
+
+    if (canGenerate && !prevCanGenerateRef.current) {
+      guideWorkspaceFocusWhenInputsReady(true, true)
+    }
+
+    prevCanGenerateRef.current = canGenerate
+  }, [canGenerate, result])
 
   function requestGenerate(options: GenerateOptions = {}) {
     if (!canGenerate && !options.resumeOverride) return
@@ -287,6 +358,84 @@ export function TailorWorkspacePage({
     }
     setPanelExperienceQuestions(gaps)
     setPanelExperienceOpen(true)
+  }
+
+  function applyHiringPanelResponse(
+    current: GenerationResultWithMeta,
+    panelResponse: HiringPanelReviewResponse
+  ): GenerationResultWithMeta {
+    return {
+      ...current,
+      hiringPanel: panelResponse.hiringPanel,
+      keywordReport: panelResponse.keywordReport ?? current.keywordReport,
+      rawKeywordScore: panelResponse.rawKeywordScore ?? current.rawKeywordScore,
+      tailoredResume: panelResponse.tailoredResume ?? current.tailoredResume,
+      coverLetter: panelResponse.coverLetter ?? current.coverLetter,
+    }
+  }
+
+  async function runCloudHiringPanelReview(
+    draft: GenerationResult,
+    sourceResumeText: string
+  ): Promise<HiringPanelReviewResponse | null> {
+    try {
+      return await requestHiringPanelReview({
+        jobDescription: jobDescription.trim(),
+        sourceResumeText: sourceResumeText.trim(),
+        draft,
+      })
+    } catch (panelError) {
+      console.error('[Hiring Panel] Cloud review request failed:', panelError)
+      return null
+    }
+  }
+
+  async function handleRetryHiringPanelReview() {
+    if (!result || !jobDescription.trim()) return
+
+    const sourceResumeText =
+      originalResumeText?.trim() ||
+      (editedResume ? serializeTailoredResume(editedResume) : activeResumeText.trim())
+
+    if (!sourceResumeText) {
+      toast.error('Add resume text before running the hiring panel review.')
+      return
+    }
+
+    setPanelReviewLoading(true)
+    try {
+      const panelResponse = await runCloudHiringPanelReview(result, sourceResumeText)
+      if (!panelResponse) {
+        toast.error('Hiring panel review failed. See the browser console for details.')
+        return
+      }
+
+      const nextResult = applyHiringPanelResponse(result, panelResponse)
+      setResult(nextResult)
+      if (panelResponse.tailoredResume) {
+        resetEditedResume(panelResponse.tailoredResume)
+        setBaselineTailoredResume(panelResponse.tailoredResume)
+      }
+      if (panelResponse.coverLetter?.trim()) {
+        setCoverLetter(panelResponse.coverLetter)
+      }
+      if (panelResponse.keywordReport) {
+        setEditedKeywordReport(panelResponse.keywordReport)
+      }
+
+      if (panelResponse.hiringPanel.reviewFailed) {
+        console.error(
+          '[Hiring Panel] Review returned failure:',
+          panelResponse.failureReason ?? panelResponse.error,
+          panelResponse.partialCritiques ?? []
+        )
+        toast.message('Hiring panel could not complete. Details are in the browser console.')
+      } else {
+        toast.success(`Hiring panel complete — ${panelResponse.hiringPanel.aggregateScore}% readiness`)
+      }
+    } finally {
+      setPanelReviewLoading(false)
+    }
   }
 
   async function handlePanelExperienceSubmit(answers: Record<string, string>) {
@@ -391,6 +540,14 @@ export function TailorWorkspacePage({
         setLoadingStep(1)
         setLoadingLabel('Starting unlimited browser tailoring…')
 
+        appendLog(
+          `LOG: [FETCH] Sent request to browser AI provider${
+            browserAiStatus?.supported === true && browserAiStatus.ready
+              ? ' (Gemini Nano ready)'
+              : ''
+          }. Max_tokens configured: ${AI_GENERATION_MAX_TOKENS}`
+        )
+
         const data = await runBrowserGeneration({
           jobDescription: jobDescription.trim(),
           resumeText: resumeForGeneration.trim(),
@@ -404,32 +561,70 @@ export function TailorWorkspacePage({
         let nextResult: GenerationResultWithMeta = { ...data, generationSource: 'browser' }
         let nextCoverLetter = data.coverLetter
 
+        appendLog(
+          `LOG: [RECEIVE] Received ~${estimateTokenCount(JSON.stringify(data))} tokens. Checking string endings for proper completion…`
+        )
+        for (const line of describeGenerationReceiveLog(data)) {
+          appendLog(`LOG: ${line}`)
+        }
+
         setLoadingLabel('Running 10-manager hiring panel review…')
         setLoadingStep(6)
 
         try {
-          const panelResponse = await requestHiringPanelReview({
-            jobDescription: jobDescription.trim(),
-            sourceResumeText: resumeForGeneration.trim(),
-            draft: data,
-          })
+          const panelResponse = await runCloudHiringPanelReview(data, resumeForGeneration.trim())
 
-          nextResult = {
-            ...nextResult,
-            hiringPanel: panelResponse.hiringPanel,
-            keywordReport: panelResponse.keywordReport ?? data.keywordReport,
-            rawKeywordScore: panelResponse.rawKeywordScore ?? data.rawKeywordScore,
-          }
+          if (panelResponse) {
+            nextResult = applyHiringPanelResponse(nextResult, panelResponse)
 
-          if (panelResponse.coverLetter?.trim()) {
-            nextCoverLetter = panelResponse.coverLetter
-          }
+            if (panelResponse.coverLetter?.trim()) {
+              nextCoverLetter = panelResponse.coverLetter
+            }
 
-          if (panelResponse.hiringPanel.reviewFailed) {
-            toast.message('Browser tailoring finished, but the hiring panel could not complete. Try again shortly.')
+            if (panelResponse.hiringPanel.reviewFailed) {
+              console.error(
+                '[Hiring Panel] Browser tailoring finished but cloud panel failed:',
+                panelResponse.failureReason ?? panelResponse.error,
+                panelResponse.partialCritiques ?? []
+              )
+              toast.message('Browser tailoring finished, but the hiring panel could not complete. See console for details.')
+            }
+          } else {
+            nextResult = {
+              ...nextResult,
+              hiringPanel: {
+                unanimousApproval: false,
+                aggregateScore: 0,
+                revisionRounds: 0,
+                managers: [],
+                finalVerdict: 'Hiring panel cloud review request failed.',
+                revisionRecommendations: [],
+                reviewFailed: true,
+                failureReason: 'Cloud hiring panel request failed before a review was returned.',
+              },
+            }
           }
         } catch (panelError) {
-          console.warn('Hiring panel after browser generation failed:', panelError)
+          console.error('[Hiring Panel] Browser tailoring panel step failed:', panelError)
+          nextResult = {
+            ...nextResult,
+            hiringPanel: {
+              unanimousApproval: false,
+              aggregateScore: 0,
+              revisionRounds: 0,
+              managers: [],
+              finalVerdict:
+                panelError instanceof Error
+                  ? panelError.message
+                  : 'Hiring panel cloud review failed.',
+              revisionRecommendations: [],
+              reviewFailed: true,
+              failureReason:
+                panelError instanceof Error
+                  ? panelError.message
+                  : 'Hiring panel cloud review failed.',
+            },
+          }
           toast.message(
             panelError instanceof Error
               ? panelError.message
@@ -494,6 +689,10 @@ export function TailorWorkspacePage({
       if (options.achievementSupplement?.trim()) {
         formData.append('achievementSupplement', options.achievementSupplement.trim())
       }
+
+      appendLog(
+        `LOG: [FETCH] Sent request to /api/generate. Max_tokens configured: ${AI_GENERATION_MAX_TOKENS}`
+      )
 
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -563,6 +762,7 @@ export function TailorWorkspacePage({
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Generation failed'
+      appendLog(`LOG: Generation failed — ${message}`)
       toast.error(message)
       if (message.includes('Rate limit exceeded') && !useBrowserAi) {
         setUseBrowserAi(true)
@@ -623,8 +823,8 @@ export function TailorWorkspacePage({
 
   const displayResume = editedResume ?? streamingResume
   const hasPreviewDocument = Boolean(displayResume)
-  /** Only split the workspace once a resume exists — not during empty loading state. */
-  const showPreviewPane = hasPreviewDocument
+  /** Split workspace is always active on desktop — empty preview until generation. */
+  const showPreviewPane = true
   const keywordAfter = editedKeywordReport ?? result?.keywordReport
 
   const leftPane = (
@@ -651,7 +851,8 @@ export function TailorWorkspacePage({
         id="job-description-section"
         title="Job description"
         description="Paste the role you are applying for"
-        defaultOpen
+        defaultOpen={!result}
+        scrollableContent
       >
         <JobDescriptionStep
           value={jobDescription}
@@ -664,7 +865,7 @@ export function TailorWorkspacePage({
         <EditableResumePreview
           resume={editedResume}
           baselineResume={baselineTailoredResume}
-          onResumeChange={pushEditedResume}
+          onResumeChange={pushEditedResumeWithLog}
           originalText={originalResumeText}
           jobDescription={jobDescription}
           layout="accordion"
@@ -674,7 +875,7 @@ export function TailorWorkspacePage({
           id={RESUME_STEP_ANCHOR_ID}
           title="Your resume"
           description="Paste text or upload a PDF, DOCX, or TXT file"
-          defaultOpen
+          defaultOpen={!result}
         >
           <ResumeInputStep
             resumeText={resumeText}
@@ -682,6 +883,7 @@ export function TailorWorkspacePage({
             resumeFile={resumeFile}
             onResumeFileChange={setResumeFile}
             onFileParseChange={handleFileParseChange}
+            jobPopulated={jobDescription.trim().length > 0}
           />
         </WorkspaceAccordion>
       )}
@@ -691,20 +893,8 @@ export function TailorWorkspacePage({
         title="Generate tailored materials"
         description="Create an ATS-formatted resume, keyword report, and cover letter"
         defaultOpen={!result}
+        scrollableContent={false}
       >
-        {(preScanPreview || preScanLoading) && canGenerate ? (
-          <div className="mb-4">
-            <TargetSkillsPanel
-              preScan={editedPreScan ?? preScanPreview}
-              baselinePreScan={baselinePreScan}
-              onPreScanChange={setEditedPreScan}
-              isLoading={preScanLoading}
-              onInsertSelections={handleInsertSkillSelections}
-              jobDescription={jobDescription}
-              resumeText={activeResumeText}
-            />
-          </div>
-        ) : null}
         <GenerateStep
           onGenerate={() => requestGenerate()}
           isLoading={isLoading}
@@ -720,6 +910,19 @@ export function TailorWorkspacePage({
           browserAiStatus={browserAiStatus}
           onRefreshBrowserAiStatus={refreshBrowserAiStatus}
         />
+        {(preScanPreview || preScanLoading) && canGenerate ? (
+          <div className="mt-4">
+            <TargetSkillsPanel
+              preScan={editedPreScan ?? preScanPreview}
+              baselinePreScan={baselinePreScan}
+              onPreScanChange={setEditedPreScan}
+              isLoading={preScanLoading}
+              onInsertSelections={handleInsertSkillSelections}
+              jobDescription={jobDescription}
+              resumeText={activeResumeText}
+            />
+          </div>
+        ) : null}
       </WorkspaceAccordion>
 
       {result ? (
@@ -806,19 +1009,41 @@ export function TailorWorkspacePage({
               defaultOpen
             >
               {result.hiringPanel ? (
-                <HiringPanelReviewPanel
-                  panel={result.hiringPanel}
-                  onAddMetrics={openAchievementIntakeFromPanel}
-                  onVerifyExperience={() => openPanelExperienceIntake(result.hiringPanel!)}
-                  hasExperienceGaps={panelExperienceQuestions.length > 0}
-                />
+                <div className="space-y-3">
+                  <HiringPanelReviewPanel
+                    panel={result.hiringPanel}
+                    onAddMetrics={openAchievementIntakeFromPanel}
+                    onVerifyExperience={() => openPanelExperienceIntake(result.hiringPanel!)}
+                    hasExperienceGaps={panelExperienceQuestions.length > 0}
+                  />
+                  {result.hiringPanel.reviewFailed ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={panelReviewLoading}
+                      onClick={() => void handleRetryHiringPanelReview()}
+                    >
+                      {panelReviewLoading ? 'Running cloud panel review…' : 'Retry hiring panel (cloud)'}
+                    </Button>
+                  ) : null}
+                </div>
               ) : result.generationSource === 'browser' ? (
-                <div className="rounded-lg border border-border/80 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                <div className="space-y-3 rounded-lg border border-border/80 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
                   <p className="font-medium text-foreground">Hiring panel did not run</p>
                   <p className="mt-1">
-                    Browser tailoring completed, but the server panel review failed or was rate-limited.
-                    Regenerate in a moment, or turn off browser AI for the full server pipeline.
+                    Browser tailoring completed, but the cloud hiring panel review failed or was rate-limited.
+                    Retry below — this always uses the server API, not on-device Nano.
                   </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={panelReviewLoading}
+                    onClick={() => void handleRetryHiringPanelReview()}
+                  >
+                    {panelReviewLoading ? 'Running cloud panel review…' : 'Run hiring panel review (cloud)'}
+                  </Button>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -839,7 +1064,7 @@ export function TailorWorkspacePage({
   )
 
   const rightPane = (
-    <div className={hasPreviewDocument ? 'flex flex-col' : 'flex shrink-0 flex-col'}>
+    <div className="flex min-h-0 flex-1 flex-col">
       <PreviewScoreBanner
         before={result?.baselineKeywordReport}
         after={keywordAfter}
@@ -858,7 +1083,7 @@ export function TailorWorkspacePage({
 
       {hasPreviewDocument ? (
         <>
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/80 px-4 py-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/80 bg-background/95 px-4 py-2">
             <Tabs
               value={previewTab}
               onValueChange={(value) => setPreviewTab(value as 'tailored' | 'audit')}
@@ -879,57 +1104,45 @@ export function TailorWorkspacePage({
             />
           </div>
 
-          <div className="overflow-y-auto overscroll-contain">
-            {previewTab === 'tailored' ? (
-              <ResumeLetterPage>
-                {isLoading && streamingResume ? (
-                  <p className="mb-4 text-xs font-medium uppercase tracking-wide text-brand-gold">
-                    Live preview — updating as generation streams
-                  </p>
-                ) : null}
-                <ResumePreview
-                  resume={displayResume!}
-                  jobDescription={jobDescription}
-                  variant="letter"
-                />
-              </ResumeLetterPage>
-            ) : originalResumeText && editedResume ? (
-              <ResumeLetterPage>
-                <ResumeDiffView
-                  originalText={originalResumeText}
-                  resume={editedResume}
-                  onResumeChange={pushEditedResume}
-                  jobDescription={jobDescription}
-                />
-              </ResumeLetterPage>
-            ) : null}
-          </div>
+          {previewTab === 'tailored' ? (
+            <ResumeLetterPage>
+              {isLoading && streamingResume ? (
+                <p className="mb-4 text-xs font-medium uppercase tracking-wide text-brand-gold">
+                  Live preview — updating as generation streams
+                </p>
+              ) : null}
+              <ResumePreview
+                resume={displayResume!}
+                jobDescription={jobDescription}
+                variant="letter"
+              />
+            </ResumeLetterPage>
+          ) : originalResumeText && editedResume ? (
+            <ResumeLetterPage>
+              <ResumeDiffView
+                originalText={originalResumeText}
+                resume={editedResume}
+                onResumeChange={pushEditedResumeWithLog}
+                jobDescription={jobDescription}
+              />
+            </ResumeLetterPage>
+          ) : null}
         </>
       ) : (
-        <p className="border-t border-border/60 px-4 py-3 text-sm text-muted-foreground">
-          Paste a job description and your resume, then generate to see your live document preview
-          here.
-        </p>
+        <ResumeLetterPage empty />
       )}
     </div>
   )
 
   return (
-    <div
-      className={cn(
-        'flex flex-col bg-muted/30',
-        showPreviewPane
-          ? 'overflow-x-hidden lg:h-svh lg:max-h-svh lg:overflow-hidden'
-          : 'overflow-x-hidden'
-      )}
-    >
+    <div className="flex h-svh max-h-svh flex-col overflow-hidden bg-muted/30">
       <SiteHeader current="tailor" variant="compact" />
 
       <SplitWorkspaceLayout
         leftPane={leftPane}
         rightPane={rightPane}
         showRightPane={showPreviewPane}
-        className={showPreviewPane ? 'lg:min-h-0 lg:flex-1' : undefined}
+        className="min-h-0 flex-1"
       />
 
       <SquareCheckoutModal

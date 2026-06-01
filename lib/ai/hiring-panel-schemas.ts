@@ -24,4 +24,6 @@ export type HiringPanelSessionResult = {
   finalVerdict: string
   revisionRecommendations: string[]
   reviewFailed?: boolean
+  /** Server/client diagnostic when reviewFailed is true. */
+  failureReason?: string
 }

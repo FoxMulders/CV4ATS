@@ -101,12 +101,12 @@ export async function applyPanelExperienceRevision(
   )
 
   await input.onProgress?.('Re-running hiring panel review…')
-  const newReview = await runHiringPanelReview(input.jobDescription, enrichedSource, aiResult)
+  const newReviewResult = await runHiringPanelReview(input.jobDescription, enrichedSource, aiResult)
 
   return {
     aiResult,
-    panel: newReview
-      ? buildSessionResult(newReview, input.panel.revisionRounds + 1)
+    panel: newReviewResult.review
+      ? buildSessionResult(newReviewResult.review, input.panel.revisionRounds + 1)
       : input.panel,
   }
 }

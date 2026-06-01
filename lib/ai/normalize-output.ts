@@ -1,11 +1,13 @@
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+import {
+  parseJsonFromSanitizedText,
+  stripMarkdownJsonFences,
+} from '@/lib/ai/sanitize-json-response'
 
 /** Strip markdown fences and conversational wrappers before JSON.parse. */
 export function parseJsonFromModelText(text: string): unknown {
-  const trimmed = text.trim()
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i)
-  const candidate = (fenced?.[1] ?? trimmed).trim()
+  const candidate = stripMarkdownJsonFences(text.trim())
 
   const start = candidate.indexOf('{')
   const end = candidate.lastIndexOf('}')
@@ -14,6 +16,8 @@ export function parseJsonFromModelText(text: string): unknown {
 
   return JSON.parse(jsonSlice)
 }
+
+export { stripMarkdownJsonFences, parseJsonFromSanitizedText }
 
 /** Map Gemini JSON aliases to the strict ATS4CV schema before Zod validation. */
 export function normalizeAiGenerationOutput(raw: unknown): unknown {

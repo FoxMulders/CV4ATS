@@ -20,7 +20,7 @@ import {
   RESUME_TEXT_INPUT_ID,
 } from '@/lib/wizard/workspace-focus-guide'
 import { WorkspaceEditorViewport } from '@/components/wizard/workspace-editor-viewport'
-import { handlePasteScrollToBottom } from '@/components/wizard/paste-scroll'
+import { handleResumePaste } from '@/components/wizard/paste-scroll'
 import {
   WORKSPACE_COUNTER_AT_LIMIT_CLASS,
   WORKSPACE_COUNTER_CLASS,
@@ -43,6 +43,9 @@ interface ResumeInputStepProps {
   resumeFile: File | null
   onResumeFileChange: (file: File | null) => void
   onFileParseChange?: (state: ResumeFileParseState) => void
+  jobPopulated?: boolean
+  onPasteFocusTarget?: (target: 'job' | 'generate') => void
+  /** When job is empty, scroll to this anchor after paste (e.g. jobs list). */
   pasteScrollTargetId?: string
 }
 
@@ -52,7 +55,9 @@ export function ResumeInputStep({
   resumeFile,
   onResumeFileChange,
   onFileParseChange,
-  pasteScrollTargetId = 'generate-step',
+  jobPopulated = false,
+  onPasteFocusTarget,
+  pasteScrollTargetId,
 }: ResumeInputStepProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -202,7 +207,13 @@ export function ResumeInputStep({
                   onResumeFileChange(null)
                 }
               }}
-              onPaste={(event) => handlePasteScrollToBottom(event, pasteScrollTargetId)}
+              onPaste={(event) =>
+                handleResumePaste(event, {
+                  jobPopulated,
+                  scrollTargetId: pasteScrollTargetId,
+                  onFocusTarget: onPasteFocusTarget,
+                })
+              }
               className={cn(WORKSPACE_TEXTAREA_CLASS, 'font-mono')}
             />
           </WorkspaceEditorViewport>

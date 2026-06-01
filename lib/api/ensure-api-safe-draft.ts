@@ -1,5 +1,6 @@
 import type { AiGenerationResult, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { aiGenerationResultSchema } from '@/lib/ai/schemas'
+import { mergeSourceExperienceDates } from '@/lib/ai/generation-hygiene'
 import { inferNameFromEmail, titleCaseName } from '@/lib/resume/contact-extraction'
 import { isRealExperienceBullet } from '@/lib/resume/parse-experience-blocks'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
@@ -56,7 +57,7 @@ function ensureExperienceEntry(entry: Experience, lockedEntry?: Experience): Exp
     title: entry.title?.trim() || lockedEntry?.title?.trim() || 'Consultant',
     company: entry.company?.trim() || lockedEntry?.company?.trim() || 'Independent',
     location: entry.location ?? lockedEntry?.location ?? '',
-    startDate: entry.startDate?.trim() || lockedEntry?.startDate?.trim() || 'Recent',
+    startDate: entry.startDate?.trim() || lockedEntry?.startDate?.trim() || '',
     endDate: entry.endDate?.trim() || lockedEntry?.endDate?.trim() || 'Present',
     bullets: ensureBullets(entry.bullets, lockedEntry?.bullets),
   }
@@ -109,25 +110,28 @@ function ensureTailoredResume(
     })
   )
 
-  return {
-    contact: {
-      name: resolveContactName(resume, sourceResumeText),
-      email: resume.contact.email ?? '',
-      phone: resume.contact.phone ?? '',
-      location: resume.contact.location ?? '',
-      linkedin: resume.contact.linkedin ?? '',
+  return mergeSourceExperienceDates(
+    {
+      contact: {
+        name: resolveContactName(resume, sourceResumeText),
+        email: resume.contact.email ?? '',
+        phone: resume.contact.phone ?? '',
+        location: resume.contact.location ?? '',
+        linkedin: resume.contact.linkedin ?? '',
+      },
+      summary,
+      skills,
+      experience,
+      projects: (resume.projects ?? lockedResume?.projects ?? []).map((entry, index) =>
+        ensureExperienceEntry(entry, lockedResume?.projects?.[index])
+      ),
+      education,
+      certifications: (resume.certifications ?? locked?.certifications ?? [])
+        .map((cert) => cert.trim())
+        .filter(Boolean),
     },
-    summary,
-    skills,
-    experience,
-    projects: (resume.projects ?? lockedResume?.projects ?? []).map((entry, index) =>
-      ensureExperienceEntry(entry, lockedResume?.projects?.[index])
-    ),
-    education,
-    certifications: (resume.certifications ?? locked?.certifications ?? [])
-      .map((cert) => cert.trim())
-      .filter(Boolean),
-  }
+    sourceResumeText ?? ''
+  )
 }
 
 /** Guarantees browser/local drafts satisfy strict API Zod schemas (hiring panel, exports). */

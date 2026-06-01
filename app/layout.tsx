@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Toaster } from 'sonner'
 
 import { SiteJsonLd } from '@/components/seo/site-json-ld'
+import { GlobalAppShell } from '@/components/layout/global-app-shell'
 
 import './globals.css'
 
@@ -87,7 +88,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`}>
       <body className="min-h-screen antialiased font-sans">
         <SiteJsonLd />
-        {children}
+        <GlobalAppShell>{children}</GlobalAppShell>
         <Toaster richColors position="top-center" />
       </body>
     </html>

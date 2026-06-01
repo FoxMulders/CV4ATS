@@ -172,7 +172,7 @@ function parseExperience(lines: string[]): Experience[] {
   const bullets = lines
     .filter(isBulletLine)
     .map(stripBullet)
-    .filter((bullet) => bullet.length > 12 && bullet.length < 280)
+    .filter((bullet) => bullet.length > 12)
     .filter((bullet) => !/utilizing .+ utilizing/i.test(bullet))
 
   if (bullets.length === 0) return []

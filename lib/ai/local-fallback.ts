@@ -1,4 +1,5 @@
 import type { AiGenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import { applyGenerationHygiene } from '@/lib/ai/generation-hygiene'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { buildCoreCompetencyChecklist } from '@/lib/resume/core-competency-checklist'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
@@ -257,10 +258,13 @@ export function generateTailoredResumeLocally(
     resumeText
   )
 
-  return {
-    ...normalizedDraft,
-    coverLetter,
-  }
+  return applyGenerationHygiene(
+    {
+      ...normalizedDraft,
+      coverLetter,
+    },
+    resumeText
+  )
 }
 
 export function refineTailoredResumeLocally(

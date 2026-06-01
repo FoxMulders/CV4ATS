@@ -1,4 +1,5 @@
 /** DOM ids for workspace focus transitions after job-description paste. */
+export const JOB_DESCRIPTION_INPUT_ID = 'job-description'
 export const RESUME_STEP_ANCHOR_ID = 'resume-input-step'
 export const RESUME_PASTE_TAB_ID = 'resume-paste-tab'
 export const RESUME_TEXT_INPUT_ID = 'resume-text-input'
@@ -10,9 +11,9 @@ export const WORKSPACE_FOCUS_PULSE_CLASS = 'workspace-focus-pulse'
 const FOCUS_DELAY_MS = 120
 const PULSE_DURATION_MS = 2600
 
-export type WorkspaceFocusTarget = 'resume' | 'generate'
+export type WorkspaceFocusTarget = 'job' | 'resume' | 'generate'
 
-function pulseElement(element: HTMLElement | null | undefined) {
+export function pulseElement(element: HTMLElement | null | undefined) {
   if (!element) return
 
   element.classList.remove(WORKSPACE_FOCUS_PULSE_CLASS)
@@ -60,6 +61,17 @@ export function guideFocusToResumeInput() {
   }, FOCUS_DELAY_MS)
 }
 
+/** Scroll, pulse, and focus the job description editor when job input is still empty. */
+export function guideFocusToJobDescription() {
+  window.setTimeout(() => {
+    const textarea = document.getElementById(JOB_DESCRIPTION_INPUT_ID)
+
+    textarea?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    pulseElement(textarea)
+    focusFocusable(textarea)
+  }, FOCUS_DELAY_MS)
+}
+
 /** Scroll, pulse, and focus the generate action when resume input is already populated. */
 export function guideFocusToGenerateAction() {
   window.setTimeout(() => {
@@ -77,6 +89,35 @@ export function guideWorkspaceFocusAfterJobPaste(resumePopulated: boolean) {
   if (resumePopulated) {
     guideFocusToGenerateAction()
     return 'generate' as const
+  }
+
+  guideFocusToResumeInput()
+  return 'resume' as const
+}
+
+export function guideWorkspaceFocusAfterResumePaste(jobPopulated: boolean) {
+  if (jobPopulated) {
+    guideFocusToGenerateAction()
+    return 'generate' as const
+  }
+
+  guideFocusToJobDescription()
+  return 'job' as const
+}
+
+/** Route focus to the next empty input, or the generate action when both are ready. */
+export function guideWorkspaceFocusWhenInputsReady(
+  jobPopulated: boolean,
+  resumePopulated: boolean
+) {
+  if (jobPopulated && resumePopulated) {
+    guideFocusToGenerateAction()
+    return 'generate' as const
+  }
+
+  if (!jobPopulated) {
+    guideFocusToJobDescription()
+    return 'job' as const
   }
 
   guideFocusToResumeInput()

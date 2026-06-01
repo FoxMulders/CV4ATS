@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
+import { buildFailedPanelSession, runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
 import { applyKeywordImprovementsToDraft } from '@/lib/api/apply-keyword-improvements'
 import { applyPanelReadinessToKeywordReport } from '@/lib/api/panel-keyword-report'
 import {
@@ -10,7 +10,9 @@ import {
   MAX_RESUME_TEXT_LENGTH,
   type AiGenerationResult,
 } from '@/lib/ai/schemas'
+import { ensureApiSafeGenerationResult } from '@/lib/api/ensure-api-safe-draft'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
+import { buildHiringPanelFailureResponse } from '@/lib/api/hiring-panel-response'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { safeErrorMessage } from '@/lib/api/safe-error'
 import { assertGeminiConfigured } from '@/lib/ai/gemini'
@@ -27,6 +29,26 @@ const hiringPanelRequestSchema = z.object({
   achievementSupplement: z.string().max(4000).optional(),
 })
 
+function resolveDraft(
+  rawDraft: unknown,
+  sourceResumeText: string
+): { draft: AiGenerationResult | null; failureReason?: string } {
+  try {
+    const normalized = normalizeGenerationDraftForApi(rawDraft as AiGenerationResult, sourceResumeText)
+    return { draft: aiGenerationResultSchema.parse(normalized) }
+  } catch (normalizeError) {
+    console.warn('Hiring panel draft normalization failed, trying API-safe fallback:', normalizeError)
+  }
+
+  try {
+    const safe = ensureApiSafeGenerationResult(rawDraft as AiGenerationResult, sourceResumeText)
+    return { draft: aiGenerationResultSchema.parse(safe) }
+  } catch (safeError) {
+    const message = safeError instanceof Error ? safeError.message : 'Draft validation failed.'
+    return { draft: null, failureReason: message }
+  }
+}
+
 export async function POST(request: Request) {
   const ip =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
@@ -40,36 +62,104 @@ export async function POST(request: Request) {
     return rateLimitExceededResponse(rateLimit.retryAfterSeconds)
   }
 
+  let parsedBody: z.infer<typeof hiringPanelRequestSchema> | null = null
+
   try {
     assertGeminiConfigured()
 
     const body = await request.json()
     const parsed = hiringPanelRequestSchema.safeParse(body)
+    parsedBody = parsed.success ? parsed.data : null
 
     if (!parsed.success) {
       console.error('Hiring panel request validation failed:', parsed.error.flatten())
       return NextResponse.json(
-        { error: 'Invalid hiring panel request. Regenerate or turn off browser AI for the full server path.' },
-        { status: 400 }
+        buildHiringPanelFailureResponse(
+          'Invalid hiring panel request payload.',
+          {
+            keywordReport: {
+              matchScore: 0,
+              matchedKeywords: [],
+              missingKeywords: [],
+              suggestions: [],
+            },
+            tailoredResume: {
+              contact: {
+                name: 'Candidate',
+                email: '',
+                phone: '',
+                location: '',
+                linkedin: '',
+              },
+              summary: 'Pending',
+              skills: ['Program Management'],
+              experience: [
+                {
+                  title: 'Consultant',
+                  company: 'Independent',
+                  location: '',
+                  startDate: 'Recent',
+                  endDate: 'Present',
+                  bullets: ['Delivered measurable outcomes in this role.'],
+                },
+              ],
+              projects: [],
+              education: [],
+              certifications: [],
+            },
+            coverLetter: 'Cover letter pending.',
+          }
+        ),
+        { status: 200 }
       )
     }
 
     const { jobDescription, sourceResumeText, achievementSupplement } = parsed.data
 
-    let draft: AiGenerationResult
-    try {
-      draft = normalizeGenerationDraftForApi(
-        parsed.data.draft as AiGenerationResult,
-        sourceResumeText
-      )
-      aiGenerationResultSchema.parse(draft)
-    } catch (normalizeError) {
-      console.error('Hiring panel draft normalization failed:', normalizeError)
+    const resolved = resolveDraft(parsed.data.draft, sourceResumeText)
+    if (!resolved.draft) {
       return NextResponse.json(
-        { error: 'Invalid hiring panel request. Regenerate or turn off browser AI for the full server path.' },
-        { status: 400 }
+        buildHiringPanelFailureResponse(
+          resolved.failureReason ?? 'Invalid hiring panel draft.',
+          {
+            keywordReport: {
+              matchScore: 0,
+              matchedKeywords: [],
+              missingKeywords: [],
+              suggestions: [],
+            },
+            tailoredResume: {
+              contact: {
+                name: 'Candidate',
+                email: '',
+                phone: '',
+                location: '',
+                linkedin: '',
+              },
+              summary: 'Pending',
+              skills: ['Program Management'],
+              experience: [
+                {
+                  title: 'Consultant',
+                  company: 'Independent',
+                  location: '',
+                  startDate: 'Recent',
+                  endDate: 'Present',
+                  bullets: ['Delivered measurable outcomes in this role.'],
+                },
+              ],
+              projects: [],
+              education: [],
+              certifications: [],
+            },
+            coverLetter: 'Cover letter pending.',
+          }
+        ),
+        { status: 200 }
       )
     }
+
+    let draft = resolved.draft
 
     const keywordImproved = applyKeywordImprovementsToDraft(draft, jobDescription, sourceResumeText)
     draft = keywordImproved.aiResult
@@ -83,25 +173,19 @@ export async function POST(request: Request) {
     )
 
     if (!panelRun.panel || panelRun.panel.reviewFailed) {
-      return NextResponse.json(
-        {
-          hiringPanel: panelRun.panel ?? {
-            unanimousApproval: false,
-            aggregateScore: 0,
-            revisionRounds: 0,
-            managers: [],
-            finalVerdict:
-              'Hiring panel review could not be completed. Try again in a moment or turn off browser AI to run the full server generation path.',
-            revisionRecommendations: [],
-            reviewFailed: true,
-          },
-          tailoredResume: panelRun.aiResult.tailoredResume,
-          coverLetter: panelRun.aiResult.coverLetter,
-          keywordReport: draft.keywordReport,
-          rawKeywordScore: draft.keywordReport.matchScore,
-        },
-        { status: 200 }
-      )
+      const failureReason =
+        panelRun.panel?.failureReason ??
+        panelRun.panel?.finalVerdict ??
+        'Hiring panel review could not be completed.'
+
+      return NextResponse.json({
+        ...buildHiringPanelFailureResponse(failureReason, panelRun.aiResult, panelRun.panel?.managers ?? []),
+        hiringPanel: panelRun.panel ?? buildFailedPanelSession(failureReason),
+        tailoredResume: panelRun.aiResult.tailoredResume,
+        coverLetter: panelRun.aiResult.coverLetter,
+        keywordReport: draft.keywordReport,
+        rawKeywordScore: draft.keywordReport.matchScore,
+      })
     }
 
     const comparison = buildAtsComparison(
@@ -127,12 +211,49 @@ export async function POST(request: Request) {
       keywordReport,
       rawKeywordScore,
       incorporatedKeywords: keywordImproved.injectedSkills,
+      partialCritiques: [],
     })
   } catch (error) {
+    const failureReason = safeErrorMessage(error, 'Hiring panel review failed.')
     console.error('Hiring panel error:', error)
+
+    const fallbackDraft: AiGenerationResult = {
+      keywordReport: {
+        matchScore: 0,
+        matchedKeywords: [],
+        missingKeywords: [],
+        suggestions: [],
+      },
+      tailoredResume: {
+        contact: {
+          name: 'Candidate',
+          email: '',
+          phone: '',
+          location: '',
+          linkedin: '',
+        },
+        summary: 'Pending',
+        skills: ['Program Management'],
+        experience: [
+          {
+            title: 'Consultant',
+            company: 'Independent',
+            location: '',
+            startDate: 'Recent',
+            endDate: 'Present',
+            bullets: ['Delivered measurable outcomes in this role.'],
+          },
+        ],
+        projects: [],
+        education: [],
+        certifications: [],
+      },
+      coverLetter: 'Cover letter pending.',
+    }
+
     return NextResponse.json(
-      { error: safeErrorMessage(error, 'Hiring panel review failed.') },
-      { status: 500 }
+      buildHiringPanelFailureResponse(failureReason, fallbackDraft),
+      { status: 200 }
     )
   }
 }

@@ -74,7 +74,7 @@ export function lockedStructureToTailoredResume(structure: LockedResumeStructure
       title: block.title,
       company: block.company,
       location: block.location,
-      startDate: block.startDate || 'Recent',
+      startDate: block.startDate,
       endDate: block.endDate || 'Present',
       bullets: block.bullets.length > 0 ? block.bullets : ['Delivered measurable outcomes in this role.'],
     })),

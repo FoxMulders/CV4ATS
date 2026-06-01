@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "smoke:parse-brad": "tsx scripts/smoke-brad-resume.ts",
+    "smoke:schema-validation": "tsx scripts/smoke-schema-validation.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.79",
@@ -39,6 +41,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.20.3",
     "typescript": "^5"
   }
 }

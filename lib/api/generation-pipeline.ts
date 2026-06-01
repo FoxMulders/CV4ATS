@@ -2,6 +2,7 @@ import { runHiringPanelWithRevisions } from '@/lib/ai/hiring-panel'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { KeywordReport } from '@/lib/ai/schemas'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'
+import { applyGenerationHygiene } from '@/lib/ai/generation-hygiene'
 import { refineTailoredResume, generateTailoredResume } from '@/lib/ai/generate'
 import {
   getMaxGenerationPasses,
@@ -120,10 +121,13 @@ function applySourceGrounding(
   aiResult: AiGenerationResult,
   sourceResumeText: string
 ): AiGenerationResult {
-  return {
-    ...aiResult,
-    tailoredResume: enforceSourceCertifications(aiResult.tailoredResume, sourceResumeText),
-  }
+  return applyGenerationHygiene(
+    {
+      ...aiResult,
+      tailoredResume: enforceSourceCertifications(aiResult.tailoredResume, sourceResumeText),
+    },
+    sourceResumeText
+  )
 }
 
 /** When the hiring panel rejects the package, keyword-only ATS must not exceed panel readiness. */

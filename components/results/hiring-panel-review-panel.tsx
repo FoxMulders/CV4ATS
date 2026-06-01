@@ -27,7 +27,12 @@ export function HiringPanelReviewPanel({
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <div>
             <p className="font-semibold">Hiring panel review unavailable</p>
-            <p className="mt-1">{panel.finalVerdict}</p>
+            <p className="mt-1">{panel.failureReason ?? panel.finalVerdict}</p>
+            {panel.managers.length > 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Partial manager feedback ({panel.managers.length}) was recovered before the review failed.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

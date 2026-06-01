@@ -10,6 +10,7 @@ import {
   parseExperienceFromLines,
   scoreExperienceCompleteness,
 } from '@/lib/resume/parse-experience-blocks'
+import { mergeSourceExperienceDates } from '@/lib/ai/generation-hygiene'
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 
 function normalizeExperience(entry: Experience): Experience {
@@ -17,7 +18,7 @@ function normalizeExperience(entry: Experience): Experience {
     title: entry.title.trim() || 'Consultant',
     company: entry.company.trim() || 'Independent',
     location: entry.location ?? '',
-    startDate: entry.startDate.trim() || 'Recent',
+    startDate: entry.startDate.trim(),
     endDate: entry.endDate.trim() || 'Present',
     bullets: entry.bullets.map((bullet) => bullet.trim()).filter(isRealExperienceBullet),
   }
@@ -141,7 +142,7 @@ export function normalizeGenerationDraftForApi(
       ...draft.tailoredResume,
       contact: reparsed.contact,
       skills: cleanSkills(
-        [...new Set([...reparsed.skills, ...draft.tailoredResume.skills])].slice(0, 24)
+        [...new Set([...reparsed.skills, ...draft.tailoredResume.skills])]
       ),
       summary: useReparsedSummary ? reparsedSummary : draftSummary || reparsedSummary,
       education:
@@ -161,7 +162,7 @@ export function normalizeGenerationDraftForApi(
   tailoredResume = {
     ...tailoredResume,
     contact: fixContactName(tailoredResume, sourceResumeText),
-    skills: cleanSkills(tailoredResume.skills.map((s) => s.trim()).filter(Boolean)).slice(0, 24),
+    skills: cleanSkills(tailoredResume.skills.map((s) => s.trim()).filter(Boolean)),
     experience:
       resolvedExperience.length > 0
         ? resolvedExperience
@@ -179,6 +180,10 @@ export function normalizeGenerationDraftForApi(
 
   if (tailoredResume.experience.length === 0 && sourceResumeText?.trim()) {
     tailoredResume.experience = resolveExperienceFromSource([], sourceResumeText)
+  }
+
+  if (sourceResumeText?.trim()) {
+    tailoredResume = mergeSourceExperienceDates(tailoredResume, sourceResumeText)
   }
 
   if (tailoredResume.skills.length === 0) {

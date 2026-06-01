@@ -82,6 +82,7 @@ function FormSection({
         description={description}
         defaultOpen={defaultOpen}
         className={className}
+        scrollableContent={id === 'resume-experience'}
       >
         {children}
       </WorkspaceAccordion>
@@ -394,6 +395,7 @@ export function EditableParsedResumeForm({
           id="resume-summary"
           title="Professional summary"
           description="Hook-first value proposition"
+          defaultOpen={false}
         >
           {summaryFields}
         </FormSection>
@@ -403,6 +405,7 @@ export function EditableParsedResumeForm({
           id="resume-skills"
           title="Skills"
           description="Add or remove keyword-aligned skills"
+          defaultOpen={false}
         >
           {skillsFields}
         </FormSection>
@@ -412,6 +415,7 @@ export function EditableParsedResumeForm({
           id="resume-experience"
           title="Work experience"
           description="Job titles, companies, dates, and bullet points"
+          defaultOpen
         >
           {experienceFields}
         </FormSection>
@@ -421,6 +425,7 @@ export function EditableParsedResumeForm({
           id="resume-education"
           title="Education"
           description="Degrees and institutions"
+          defaultOpen={false}
         >
           {educationFields}
           {certificationsFields ? <div className="mt-4">{certificationsFields}</div> : null}

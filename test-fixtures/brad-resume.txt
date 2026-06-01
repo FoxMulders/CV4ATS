@@ -1,0 +1,34 @@
+BRAD MULDERS
+bradmulders@me.com | (780) 920-0664 | Edmonton, Canada T5Z 3X7
+
+PROFESSIONAL SUMMARY
+Technical program leader with 30 years coordinating releases at Pleasant Solutions and Alberta Motor Association.
+
+PROFESSIONAL EXPERIENCE
+
+Pleasant Solutions
+Technical Project Manager
+02/2024 - Present
+• Led cross-functional release planning for enterprise clients using Agile, Jira, and Linear workflows.
+• Identified deployment bottlenecks and established release governance across GitHub PR tracking.
+
+Alberta Motor Association
+Systems Developer
+2013 - 2024
+• Built C# automation tools and SQL reporting pipelines for membership operations.
+• Managed release cycles and AWS deployments for internal tools supporting 500+ staff.
+
+PERSONAL AI PROJECTS
+
+Tipsy Fox Escapes
+Personal AI Project
+2024 - Present
+• Built AI-assisted escape room booking platform with automated release workflows.
+
+PopUpHub
+Personal AI Project
+2025 - Present
+• Developed popup event coordination hub using modern cloud and GitHub CI/CD patterns.
+
+EDUCATION
+Bachelor of Science, University of Alberta

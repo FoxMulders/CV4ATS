@@ -18,7 +18,7 @@ export {
 
 export type FreeAiProvider = 'google' | 'groq'
 
-export const AI_GENERATION_MAX_TOKENS = 8192
+export const AI_GENERATION_MAX_TOKENS = 12288
 export const AI_GENERATION_TEMPERATURE = 0.3
 export const AI_REFINEMENT_TEMPERATURE = 0.3
 

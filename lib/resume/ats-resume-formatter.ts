@@ -153,7 +153,7 @@ function formatSkills(skills: string[]): string[] {
     return cleaned
       .split(/\s*[•|;,]\s*/)
       .map((part) => formatResumeText(part))
-      .filter((part) => part.length > 1 && part.length < 60)
+      .filter((part) => part.length > 1)
   })
 
   const seen = new Set<string>()

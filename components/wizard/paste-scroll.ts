@@ -1,4 +1,8 @@
-import { guideWorkspaceFocusAfterJobPaste } from '@/lib/wizard/workspace-focus-guide'
+import {
+  guideWorkspaceFocusAfterJobPaste,
+  guideWorkspaceFocusAfterResumePaste,
+  pulseElement,
+} from '@/lib/wizard/workspace-focus-guide'
 
 /** After a large paste, reset textarea view so users see the start of the content. */
 export function handlePasteScrollToTop(event: React.ClipboardEvent<HTMLTextAreaElement>) {
@@ -28,22 +32,35 @@ export function handleJobDescriptionPaste(
   }, 0)
 }
 
-/** After a large paste, jump to the end of the content and the generate section. */
-export function handlePasteScrollToBottom(
+/** After resume paste completes, route focus to job description, generate, or a custom anchor. */
+export function handleResumePaste(
   event: React.ClipboardEvent<HTMLTextAreaElement>,
-  scrollTargetId?: string
+  options: {
+    jobPopulated: boolean
+    scrollTargetId?: string
+    onFocusTarget?: (target: 'job' | 'generate') => void
+  }
 ) {
-  const textarea = event.currentTarget
-  window.setTimeout(() => {
-    textarea.scrollTop = textarea.scrollHeight
-    const end = textarea.value.length
-    textarea.setSelectionRange(end, end)
+  handlePasteScrollToTop(event)
 
-    const target = scrollTargetId ? document.getElementById(scrollTargetId) : null
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    } else {
-      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
+  const pastedText = event.clipboardData.getData('text')
+  if (!pastedText.trim()) return
+
+  window.setTimeout(() => {
+    if (options.jobPopulated) {
+      const target = guideWorkspaceFocusAfterResumePaste(true)
+      options.onFocusTarget?.(target)
+      return
     }
+
+    if (options.scrollTargetId) {
+      const anchor = document.getElementById(options.scrollTargetId)
+      anchor?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      pulseElement(anchor)
+      return
+    }
+
+    const target = guideWorkspaceFocusAfterResumePaste(false)
+    options.onFocusTarget?.(target)
   }, 0)
 }

@@ -12,7 +12,11 @@ Example — if the job description says "stewardship of AQOE-sponsored platforms
 
 Any output with more than 3 consecutive words identical to the job description text fails compliance checks. Focus on semantic matching (meaning and skill level), not literal keyword duplication.`
 
-export const SEMANTIC_MATCHING_DIRECTIVE = `Match the job's intent and competency level using the candidate's authentic voice. Single proper nouns, tool names, and standard methodology labels (Agile, Kanban, Jira) may appear verbatim when truthful. Never lift multi-word clauses, duty statements, or sentence fragments from the posting.`
+export const SEMANTIC_MATCHING_DIRECTIVE = `Match the job's intent and competency level using the candidate's authentic voice.
+
+**Hard token rule (ATS):** Multi-word competency tokens from the job description (e.g., "Project Coordination", "Stakeholder Management", "Process Optimization") must appear **verbatim** in summary, skills, or bullets when the candidate truthfully possesses them — this drives ATS noun-density scoring.
+
+**Anti-plagiarism rule (human):** Never lift 4+ consecutive words that reproduce a JD **sentence, duty statement, or clause**. Single proper nouns, tool names, standard methodology labels (Agile, Kanban, Jira), and grounded multi-word competency tokens may appear verbatim. Rewrite everything else in the candidate's career context.`
 
 export const REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION = `${ANTI_COPY_CONSTRAINT}
 

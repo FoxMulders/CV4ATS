@@ -17,7 +17,7 @@ interface JobDescriptionStepProps {
   value: string
   onChange: (value: string) => void
   resumePopulated?: boolean
-  onPasteFocusTarget?: (target: 'resume' | 'generate') => void
+  onPasteFocusTarget?: (target: 'job' | 'resume' | 'generate') => void
 }
 
 export function JobDescriptionStep({

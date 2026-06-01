@@ -5,7 +5,7 @@ import {
 } from '@/lib/resume/contact-extraction'
 
 const COMPANY_HINT =
-  /\b(solutions|association|inc|corp|corporation|ltd|limited|company|group|technologies|labs|bank|university|college|ama|cohere|microserve|motor)\b/i
+  /\b(solutions|association|inc|corp|corporation|ltd|limited|company|group|technologies|labs|bank|university|college|ama|cohere|microserve|motor|popup|hub)\b/i
 
 const SECTION_STOP =
   /^(education|certifications?|skills|technical skills|references|interests)\s*:?\s*$/i
@@ -88,7 +88,7 @@ export function parseDateLine(line: string): { startDate: string; endDate: strin
 
 export function isRealExperienceBullet(text: string): boolean {
   const trimmed = text.trim()
-  if (trimmed.length < 16 || trimmed.length > 320) return false
+  if (trimmed.length < 16 || trimmed.length > 800) return false
   if (!isValidExperienceBullet(trimmed)) return false
   if (/^(pleasant solutions|alberta motor association|technical project manager|systems developer)$/i.test(trimmed)) {
     return false

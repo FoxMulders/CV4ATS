@@ -3,7 +3,6 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 
-import { SiteFooter } from '@/components/layout/site-footer'
 import { SiteHeader } from '@/components/layout/site-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -44,7 +43,6 @@ export default function GlobalError({
           </CardContent>
         </Card>
       </main>
-      <SiteFooter />
     </div>
   )
 }
