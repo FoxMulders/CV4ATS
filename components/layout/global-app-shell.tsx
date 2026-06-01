@@ -33,7 +33,7 @@ export function GlobalAppShell({ children }: { children: ReactNode }) {
           workspaceMode ? 'app-shell--workspace' : 'app-shell--scrollable'
         )}
       >
-        <div className="app-shell-main">{children}</div>
+        <div className="app-shell-main h-full min-h-0 overflow-hidden">{children}</div>
         {!workspaceMode ? <SiteFooter /> : null}
       </div>
       {workspaceMode ? <SystemDebugDock /> : null}

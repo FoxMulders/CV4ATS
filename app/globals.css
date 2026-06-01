@@ -85,6 +85,9 @@
   --sidebar-accent-foreground: oklch(0.28 0.06 260);
   --sidebar-border: oklch(0.9 0.015 260);
   --sidebar-ring: oklch(0.52 0.07 260);
+  --debug-dock-height: 40px;
+  --workspace-header-height: 3.25rem;
+  --workspace-body-height: calc(100dvh - var(--workspace-header-height) - var(--debug-dock-height));
 }
 
 .dark {
@@ -170,12 +173,9 @@ html.app-viewport-lock body {
 }
 
 .app-shell--workspace .app-shell-main {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
+  height: calc(100dvh - var(--debug-dock-height));
+  max-height: calc(100dvh - var(--debug-dock-height));
   overflow: hidden;
-  padding-bottom: var(--debug-dock-height);
 }
 
 .app-shell--scrollable .app-shell-main {
@@ -185,19 +185,25 @@ html.app-viewport-lock body {
   overscroll-behavior: contain;
 }
 
-/* Tailor workspace page — header + split body fill the shell main area */
+/* Tailor workspace — fixed header + body that always fills remaining viewport */
 .workspace-page {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  min-height: 0;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
+.workspace-header {
+  flex: 0 0 var(--workspace-header-height);
+  height: var(--workspace-header-height);
+  min-height: var(--workspace-header-height);
+  max-height: var(--workspace-header-height);
+}
+
 .workspace-split {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
+  flex: 1 1 0;
+  height: 0;
   min-height: 0;
   overflow: hidden;
 }
@@ -207,6 +213,29 @@ html.app-viewport-lock body {
     display: grid;
     grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
     grid-template-rows: minmax(0, 1fr);
+    height: 100%;
+  }
+}
+
+@media (max-width: 1023px) {
+  .workspace-split:not(.workspace-split--single) {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .workspace-split:not(.workspace-split--single) .workspace-split__pane {
+    flex: none;
+    height: auto;
+    overflow: visible;
+  }
+
+  .workspace-split__pane--preview {
+    min-height: min(70dvh, 720px);
   }
 }
 
@@ -220,23 +249,10 @@ html.app-viewport-lock body {
   overscroll-behavior: contain;
 }
 
-@media (max-width: 1023px) {
-  .workspace-split:not(.workspace-split--single) {
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  .workspace-split:not(.workspace-split--single) .workspace-split__pane {
-    overflow: visible;
-  }
-
-  .workspace-split__pane--preview {
-    min-height: min(70dvh, 720px);
-  }
-}
-
 @media (min-width: 1024px) {
   .workspace-split__pane {
+    height: 100%;
+    max-height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-gutter: stable;
