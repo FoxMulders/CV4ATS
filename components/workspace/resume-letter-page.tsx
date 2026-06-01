@@ -20,7 +20,7 @@ export function ResumeLetterPage({
 }: ResumeLetterPageProps) {
   if (empty) {
     return (
-      <div className={cn('flex h-full items-center justify-center p-6', className)}>
+      <div className={cn('flex min-h-[12rem] flex-1 items-center justify-center p-6', className)}>
         <p className="max-w-sm text-center text-sm leading-relaxed text-muted-foreground">
           {emptyMessage}
         </p>

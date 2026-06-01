@@ -13,8 +13,8 @@ interface SplitWorkspaceLayoutProps {
 }
 
 /**
- * Split workspace: inputs left (~45%), live document right (~55%) on lg+.
- * Left column sizes to content (no dead void). Right preview sticks and scrolls independently.
+ * Full-height split workspace: editor left (~45%), live preview right (~55%) on lg+.
+ * Each column fills the viewport band between header and debug dock and scrolls independently.
  */
 export function SplitWorkspaceLayout({
   leftPane,
@@ -26,19 +26,14 @@ export function SplitWorkspaceLayout({
     <div
       id="tailor-workspace"
       className={cn(
-        'grid w-full',
-        showRightPane
-          ? 'grid-cols-1 items-start lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]'
-          : 'grid-cols-1',
+        'workspace-split',
+        !showRightPane && 'workspace-split--single',
         className
       )}
     >
       <aside
         aria-label="Resume editor controls"
-        className={cn(
-          'border-b border-border/80 bg-muted/20 lg:border-b-0 lg:border-r',
-          showRightPane && 'lg:min-h-0'
-        )}
+        className="workspace-split__pane workspace-split__pane--editor border-b border-border/80 bg-muted/20 lg:border-b-0 lg:border-r"
       >
         <div className="space-y-3 p-4 sm:p-5">{leftPane}</div>
       </aside>
@@ -46,15 +41,9 @@ export function SplitWorkspaceLayout({
       {showRightPane ? (
         <section
           aria-label="Live resume preview"
-          className={cn(
-            'bg-muted/40',
-            'lg:sticky lg:top-0 lg:max-h-[calc(100dvh-2.75rem-var(--debug-dock-height,40px))]',
-            'lg:overflow-y-auto lg:overscroll-contain'
-          )}
+          className="workspace-split__pane workspace-split__pane--preview bg-muted/40"
         >
-          <div className="workspace-pane lg:max-h-[calc(100dvh-2.75rem-var(--debug-dock-height,40px))]">
-            {rightPane}
-          </div>
+          {rightPane}
         </section>
       ) : null}
     </div>

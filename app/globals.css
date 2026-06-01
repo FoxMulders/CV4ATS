@@ -47,6 +47,8 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --debug-dock-height: 40px;
+  --workspace-header-height: 3.25rem;
 }
 
 :root {
@@ -143,7 +145,7 @@
   }
 }
 
-/* Premium app shell — workspace scrolls inside main; debug dock is fixed overlay */
+/* Premium app shell — workspace fills viewport; panes scroll, not the document */
 html.app-viewport-lock,
 html.app-viewport-lock body {
   height: 100%;
@@ -162,19 +164,18 @@ html.app-viewport-lock body {
 }
 
 .app-shell--workspace {
-  height: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
 }
 
 .app-shell--workspace .app-shell-main {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-bottom: var(--debug-dock-height, 40px);
+  overflow: hidden;
+  padding-bottom: var(--debug-dock-height);
 }
 
 .app-shell--scrollable .app-shell-main {
@@ -182,6 +183,64 @@ html.app-viewport-lock body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Tailor workspace page — header + split body fill the shell main area */
+.workspace-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-split {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .workspace-split {
+    display: grid;
+    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+.workspace-split--single {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-split__pane {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 1023px) {
+  .workspace-split:not(.workspace-split--single) {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .workspace-split:not(.workspace-split--single) .workspace-split__pane {
+    overflow: visible;
+  }
+
+  .workspace-split__pane--preview {
+    min-height: min(70dvh, 720px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .workspace-split__pane {
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
 }
 
 /* Independent pane scroll — slim scrollbars */

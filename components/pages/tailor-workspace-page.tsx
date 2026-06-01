@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { PreviewScoreBanner } from '@/components/workspace/preview-score-banner'
 import { ResumeLetterPage } from '@/components/workspace/resume-letter-page'
 import { SplitWorkspaceLayout } from '@/components/workspace/split-workspace-layout'
+import { WorkspacePreviewPlaceholder } from '@/components/workspace/workspace-preview-placeholder'
 import { WorkspaceAccordion } from '@/components/workspace/workspace-accordion'
 import { GenerateStep } from '@/components/wizard/generate-step'
 import { AchievementIntakeModal } from '@/components/wizard/achievement-intake-modal'
@@ -1229,7 +1230,7 @@ export function TailorWorkspacePage({
   )
 
   const rightPane = (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <PreviewScoreBanner
         before={result?.baselineKeywordReport}
         after={keywordAfter}
@@ -1237,7 +1238,7 @@ export function TailorWorkspacePage({
         hiringPanel={result?.hiringPanel}
         rawKeywordScore={result?.rawKeywordScore ?? null}
         isAfterUpdating={scoreRecalculation.isRecalculating}
-        resume={editedResume ?? result?.tailoredResume ?? null}
+        resume={editedResume ?? result?.tailoredResume ?? streamingResume ?? null}
         coverLetter={coverLetter}
         premiumAccessToken={accessToken}
         jobDescriptionHash={jobDescriptionHash}
@@ -1269,38 +1270,45 @@ export function TailorWorkspacePage({
             />
           </div>
 
-          {previewTab === 'tailored' ? (
-            <ResumeLetterPage>
-              {isLoading && streamingResume ? (
-                <p className="mb-4 text-xs font-medium uppercase tracking-wide text-brand-gold">
-                  Live preview — updating as generation streams
-                </p>
-              ) : null}
-              <ResumePreview
-                resume={displayResume!}
-                jobDescription={jobDescription}
-                variant="letter"
-              />
-            </ResumeLetterPage>
-          ) : originalResumeText && editedResume ? (
-            <ResumeLetterPage>
-              <ResumeDiffView
-                originalText={originalResumeText}
-                resume={editedResume}
-                onResumeChange={pushEditedResumeWithLog}
-                jobDescription={jobDescription}
-              />
-            </ResumeLetterPage>
-          ) : null}
+          <div className="workspace-pane min-h-0 flex-1">
+            {previewTab === 'tailored' ? (
+              <ResumeLetterPage>
+                {isLoading && streamingResume ? (
+                  <p className="mb-4 text-xs font-medium uppercase tracking-wide text-brand-gold">
+                    Live preview — updating as generation streams
+                  </p>
+                ) : null}
+                <ResumePreview
+                  resume={displayResume!}
+                  jobDescription={jobDescription}
+                  variant="letter"
+                />
+              </ResumeLetterPage>
+            ) : originalResumeText && editedResume ? (
+              <ResumeLetterPage>
+                <ResumeDiffView
+                  originalText={originalResumeText}
+                  resume={editedResume}
+                  onResumeChange={pushEditedResumeWithLog}
+                  jobDescription={jobDescription}
+                />
+              </ResumeLetterPage>
+            ) : null}
+          </div>
         </>
       ) : (
-        <ResumeLetterPage empty />
+        <WorkspacePreviewPlaceholder
+          isLoading={isLoading}
+          loadingStep={loadingStep}
+          loadingLabel={loadingLabel}
+          scorePassLines={scorePassLines}
+        />
       )}
     </div>
   )
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-muted/30">
+    <div className="workspace-page bg-muted/30">
       <SiteHeader current="tailor" variant="compact" />
 
       <SplitWorkspaceLayout

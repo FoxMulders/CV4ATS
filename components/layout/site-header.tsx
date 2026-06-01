@@ -15,13 +15,13 @@ export function SiteHeader({ current, variant = 'default' }: SiteHeaderProps) {
 
   return (
     <header className="z-50 shrink-0 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div
-        className={
-          compact
-            ? 'mx-auto flex max-w-none items-center justify-between gap-4 px-4 py-2.5 sm:px-5'
-            : 'mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6'
-        }
-      >
+        <div
+          className={
+            compact
+              ? 'mx-auto flex h-[var(--workspace-header-height)] max-w-none items-center justify-between gap-4 px-4 sm:px-5'
+              : 'mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6'
+          }
+        >
         <Link href="/" className="group flex min-w-0 items-center gap-3">
           <div
             className={
