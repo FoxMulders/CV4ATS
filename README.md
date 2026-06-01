@@ -30,6 +30,7 @@ Open [http://localhost:3000](http://localhost:3000).
 |----------|---------|
 | `GEMINI_API_KEY` | Google Gemini API key ([AI Studio](https://aistudio.google.com/apikey)) — **required for production** |
 | `GEMINI_MODEL_ID` | Optional Gemini model (default: `gemini-flash-latest`) |
+| `HIRING_PANEL_MODEL_ID` | Optional hiring panel model (default: `gemini-2.5-pro`; avoid deprecated `gemini-1.5-pro`) |
 | `GROQ_API_KEY` | Optional Groq fallback when Gemini is rate-limited |
 | `GROQ_MODEL` | Optional Groq model (default: `llama-3.1-70b-versatile`) |
 

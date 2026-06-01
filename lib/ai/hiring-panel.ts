@@ -1,8 +1,13 @@
 import { generateText, NoObjectGeneratedError, Output } from 'ai'
 
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
-import { unwrapAiError } from '@/lib/ai/errors'
-import { createGeminiModel, geminiProviderOptions } from '@/lib/ai/gemini'
+import { isGeminiModelNotFoundError, unwrapAiError } from '@/lib/ai/errors'
+import {
+  createGeminiModel,
+  geminiProviderOptions,
+  HIRING_PANEL_GEMINI_MODEL_ID,
+  hiringPanelModelCandidates,
+} from '@/lib/ai/gemini'
 import {
   buildHiringPanelReviewPrompt,
   buildHiringPanelRevisionPrompt,
@@ -31,10 +36,40 @@ import {
 } from '@/lib/resume/cover-letter-compliance'
 
 /** Cloud-only model for hiring panel — never routed to browser Nano / window.ai. */
-export const HIRING_PANEL_CLOUD_MODEL_ID =
-  process.env.HIRING_PANEL_MODEL_ID?.trim() || 'gemini-1.5-pro'
+export const HIRING_PANEL_CLOUD_MODEL_ID = HIRING_PANEL_GEMINI_MODEL_ID
 
 export const HIRING_PANEL_MODEL_ID = HIRING_PANEL_CLOUD_MODEL_ID
+
+type HiringPanelGenerateParams = Omit<Parameters<typeof generateText>[0], 'model'>
+
+async function generateHiringPanelText(params: HiringPanelGenerateParams) {
+  const candidates = hiringPanelModelCandidates()
+  let lastError: unknown
+
+  for (const modelId of candidates) {
+    try {
+      return await generateText({
+        ...params,
+        model: createGeminiModel(modelId),
+      } as Parameters<typeof generateText>[0])
+    } catch (error) {
+      lastError = error
+      if (isGeminiModelNotFoundError(error)) {
+        console.warn(`[Hiring Panel] Model "${modelId}" unavailable — trying next fallback.`)
+        continue
+      }
+      throw error
+    }
+  }
+
+  const message =
+    lastError instanceof Error
+      ? lastError.message
+      : 'No supported Gemini model available for hiring panel review.'
+  throw new Error(
+    `${message} Set HIRING_PANEL_MODEL_ID=gemini-2.5-pro (or gemini-2.5-flash) in Vercel and redeploy.`
+  )
+}
 
 export const MAX_HIRING_PANEL_REVISION_ROUNDS = 4
 
@@ -155,13 +190,11 @@ export async function runHiringPanelReview(
   sourceResumeText: string,
   draft: AiGenerationResult
 ): Promise<{ review: HiringPanelReview | null; partialCritiques: HiringManagerReview[]; failureReason?: string }> {
-  const model = createGeminiModel(HIRING_PANEL_CLOUD_MODEL_ID)
   const prompt = buildHiringPanelReviewPrompt(jobDescription, sourceResumeText, draft)
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const response = await generateText({
-        model,
+      const response = await generateHiringPanelText({
         system: HIRING_PANEL_REVIEW_SYSTEM_PROMPT,
         prompt,
         temperature: attempt === 0 ? 0.3 : 0.2,
@@ -199,7 +232,6 @@ export async function runHiringPanelRevision(
   review: HiringPanelReview,
   options: HiringPanelRunOptions = {}
 ): Promise<Pick<AiGenerationResult, 'tailoredResume' | 'coverLetter'> | null> {
-  const model = createGeminiModel(HIRING_PANEL_CLOUD_MODEL_ID)
   const prompt = buildHiringPanelRevisionPrompt(
     jobDescription,
     sourceResumeText,
@@ -213,8 +245,7 @@ export async function runHiringPanelRevision(
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const response = await generateText({
-        model,
+      const response = await generateHiringPanelText({
         system: HIRING_PANEL_REVISION_SYSTEM_PROMPT,
         prompt,
         temperature: attempt === 0 ? 0.35 : 0.25,
@@ -233,8 +264,7 @@ export async function runHiringPanelRevision(
       if (recovered) return recovered
 
       try {
-        const response = await generateText({
-          model,
+        const response = await generateHiringPanelText({
           system: `${HIRING_PANEL_REVISION_SYSTEM_PROMPT}\n\nReturn JSON with tailoredResume and coverLetter keys only.`,
           prompt: `${prompt}\n\nRespond with valid JSON only.`,
           temperature: 0.25,

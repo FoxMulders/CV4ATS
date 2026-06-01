@@ -10,6 +10,28 @@ export const GEMINI_MODEL_ID =
   process.env.GEMINI_MODEL_ID?.trim() || 'gemini-flash-latest'
 
 /**
+ * Cloud model for hiring panel review (complex structured JSON + multi-manager reasoning).
+ * Override via HIRING_PANEL_MODEL_ID. `gemini-1.5-pro` is no longer served on v1beta.
+ */
+export const HIRING_PANEL_GEMINI_MODEL_ID =
+  process.env.HIRING_PANEL_MODEL_ID?.trim() || 'gemini-2.5-pro'
+
+/** Ordered fallbacks when the configured hiring panel model is unavailable. */
+export function hiringPanelModelCandidates(): string[] {
+  const configured = process.env.HIRING_PANEL_MODEL_ID?.trim()
+  const candidates = [
+    configured,
+    HIRING_PANEL_GEMINI_MODEL_ID,
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    GEMINI_MODEL_ID,
+    'gemini-flash-latest',
+  ].filter((id): id is string => Boolean(id?.trim()))
+
+  return [...new Set(candidates)]
+}
+
+/**
  * Reads the Gemini key from Vercel / local env.
  * Supports both GEMINI_API_KEY (preferred) and GOOGLE_GENERATIVE_AI_API_KEY.
  */

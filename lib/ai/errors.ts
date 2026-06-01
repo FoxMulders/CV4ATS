@@ -45,6 +45,19 @@ export function isAiProviderUnavailable(error: unknown): boolean {
   return false
 }
 
+/** Gemini model id rejected by the API (deprecated or wrong API version). */
+export function isGeminiModelNotFoundError(error: unknown): boolean {
+  const root = unwrapAiError(error)
+  const message =
+    root instanceof Error
+      ? root.message
+      : error instanceof Error
+        ? error.message
+        : String(root ?? error ?? '')
+
+  return /is not found for API version|not supported for generateContent|models\/gemini/i.test(message)
+}
+
 /** Unwrap RetryError / Error.cause so fallback logic sees the root provider failure. */
 export function unwrapAiError(error: unknown): unknown {
   if (RetryError.isInstance(error)) {
