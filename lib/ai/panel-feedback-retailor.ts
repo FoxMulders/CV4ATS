@@ -1,6 +1,7 @@
 import type { HiringManagerReview, HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
 import { FOUNDATIONAL_ROLE_REFRAMING_DIRECTIVE, PERSONAL_PROJECT_PRESERVATION_DIRECTIVE } from '@/lib/ai/personal-projects-strategy'
+import { buildPanelValidationMandatesAddendum } from '@/lib/ai/panel-validation-mandates'
 export type SanitizedPanelFeedback = {
   finalVerdict: string
   revisionRecommendations: string[]
@@ -130,12 +131,15 @@ Execute a Down-Tailoring pass:
 
 export function buildPanelFeedbackRetailorAddendum(
   panel: HiringPanelSessionResult,
-  sourceResumeText: string
+  sourceResumeText: string,
+  jobDescription = ''
 ): string {
   const sanitized = extractSanitizedPanelFeedback(panel, sourceResumeText)
   const blocks: string[] = [
     '[Panel Feedback Ingestion — Closed-Loop Re-Tailor Constraints]',
     ANTI_FABRICATION_DIRECTIVE,
+    '',
+    buildPanelValidationMandatesAddendum(panel, sourceResumeText, jobDescription),
     '',
     'PANEL FINAL VERDICT (treat as negative constraints — do not amplify rejected positioning):',
     sanitized.finalVerdict,

@@ -91,6 +91,7 @@ export async function POST(request: Request) {
       keywordReport,
       hiringPanel: panelRun.panel,
       rawKeywordScore,
+      validationDelta: panelRun.validationDelta,
     })
   } catch (error) {
     console.error('Panel retailor error:', error)

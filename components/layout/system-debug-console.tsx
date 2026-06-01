@@ -13,7 +13,7 @@ type SystemDebugConsoleProps = {
 }
 
 export function SystemDebugConsole({ variant = 'footer' }: SystemDebugConsoleProps) {
-  const { logs, appendLog } = useSystemDebugLogOptional()
+  const { logs, appendLog, clearLogs } = useSystemDebugLogOptional()
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const logPanelRef = useRef<HTMLPreElement>(null)
@@ -93,6 +93,18 @@ export function SystemDebugConsole({ variant = 'footer' }: SystemDebugConsolePro
 
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-[11px] text-muted-foreground tabular-nums">{logs.length} entries</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => {
+              clearLogs()
+              appendLog('LOG: Debug log buffer cleared by user.')
+            }}
+          >
+            Clear
+          </Button>
           <Button
             type="button"
             size="sm"

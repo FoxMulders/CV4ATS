@@ -29,6 +29,17 @@ export function isPlaceholderDateRange(startDate: string, endDate: string): bool
   return isPlaceholderStartDate(startDate) && isPlaceholderEndDate(endDate)
 }
 
+/** Detect generic template stamps like "2010 – Present" when source has specific ranges. */
+export function isBlanketTimelineStamp(startDate: string, endDate: string): boolean {
+  const start = startDate.trim()
+  const end = endDate.trim().toLowerCase()
+  if (/^2010$/i.test(start) && (end === 'present' || end === 'current')) return true
+  if (/^20(?:10|11|12)$/i.test(start) && !/\//.test(start) && (end === 'present' || end === 'current')) {
+    return true
+  }
+  return false
+}
+
 /** True when text ends mid-thought (trailing conjunction, comma, or no closing punctuation on long prose). */
 export function isStructurallyIncomplete(text: string): boolean {
   const trimmed = text.trim()
@@ -200,11 +211,17 @@ export function ensureExperienceDatesForApi(
       let startDate = entry.startDate.trim()
       let endDate = entry.endDate.trim() || 'Present'
 
+      const match = findTimelineMatch(entry, timeline)
+
+      if (match && (isBlanketTimelineStamp(startDate, endDate) || isPlaceholderDateRange(startDate, endDate))) {
+        startDate = match.startDate.trim()
+        endDate = match.endDate.trim() || endDate
+      }
+
       const needsStart = !startDate || isPlaceholderStartDate(startDate)
       const needsEnd = !endDate || (isPlaceholderEndDate(endDate) && endDate.toLowerCase() !== 'present')
 
       if (needsStart || needsEnd) {
-        const match = findTimelineMatch(entry, timeline)
         if (match) {
           if (needsStart && match.startDate.trim()) startDate = match.startDate.trim()
           if (needsEnd && match.endDate.trim()) endDate = match.endDate.trim()
@@ -218,15 +235,23 @@ export function ensureExperienceDatesForApi(
         }
       }
 
-      if (!startDate || isPlaceholderStartDate(startDate)) {
+      if (!startDate.trim()) {
+        startDate =
+          match?.startDate?.trim() ||
+          orderedDates[index]?.startDate ||
+          timeline[index]?.startDate?.trim() ||
+          entry.startDate.trim()
+      }
+
+      if (!startDate.trim() || isPlaceholderStartDate(startDate)) {
         const yearFromEnd = endDate.match(/\b(19|20)\d{2}\b/)?.[0]
-        if (yearFromEnd) {
+        if (yearFromEnd && !match?.startDate?.trim()) {
           startDate = yearFromEnd
         }
       }
 
       if (!startDate.trim()) {
-        startDate = timeline[index]?.startDate?.trim() || orderedDates[index]?.startDate || '2010'
+        startDate = match?.startDate?.trim() || orderedDates[index]?.startDate || 'Recent'
       }
 
       if (!endDate.trim()) {

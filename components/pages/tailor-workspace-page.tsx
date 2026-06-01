@@ -67,6 +67,7 @@ import {
 import { requestPanelRevise } from '@/lib/api/panel-revise-client'
 import { requestPanelRetailor } from '@/lib/api/panel-retailor-client'
 import { shouldOfferPanelFeedbackRetailor } from '@/lib/ai/panel-feedback-retailor'
+import { PANEL_PASS_2_LOADING_LABEL } from '@/lib/ai/generation-integrity'
 import { requestHiringPanelReview, type HiringPanelReviewResponse } from '@/lib/api/hiring-panel-client'
 
 type GenerationResultWithMeta = GenerationResult & {
@@ -147,7 +148,7 @@ export function TailorWorkspacePage({
   const [panelReviseLoading, setPanelReviseLoading] = useState(false)
   const [panelRetailorLoading, setPanelRetailorLoading] = useState(false)
   const [panelReviewLoading, setPanelReviewLoading] = useState(false)
-  const { appendLog } = useSystemDebugLog()
+  const { appendLog, clearLogs } = useSystemDebugLog()
   const lastLoggedJobRef = useRef('')
   const lastLoggedResumeRef = useRef('')
   const streamLoggedRef = useRef(false)
@@ -518,7 +519,10 @@ export function TailorWorkspacePage({
     }
 
     setPanelRetailorLoading(true)
-    appendLog('LOG: [PANEL-RETAILOR] Starting de-escalate & re-tailor from sanitized panel feedback…')
+    setLoadingLabel(PANEL_PASS_2_LOADING_LABEL)
+    clearLogs()
+    appendLog('LOG: [PANEL-RETAILOR] Pass 2 started — cleared debug log buffer for fresh structural validation.')
+    appendLog(`LOG: [PANEL-RETAILOR] ${PANEL_PASS_2_LOADING_LABEL}`)
 
     try {
       const updated = await requestPanelRetailor({
@@ -531,6 +535,26 @@ export function TailorWorkspacePage({
         },
         panel: result.hiringPanel,
       })
+
+      if (updated.validationDelta) {
+        appendLog(
+          `LOG: [PANEL-RETAILOR] Validation delta — resolved: ${updated.validationDelta.resolvedIssues.length}, remaining: ${updated.validationDelta.remainingIssues.length}, pass: ${updated.validationDelta.pass}`
+        )
+        for (const item of updated.validationDelta.resolvedIssues) {
+          appendLog(`LOG: [PANEL-RETAILOR] Resolved — ${item}`)
+        }
+        for (const item of updated.validationDelta.remainingIssues) {
+          appendLog(`LOG: [PANEL-RETAILOR] Remaining — ${item}`)
+        }
+      }
+
+      if (updated.validationDelta && !updated.validationDelta.pass) {
+        toast.error(
+          'Pass 2 completed but placeholder or repetition issues remain. Check the debug console — try again or edit manually.'
+        )
+        appendLog('LOG: [PANEL-RETAILOR] Blocked render — validation delta did not pass integrity gate.')
+        return
+      }
 
       setResult((current) =>
         current
@@ -564,6 +588,7 @@ export function TailorWorkspacePage({
       toast.error(message)
     } finally {
       setPanelRetailorLoading(false)
+      setLoadingLabel(null)
     }
   }
 
@@ -1212,6 +1237,18 @@ export function TailorWorkspacePage({
         showRightPane={showPreviewPane}
         className="min-h-0 flex-1"
       />
+
+      {panelRetailorLoading ? (
+        <div
+          className="pointer-events-none fixed inset-x-0 top-14 z-40 flex justify-center px-4"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="rounded-lg border border-primary/30 bg-background/95 px-4 py-3 text-sm font-medium text-foreground shadow-lg backdrop-blur-sm">
+            {PANEL_PASS_2_LOADING_LABEL}
+          </div>
+        </div>
+      ) : null}
 
       <SquareCheckoutModal
         open={checkoutOpen}

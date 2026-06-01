@@ -9,6 +9,13 @@ import {
   buildPanelFeedbackRetailorAddendum,
   buildSanitizedPanelReviewForRevision,
 } from '@/lib/ai/panel-feedback-retailor'
+import { PANEL_PASS_2_LOADING_LABEL } from '@/lib/ai/generation-integrity'
+import {
+  applyPostRevisionIntegrity,
+  computePanelRevisionDelta,
+  type PanelRevisionDelta,
+} from '@/lib/ai/generation-integrity'
+import { applyGenerationHygiene } from '@/lib/ai/generation-hygiene'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
@@ -52,19 +59,29 @@ async function polishCoverLetter(
   return { ...draft, coverLetter }
 }
 
+export type ApplyPanelFeedbackRetailorResult = {
+  aiResult: AiGenerationResult
+  panel: HiringPanelSessionResult | null
+  validationDelta: PanelRevisionDelta
+}
+
 /** Closed-loop re-tailor: ingest sanitized panel feedback, down-tailor when overqualified, re-review. */
 export async function applyPanelFeedbackRetailor(
   input: ApplyPanelFeedbackRetailorInput
-): Promise<{ aiResult: AiGenerationResult; panel: HiringPanelSessionResult | null }> {
+): Promise<ApplyPanelFeedbackRetailorResult> {
   const sourceResumeText = input.sourceResumeText.trim()
-  const panelFeedbackAddendum = buildPanelFeedbackRetailorAddendum(input.panel, sourceResumeText)
+  const panelFeedbackAddendum = buildPanelFeedbackRetailorAddendum(
+    input.panel,
+    sourceResumeText,
+    input.jobDescription
+  )
   const sanitizedReview = buildSanitizedPanelReviewForRevision(input.panel, sourceResumeText)
 
   const options: HiringPanelRunOptions = {
     panelFeedbackAddendum,
   }
 
-  await input.onProgress?.('De-escalating tone and re-tailoring from panel feedback…')
+  await input.onProgress?.(PANEL_PASS_2_LOADING_LABEL)
 
   const revision = await runHiringPanelRevision(
     input.jobDescription,
@@ -75,17 +92,30 @@ export async function applyPanelFeedbackRetailor(
   )
 
   if (!revision?.coverLetter.trim()) {
-    return { aiResult: input.draft, panel: input.panel }
+    return {
+      aiResult: input.draft,
+      panel: input.panel,
+      validationDelta: computePanelRevisionDelta(input.draft, input.draft, sourceResumeText),
+    }
   }
 
-  let aiResult: AiGenerationResult = {
-    ...input.draft,
-    tailoredResume: enforceSourceCertifications(revision.tailoredResume, sourceResumeText),
-    coverLetter: revision.coverLetter,
-  }
+  let aiResult: AiGenerationResult = applyPostRevisionIntegrity(
+    applyGenerationHygiene(
+      {
+        ...input.draft,
+        tailoredResume: enforceSourceCertifications(revision.tailoredResume, sourceResumeText),
+        coverLetter: revision.coverLetter,
+      },
+      sourceResumeText
+    ),
+    sourceResumeText
+  )
 
   await input.onProgress?.('Polishing cover letter…')
   aiResult = await polishCoverLetter(aiResult, input.jobDescription, sourceResumeText, input.panel)
+  aiResult = applyPostRevisionIntegrity(aiResult, sourceResumeText)
+
+  const validationDelta = computePanelRevisionDelta(input.draft, aiResult, sourceResumeText)
 
   await input.onProgress?.('Re-running hiring panel review…')
   const newReviewResult = await runHiringPanelReview(input.jobDescription, sourceResumeText, aiResult)
@@ -95,5 +125,6 @@ export async function applyPanelFeedbackRetailor(
     panel: newReviewResult.review
       ? buildSessionResult(newReviewResult.review, input.panel.revisionRounds + 1)
       : input.panel,
+    validationDelta,
   }
 }

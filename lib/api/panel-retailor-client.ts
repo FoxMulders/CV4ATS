@@ -1,4 +1,5 @@
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
+import type { PanelRevisionDelta } from '@/lib/ai/generation-integrity'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 
@@ -8,6 +9,7 @@ export type PanelRetailorResult = {
   keywordReport: AiGenerationResult['keywordReport']
   hiringPanel: HiringPanelSessionResult | null
   rawKeywordScore?: number
+  validationDelta?: PanelRevisionDelta
 }
 
 export async function requestPanelRetailor(input: {
