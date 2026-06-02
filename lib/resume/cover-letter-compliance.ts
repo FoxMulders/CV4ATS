@@ -1,5 +1,8 @@
 import { COVER_LETTER_BANNED_PHRASES } from '@/lib/ai/prompts'
 import { HIRING_PANEL_COVER_LETTER_BANNED } from '@/lib/ai/hiring-panel-prompts'
+import { QUANTIFIED_METRIC_PATTERN } from '@/lib/resume/quantified-metrics'
+
+export { QUANTIFIED_METRIC_PATTERN } from '@/lib/resume/quantified-metrics'
 
 export interface CoverLetterViolation {
   type: 'banned-phrase' | 'missing-metrics'
@@ -7,10 +10,6 @@ export interface CoverLetterViolation {
 }
 
 const ALL_BANNED_PHRASES = [...COVER_LETTER_BANNED_PHRASES, ...HIRING_PANEL_COVER_LETTER_BANNED]
-
-/** Detects numbers, percentages, currency, and scale indicators in prose. */
-export const QUANTIFIED_METRIC_PATTERN =
-  /\b\d[\d,]*(?:\.\d+)?(?:%|\+|\s*(?:hours?|hrs|days?|weeks?|months?|years?|users?|teams?|people|projects?|releases?|tickets?|systems?|applications?|pipelines?))|\$\d[\d,]*|\d+\s*(?:million|billion|m\b|k\b)|\d+x\b/i
 
 export function findCoverLetterBannedPhrases(text: string): string[] {
   const lower = text.toLowerCase()

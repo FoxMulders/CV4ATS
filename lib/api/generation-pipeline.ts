@@ -119,14 +119,16 @@ function scoreResume(
 
 function applySourceGrounding(
   aiResult: AiGenerationResult,
-  sourceResumeText: string
+  sourceResumeText: string,
+  achievementSupplement = ''
 ): AiGenerationResult {
   return applyGenerationHygiene(
     {
       ...aiResult,
       tailoredResume: enforceSourceCertifications(aiResult.tailoredResume, sourceResumeText),
     },
-    sourceResumeText
+    sourceResumeText,
+    { achievementSupplement: achievementSupplement.trim() || undefined }
   )
 }
 
@@ -258,7 +260,8 @@ export async function runGenerationPipeline(
         onPartial: emitPartial,
       }
     ),
-    resumeText
+    resumeText,
+    achievementSupplement
   )
 
   let integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
@@ -313,7 +316,8 @@ export async function runGenerationPipeline(
         achievementSupplement,
         { onPartial: emitPartial }
       ),
-      resumeText
+      resumeText,
+      achievementSupplement
     )
 
     integration = runScoringIntegration(aiResult, jobDescription, keywordsToTargetSkills(missingKeywords))
@@ -402,7 +406,8 @@ export async function runGenerationPipeline(
       ...aiResult,
       tailoredResume: formatTailoredResume(aiResult.tailoredResume),
     },
-    resumeText
+    resumeText,
+    achievementSupplement
   )
 
   const coverViolations = auditCoverLetterCompliance(aiResult.coverLetter)

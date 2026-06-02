@@ -1,5 +1,11 @@
 import type { AiGenerationResult, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { extractCoverLetterFromModelOutput } from '@/lib/ai/sanitize-model-output'
+import {
+  bulletContainsUngroundedMetric,
+  enforceAuthenticResumeOptimization,
+  stripBannedAuthenticPhrases,
+  stripFabricatedMetricClauses,
+} from '@/lib/ai/authentic-resume-optimization'
 import { enforceContextConstrainedTailoring } from '@/lib/ai/context-constrained-tailoring'
 import {
   isDateLine,
@@ -314,7 +320,15 @@ function sanitizeExperienceEntry(entry: Experience): Experience {
   }
 }
 
-function sanitizeTailoredResume(resume: TailoredResume, sourceResumeText: string): TailoredResume {
+export type GenerationHygieneOptions = {
+  achievementSupplement?: string
+}
+
+function sanitizeTailoredResume(
+  resume: TailoredResume,
+  sourceResumeText: string,
+  options: GenerationHygieneOptions = {}
+): TailoredResume {
   let next = {
     ...resume,
     summary: repairIncompleteText(resume.summary),
@@ -326,24 +340,46 @@ function sanitizeTailoredResume(resume: TailoredResume, sourceResumeText: string
     next = mergeSourceExperienceDates(next, sourceResumeText)
     next = ensureExperienceDatesForApi(next, sourceResumeText)
     next = enforceContextConstrainedTailoring(next, sourceResumeText)
+    next = enforceAuthenticResumeOptimization(next, sourceResumeText, {
+      achievementSupplement: options.achievementSupplement,
+    })
   }
 
   return next
 }
 
+function sanitizeCoverLetter(
+  coverLetter: string,
+  sourceResumeText: string,
+  options: GenerationHygieneOptions = {}
+): string {
+  const groundTruth = [sourceResumeText, options.achievementSupplement?.trim()]
+    .filter(Boolean)
+    .join('\n\n')
+
+  let next = stripBannedAuthenticPhrases(coverLetter)
+  if (groundTruth && bulletContainsUngroundedMetric(next, groundTruth)) {
+    next = stripFabricatedMetricClauses(next)
+  }
+  return repairIncompleteText(next)
+}
+
 /** Post-process AI output: complete sentences, strip template dates, sanitize cover letter body. */
 export function applyGenerationHygiene(
   result: AiGenerationResult,
-  sourceResumeText = ''
+  sourceResumeText = '',
+  options: GenerationHygieneOptions = {}
 ): AiGenerationResult {
-  const coverLetter = repairIncompleteText(
-    extractCoverLetterFromModelOutput(result.coverLetter ?? '')
+  const coverLetter = sanitizeCoverLetter(
+    extractCoverLetterFromModelOutput(result.coverLetter ?? ''),
+    sourceResumeText,
+    options
   )
 
   return {
     ...result,
     coverLetter,
-    tailoredResume: sanitizeTailoredResume(result.tailoredResume, sourceResumeText),
+    tailoredResume: sanitizeTailoredResume(result.tailoredResume, sourceResumeText, options),
   }
 }
 

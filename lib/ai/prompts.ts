@@ -10,6 +10,7 @@ import {
 } from '@/lib/ai/ats-human-rules'
 import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
 import { CONTEXT_CONSTRAINED_TAILORING_DIRECTIVE } from '@/lib/ai/context-constrained-tailoring'
+import { AUTHENTIC_RESUME_OPTIMIZATION_DIRECTIVE } from '@/lib/ai/authentic-resume-optimization-directive'
 import {
   COVER_LETTER_PERSONAL_PROJECTS_ANCHOR_DIRECTIVE,
   PERSONAL_PROJECT_PRESERVATION_DIRECTIVE,
@@ -336,6 +337,8 @@ export const SYSTEM_PROMPT = `You are an expert Executive Resume Writer speciali
 Your job is to tailor a candidate's resume for a specific job description and produce a keyword match report plus a cover letter.
 
 ${CONTEXT_CONSTRAINED_TAILORING_DIRECTIVE}
+
+${AUTHENTIC_RESUME_OPTIMIZATION_DIRECTIVE}
 
 ${ANTI_FABRICATION_DIRECTIVE}
 

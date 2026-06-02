@@ -5,10 +5,10 @@ export const PERSONAL_PROJECT_SECTION_PATTERN =
   /^(?:personal ai projects|personal projects|side ventures?|product innovations?|projects)\s*:?\s*$/i
 
 const PROJECT_COMPANY_PATTERN =
-  /^(?:tipsy fox|popuphub|pop-up hub|pop up hub)/i
+  /^(?:tipsy fox|popuphub|pop-up hub|pop up hub|cv2ats(?:\.ca)?|ats4cv)/i
 
 const PROJECT_TITLE_PATTERN =
-  /personal ai project|side project|side venture|freelance project|personal project|product innovation|founder|independent product/i
+  /personal ai project|personal venture|part[- ]time project|side project|side venture|freelance project|personal project|product innovation|founder|independent product/i
 
 const PROJECT_NAME_PATTERN =
   /\b(?:PopUpHub|Pop-Up Hub|Tipsy Fox(?: Escapes)?)\b/i
@@ -30,7 +30,7 @@ export function sourceHasPersonalProjects(sourceResumeText: string): boolean {
   const lines = text.split('\n').map((line) => line.trim())
   if (lines.some((line) => PERSONAL_PROJECT_SECTION_PATTERN.test(line))) return true
   return (
-    /personal ai projects|side ventures?|product innovations?/i.test(text) ||
+    /personal ai projects|side ventures?|product innovations?|personal venture|part[- ]time project|cv2ats(?:\.ca)?/i.test(text) ||
     PROJECT_NAME_PATTERN.test(text) ||
     /personal project|side project/i.test(text)
   )
