@@ -444,7 +444,7 @@ Integration rules:
 ## ATS formatting (mandatory)
 Rebuild every resume for ATS parsing and human hiring managers:
 
-1. **Structure** — Single-column layout with standard section headers only: PROFESSIONAL SUMMARY, SKILLS, WORK EXPERIENCE, PERSONAL AI PROJECTS (when source includes personal/side/product-innovation projects), EDUCATION, CERTIFICATIONS. Reverse-chronological work experience. No tables, columns, text boxes, or graphics.
+1. **Structure** — Single-column layout with standard section headers only: PROFESSIONAL SUMMARY, SKILLS, WORK EXPERIENCE, PERSONAL AI PROJECT EXPERIENCE (when source includes personal/side/product-innovation projects), EDUCATION, CERTIFICATIONS. Reverse-chronological work experience. No tables, columns, text boxes, or graphics.
 
 2. **Bullets & characters** — Impact-first accomplishment bullets with rotated high-velocity verbs. No passive openers (Managed, Directed, Oversaw, Responsible for). No special characters that break parsing (fancy bullets, zero-width spaces, odd Unicode dashes). Fix formatting inconsistencies and hyphenation (e.g., end-to-end, cross-functional, high-quality — never endtoend, crossfunctional, highquality).
 
@@ -564,7 +564,7 @@ TASK:
 10. When personal AI projects exist in the source, populate tailoredResume.projects[] with every project entry — never merge them into experience[] or omit them.
 11. Produce the keyword report — score should reflect keywords already present in your rewritten resume text.
 12. Before finishing, run the **Twin-Auditor** check on the resume: (a) summary has Executive Value Proposition + Core Expertise pipe line — no stylistic blacklist phrases; (b) every bullet follows Action + Scope + Business Impact; (c) no bullet starts with banned passive openers; (d) no two consecutive bullets share the same verb or sentence mechanics; (e) no ${PHRASING_COMPLIANCE_WORD_LIMIT}+ consecutive JD words anywhere; (f) personal projects from source appear in projects[] with full bullets. Audit the cover letter: (g) no banned AI phrases; (h) no three consecutive sentences with the same grammatical opener; (i) personal projects referenced by name when present in source. Rewrite any failures.
-13. Run the **Dual-Filter Structural Merger**: exact JD competency tokens where truthful, Action + Scope + Impact bullets, anti-plagiarism pass, no AI footprints, standard single-column section headers including PERSONAL AI PROJECTS when applicable. Then run **Generation Hygiene & Validation**: every bullet and cover letter paragraph must be complete (no trailing "and"/"missing"/commas); no "Recent – Present" placeholder dates on historical roles; cover letter achievements must match resume employer timelines exactly.
+13. Run the **Dual-Filter Structural Merger**: exact JD competency tokens where truthful, Action + Scope + Impact bullets, anti-plagiarism pass, no AI footprints, standard single-column section headers including PERSONAL AI PROJECT EXPERIENCE when applicable. Then run **Generation Hygiene & Validation**: every bullet and cover letter paragraph must be complete (no trailing "and"/"missing"/commas); no "Recent – Present" placeholder dates on historical roles; cover letter achievements must match resume employer timelines exactly.
 
 The final tailored resume must already contain integrated keywords — the user downloads it directly without manual editing.`
 }

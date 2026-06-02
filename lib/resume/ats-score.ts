@@ -1,6 +1,6 @@
 import type { KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import { sanitizeKeywordReport } from '@/lib/api/generation-config'
-import { serializeFormattedResume } from '@/lib/resume/ats-resume-formatter'
+import { serializeTailoredResumeMarkdown } from '@/lib/resume/local-on-device-resume-engine'
 import { filterRelevantKeywords } from '@/lib/resume/keyword-filter'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
 import { computeWeightedMatchScore, type WeightedScoringOptions } from '@/lib/resume/weighted-ats-scoring'
@@ -41,7 +41,7 @@ function formatSuggestions(missingKeywords: string[], score: number): string[] {
 }
 
 export function serializeTailoredResume(resume: TailoredResume): string {
-  return serializeFormattedResume(resume)
+  return serializeTailoredResumeMarkdown(resume)
 }
 
 export function scoreAtsCompliance(

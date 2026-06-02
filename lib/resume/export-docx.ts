@@ -84,7 +84,7 @@ export async function buildResumeDocx(resume: TailoredResume): Promise<Buffer> {
   }
 
   if (resume.projects?.length) {
-    children.push(sectionHeading('PERSONAL AI PROJECTS'))
+    children.push(sectionHeading('PERSONAL AI PROJECT EXPERIENCE'))
     for (const job of resume.projects) {
       const locationPart = job.location ? ` | ${job.location}` : ''
       children.push(

@@ -27,7 +27,8 @@ const EXTRA_BANNED_OPENERS = [
   'career focus has been',
 ] as const
 
-const PERSONAL_VENTURE_COMPANY = /cv2ats(?:\.ca)?|ats4cv|popuphub|tipsy fox/i
+const PERSONAL_VENTURE_COMPANY =
+  /cv2ats(?:\.ca)?|ats4cv|popuphub(?:\.ca)?|whobringswhat(?:\.ca)?|tipsy fox/i
 
 function parseYearMonth(value: string): number | null {
   const trimmed = value.trim()

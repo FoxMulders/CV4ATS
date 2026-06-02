@@ -282,7 +282,7 @@ export function serializeFormattedResume(resume: TailoredResume): string {
   }
 
   if ((formatted.projects ?? []).length > 0) {
-    lines.push('PERSONAL AI PROJECTS')
+    lines.push('PERSONAL AI PROJECT EXPERIENCE')
     for (const job of formatted.projects) {
       const header = [job.title, job.company].filter(Boolean).join(' — ')
       const locationPart = job.location ? ` | ${job.location}` : ''

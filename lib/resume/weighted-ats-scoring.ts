@@ -12,6 +12,7 @@ import {
   filterCompetencyKeywords,
   isNonCompetencyMetadata,
 } from '@/lib/resume/non-competency-metadata-filter'
+import { stripResumeHeadingMarkers } from '@/lib/resume/resume-text-normalize'
 import type { TailoredResume } from '@/lib/ai/schemas'
 
 export const SECTION_WEIGHTS = {
@@ -65,19 +66,19 @@ export interface WeightedScoringOptions {
 }
 
 const SECTION_BOUNDARY =
-  /^(PROFESSIONAL SUMMARY|SUMMARY|SKILLS|TECHNICAL SKILLS|WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT|EDUCATION|CERTIFICATIONS)\s*$/i
+  /^(PROFESSIONAL SUMMARY|SUMMARY|SKILLS|TECHNICAL SKILLS|WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT|PERSONAL AI PROJECT(?: EXPERIENCE|S)?|PERSONAL PROJECTS?|EDUCATION|CERTIFICATIONS)\s*$/i
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function extractSectionBlock(lines: string[], heading: RegExp): string {
-  const start = lines.findIndex((line) => heading.test(line.trim()))
+  const start = lines.findIndex((line) => heading.test(stripResumeHeadingMarkers(line.trim())))
   if (start < 0) return ''
 
   const content: string[] = []
   for (let index = start + 1; index < lines.length; index += 1) {
-    const line = lines[index]?.trim() ?? ''
+    const line = stripResumeHeadingMarkers(lines[index]?.trim() ?? '')
     if (!line) continue
     if (SECTION_BOUNDARY.test(line)) break
     content.push(lines[index]!)

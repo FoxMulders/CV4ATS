@@ -9,7 +9,7 @@ export const PERSONAL_PROJECT_PRESERVATION_DIRECTIVE = `## Personal AI Projects 
 When the source resume contains a "Personal AI Projects", "Side Ventures", "Product Innovations", or equivalent personal-projects section:
 - **Never purge, hide, merge into work experience, or compress** these entries to save space or improve corporate JD alignment.
 - Output every personal project in \`tailoredResume.projects[]\` with the same employers/product names, titles, dates, and bullet count as the source (rewrite bullet phrasing only — never delete entries).
-- Even when a personal project does not mirror the target job's formal corporate structure, it remains **whitelisted** and must appear in the final export layout under **PERSONAL AI PROJECTS** (after WORK EXPERIENCE, before EDUCATION).
+- Even when a personal project does not mirror the target job's formal corporate structure, it remains **whitelisted** and must appear in the final export layout under **PERSONAL AI PROJECT EXPERIENCE** (after WORK EXPERIENCE, before EDUCATION).
 - Do not demote personal projects to a one-line footnote or skills mention — they require full title, company/product name, dates, and accomplishment bullets.
 - Server-side structural preservation will restore any dropped project blocks — omitting them fails validation.`
 

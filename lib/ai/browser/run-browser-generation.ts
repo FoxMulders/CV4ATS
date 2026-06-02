@@ -3,6 +3,7 @@ import type { AiGenerationResult } from '@/lib/ai/schemas'
 import { applyKeywordImprovementsToDraft } from '@/lib/api/apply-keyword-improvements'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { BROWSER_NANO_RESUME_BLOCKS } from '@/lib/ai/resume-block-schema-directive'
+import { LOCAL_ON_DEVICE_RESUME_DIRECTIVE } from '@/lib/resume/local-on-device-resume-engine'
 import { promptBrowserAi } from '@/lib/ai/browser/chrome-language-model'
 import {
   extractCoverLetterFromModelOutput,
@@ -25,6 +26,8 @@ export type BrowserGenerationResult = AiGenerationResult & {
 
 const COVER_SYSTEM = `${BROWSER_NANO_RESUME_BLOCKS}
 
+${LOCAL_ON_DEVICE_RESUME_DIRECTIVE}
+
 You rewrite cover letters for ATS job applications. Rules:
 - Plain text only, professional letter format with contact header, salutation, 3 short body paragraphs, closing.
 - No banned clichés: "I am writing to express", "Throughout my career", "I am eager to bring", "partnered closely with", "Furthermore", "Passionate about", "Dear Hiring Team".
@@ -33,6 +36,8 @@ You rewrite cover letters for ATS job applications. Rules:
 - Return ONLY the cover letter text. No markdown, no bold, no code fences, no "Key Changes" section, no explanations.`
 
 const SUMMARY_SYSTEM = `${BROWSER_NANO_RESUME_BLOCKS}
+
+${LOCAL_ON_DEVICE_RESUME_DIRECTIVE}
 
 You rewrite resume professional summaries for ATS. Rules:
 - 2 sentences max: executive value proposition + core expertise pipe line (Core Expertise: A | B | C).

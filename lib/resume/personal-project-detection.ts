@@ -2,16 +2,25 @@ import type { Experience } from '@/lib/ai/schemas'
 
 /** Section headings that signal a whitelisted personal-projects block in source text. */
 export const PERSONAL_PROJECT_SECTION_PATTERN =
-  /^(?:personal ai projects|personal projects|side ventures?|product innovations?|projects)\s*:?\s*$/i
+  /^(?:personal ai projects?(?:\s+experience)?|personal projects?|side ventures?|product innovations?|projects)\s*:?\s*$/i
+
+export const PERSONAL_AI_PRODUCTS = [
+  'cv2ats.ca',
+  'popuphub.ca',
+  'whobringswhat.ca',
+  'Tipsy Fox Escapes',
+  'PopUpHub',
+  'Tipsy Fox',
+] as const
 
 const PROJECT_COMPANY_PATTERN =
-  /^(?:tipsy fox|popuphub|pop-up hub|pop up hub|cv2ats(?:\.ca)?|ats4cv)/i
+  /^(?:tipsy fox(?:\s+escapes)?|popuphub(?:\.ca)?|pop-up hub|pop up hub|cv2ats(?:\.ca)?|whobringswhat(?:\.ca)?|ats4cv)/i
 
 const PROJECT_TITLE_PATTERN =
-  /personal ai project|personal venture|part[- ]time project|side project|side venture|freelance project|personal project|product innovation|founder|independent product/i
+  /personal ai project|personal venture|part[- ]time project|side project|side venture|freelance project|personal project|product innovation|founder|independent product|software development application/i
 
 const PROJECT_NAME_PATTERN =
-  /\b(?:PopUpHub|Pop-Up Hub|Tipsy Fox(?: Escapes)?)\b/i
+  /\b(?:PopUpHub|popuphub\.ca|Pop-Up Hub|Tipsy Fox(?: Escapes)?|cv2ats\.ca|whobringswhat\.ca)\b/i
 
 export function isPersonalProjectEntry(entry: Pick<Experience, 'title' | 'company'>): boolean {
   const company = entry.company.trim()
@@ -30,7 +39,7 @@ export function sourceHasPersonalProjects(sourceResumeText: string): boolean {
   const lines = text.split('\n').map((line) => line.trim())
   if (lines.some((line) => PERSONAL_PROJECT_SECTION_PATTERN.test(line))) return true
   return (
-    /personal ai projects|side ventures?|product innovations?|personal venture|part[- ]time project|cv2ats(?:\.ca)?/i.test(text) ||
+    /personal ai projects?(?:\s+experience)?|side ventures?|product innovations?|personal venture|part[- ]time project|cv2ats(?:\.ca)?|popuphub\.ca|whobringswhat\.ca/i.test(text) ||
     PROJECT_NAME_PATTERN.test(text) ||
     /personal project|side project/i.test(text)
   )
@@ -39,11 +48,19 @@ export function sourceHasPersonalProjects(sourceResumeText: string): boolean {
 /** Product names from source text — used for cover letter anchoring (never invented). */
 export function extractPersonalProjectProductNames(sourceResumeText: string): string[] {
   const names = new Set<string>()
-  for (const match of sourceResumeText.matchAll(/\b(PopUpHub|Pop-Up Hub|Tipsy Fox(?: Escapes)?)\b/gi)) {
-    const normalized =
-      /^tipsy/i.test(match[1]!) ? 'Tipsy Fox' : 'PopUpHub'
-    names.add(normalized)
+  const patterns: Array<{ regex: RegExp; label: string }> = [
+    { regex: /\b(PopUpHub|popuphub\.ca|Pop-Up Hub)\b/gi, label: 'PopUpHub' },
+    { regex: /\b(Tipsy Fox(?: Escapes)?)\b/gi, label: 'Tipsy Fox Escapes' },
+    { regex: /\b(cv2ats\.ca|cv2ats)\b/gi, label: 'cv2ats.ca' },
+    { regex: /\b(whobringswhat\.ca|whobringswhat)\b/gi, label: 'whobringswhat.ca' },
+  ]
+
+  for (const { regex, label } of patterns) {
+    if (regex.test(sourceResumeText)) {
+      names.add(label)
+    }
   }
+
   return [...names]
 }
 
