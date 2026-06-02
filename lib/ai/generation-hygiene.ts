@@ -1,5 +1,6 @@
 import type { AiGenerationResult, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { extractCoverLetterFromModelOutput } from '@/lib/ai/sanitize-model-output'
+import { enforceContextConstrainedTailoring } from '@/lib/ai/context-constrained-tailoring'
 import {
   isDateLine,
   looksLikeCompanyLine,
@@ -324,6 +325,7 @@ function sanitizeTailoredResume(resume: TailoredResume, sourceResumeText: string
   if (sourceResumeText.trim()) {
     next = mergeSourceExperienceDates(next, sourceResumeText)
     next = ensureExperienceDatesForApi(next, sourceResumeText)
+    next = enforceContextConstrainedTailoring(next, sourceResumeText)
   }
 
   return next
