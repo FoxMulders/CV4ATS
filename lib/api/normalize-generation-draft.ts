@@ -2,13 +2,16 @@ import type { AiGenerationResult, Experience, TailoredResume } from '@/lib/ai/sc
 import { parseResumeTextToTailoredResume } from '@/lib/resume/text-to-structured'
 import {
   extractBulletsFromSource,
-  inferNameFromEmail,
-  titleCaseName,
 } from '@/lib/resume/contact-extraction'
 import {
+  resolveCandidateNameFromSource,
+  sanitizeCandidateName,
+} from '@/lib/resume/contact-identity'
+import { recoverEducationFromSource } from '@/lib/resume/education-preservation'
+import { mergeExperienceArraysNonDestructive } from '@/lib/resume/experience-preservation'
+import {
   isRealExperienceBullet,
-  parseExperienceFromLines,
-  scoreExperienceCompleteness,
+  parseWorkAndProjectsFromLines,
 } from '@/lib/resume/parse-experience-blocks'
 import { mergeSourceExperienceDates, ensureExperienceDatesForApi } from '@/lib/ai/generation-hygiene'
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
@@ -61,70 +64,67 @@ function hasPlaceholderExperience(experience: Experience[]): boolean {
 
 function resolveExperienceFromSource(
   experience: Experience[],
+  projects: Experience[],
   sourceResumeText: string
-): Experience[] {
-  if (!sourceResumeText.trim()) return experience
+): { experience: Experience[]; projects: Experience[] } {
+  if (!sourceResumeText.trim()) return { experience, projects }
 
   const lines = sourceResumeText.replace(/\r\n/g, '\n').split('\n')
-  const reparsed = parseExperienceFromLines(lines)
-  const reparsedFromParser = parseResumeTextToTailoredResume(sourceResumeText).experience
+  const reparsedBlocks = parseWorkAndProjectsFromLines(lines)
+  const reparsedFromParser = parseResumeTextToTailoredResume(sourceResumeText)
 
-  const candidates = [reparsed, reparsedFromParser, experience].sort(
-    (a, b) => scoreExperienceCompleteness(b) - scoreExperienceCompleteness(a)
+  const mergedExperience = mergeExperienceArraysNonDestructive(
+    experience,
+    reparsedBlocks.experience,
+    reparsedFromParser.experience
   )
 
-  const best = candidates[0] ?? experience
-  if (best.some((entry) => entry.bullets.length > 0)) {
-    const merged = mergeExperienceDatesFromSources(best, reparsed, reparsedFromParser, experience)
-    return merged.map(normalizeExperience).filter((entry) => entry.bullets.length > 0)
+  const mergedProjects = mergeExperienceArraysNonDestructive(
+    projects,
+    reparsedBlocks.projects,
+    reparsedFromParser.projects ?? []
+  )
+
+  if (mergedExperience.some((entry) => entry.bullets.length > 0)) {
+    return {
+      experience: mergedExperience
+        .map(normalizeExperience)
+        .filter((entry) => entry.bullets.length > 0),
+      projects: mergedProjects.map(normalizeExperience).filter((entry) => entry.bullets.length > 0),
+    }
   }
 
   const bullets = extractBulletsFromSource(sourceResumeText)
-  if (bullets.length === 0) return experience.map(normalizeExperience)
-
-  return bullets.length > 0
-    ? [
-        normalizeExperience({
-          title: 'Consultant',
-          company: 'Independent',
-          location: '',
-          startDate: 'Recent',
-          endDate: 'Present',
-          bullets,
-        }),
-      ]
-    : experience.map(normalizeExperience)
-}
-
-function fixContactName(resume: TailoredResume, sourceResumeText?: string): TailoredResume['contact'] {
-  let name = resume.contact.name.trim()
-
-  if (
-    !name ||
-    name === 'Professional Candidate' ||
-    /^Bradmulder/i.test(name) ||
-    name.split(/\s+/).some((part) => part.length === 1)
-  ) {
-    const fromEmail = inferNameFromEmail(resume.contact.email)
-    if (fromEmail) name = fromEmail
-  }
-
-  if (sourceResumeText) {
-    const caps = sourceResumeText
-      .split('\n')
-      .map((line) => line.trim())
-      .find(
-        (line) =>
-          /^[A-Z][A-Z\s.'-]{2,40}$/.test(line) &&
-          line.split(/\s+/).length <= 4 &&
-          !line.includes('@')
-      )
-    if (caps) name = titleCaseName(caps)
+  if (bullets.length === 0) {
+    return {
+      experience: experience.map(normalizeExperience),
+      projects: projects.map(normalizeExperience),
+    }
   }
 
   return {
+    experience: [
+      normalizeExperience({
+        title: 'Consultant',
+        company: 'Independent',
+        location: '',
+        startDate: 'Recent',
+        endDate: 'Present',
+        bullets,
+      }),
+    ],
+    projects: mergedProjects.map(normalizeExperience).filter((entry) => entry.bullets.length > 0),
+  }
+}
+
+function fixContactName(resume: TailoredResume, sourceResumeText?: string): TailoredResume['contact'] {
+  const name = sanitizeCandidateName(resume.contact.name, sourceResumeText)
+
+  return {
     ...resume.contact,
-    name: name || 'Candidate',
+    name: name === 'Professional Candidate' && sourceResumeText
+      ? resolveCandidateNameFromSource(sourceResumeText, resume.contact.email)
+      : name,
     location: resume.contact.location.replace(/^[A-Z][A-Z\s.'-]+\s+(?=Edmonton|,)/i, '').trim(),
   }
 }
@@ -182,8 +182,9 @@ export function normalizeGenerationDraftForApi(
     }
   }
 
-  const resolvedExperience = resolveExperienceFromSource(
+  const resolvedBlocks = resolveExperienceFromSource(
     tailoredResume.experience,
+    tailoredResume.projects ?? [],
     sourceResumeText ?? ''
   )
 
@@ -192,22 +193,22 @@ export function normalizeGenerationDraftForApi(
     contact: fixContactName(tailoredResume, sourceResumeText),
     skills: cleanSkills(tailoredResume.skills.map((s) => s.trim()).filter(Boolean)),
     experience:
-      resolvedExperience.length > 0
-        ? resolvedExperience
+      resolvedBlocks.experience.length > 0
+        ? resolvedBlocks.experience
         : hasPlaceholderExperience(tailoredResume.experience)
           ? []
           : tailoredResume.experience.map(normalizeExperience).filter((entry) => entry.bullets.length > 0),
-    education: tailoredResume.education.map((entry) => ({
-      degree: entry.degree.trim() || 'Education',
-      school: entry.school.trim() || 'Institution not listed',
-      graduationDate: entry.graduationDate ?? '',
-      details: entry.details ?? '',
-    })),
+    projects: resolvedBlocks.projects,
+    education: recoverEducationFromSource(tailoredResume.education, sourceResumeText),
     certifications: (tailoredResume.certifications ?? []).map((c) => c.trim()).filter(Boolean),
   }
 
   if (tailoredResume.experience.length === 0 && sourceResumeText?.trim()) {
-    tailoredResume.experience = resolveExperienceFromSource([], sourceResumeText)
+    const fallback = resolveExperienceFromSource([], [], sourceResumeText)
+    tailoredResume.experience = fallback.experience
+    if ((tailoredResume.projects ?? []).length === 0) {
+      tailoredResume.projects = fallback.projects
+    }
   }
 
   if (sourceResumeText?.trim()) {

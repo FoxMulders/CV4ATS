@@ -4,11 +4,13 @@ import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-d
 import { buildCoreCompetencyChecklist } from '@/lib/resume/core-competency-checklist'
 import { scoreAtsCompliance } from '@/lib/resume/ats-score'
 import {
-  inferNameFromEmail,
   isSummaryLikeLine,
   isValidExperienceBullet,
-  titleCaseName,
 } from '@/lib/resume/contact-extraction'
+import {
+  resolveCandidateNameFromSource,
+  sanitizeCandidateName,
+} from '@/lib/resume/contact-identity'
 import {
   extractCompanyFromDescription,
   extractJobTitleFromDescription,
@@ -47,34 +49,7 @@ function stripBullet(line: string): string {
 }
 
 function resolveContactName(resume: TailoredResume, sourceResumeText: string): string {
-  const current = resume.contact.name.trim()
-  if (
-    current &&
-    current !== 'Professional Candidate' &&
-    !/^Bradmulder/i.test(current) &&
-    !current.split(/\s+/).some((part) => part.length === 1)
-  ) {
-    return current
-  }
-
-  const lines = sourceResumeText
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  const capsName = lines.find(
-    (line) =>
-      /^[A-Z][A-Z\s.'-]{2,50}$/.test(line) &&
-      line.split(/\s+/).length <= 5 &&
-      !line.includes('@')
-  )
-  if (capsName) return titleCaseName(capsName)
-
-  const fromEmail = inferNameFromEmail(resume.contact.email)
-  if (fromEmail) return fromEmail
-
-  return current || 'Candidate'
+  return sanitizeCandidateName(resume.contact.name, sourceResumeText)
 }
 
 function pickProofBullet(resume: TailoredResume, sourceResumeText: string): string | null {

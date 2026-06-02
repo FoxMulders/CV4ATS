@@ -1,4 +1,5 @@
 import type { TailoredResume } from '@/lib/ai/schemas'
+import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
 import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
 import {
   parseJsonFromSanitizedText,
@@ -127,6 +128,9 @@ function normalizeTailoredResume(value: unknown): unknown {
     const contact = { ...(resume.contact as Record<string, unknown>) }
     if (typeof contact.name !== 'string' && typeof contact.fullName === 'string') {
       contact.name = contact.fullName
+    }
+    if (typeof contact.name === 'string') {
+      contact.name = sanitizeCandidateName(contact.name)
     }
     resume.contact = contact
   }

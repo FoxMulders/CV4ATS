@@ -1,5 +1,5 @@
 import type { Education, Experience, TailoredResume } from '@/lib/ai/schemas'
-import { formatResumeText, formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
 import { parseCertificationsFromResumeText } from '@/lib/resume/certification-guard'
 import {
   extractLocationFromText,
@@ -9,13 +9,23 @@ import {
   titleCaseName,
 } from '@/lib/resume/contact-extraction'
 import {
-  parseExperienceFromLines,
+  isResumeStructuralHeading,
+  looksLikeCandidateName,
+  resolveCandidateNameFromSource,
+  sanitizeCandidateName,
+} from '@/lib/resume/contact-identity'
+import {
+  parseWorkAndProjectsFromLines,
   scoreExperienceCompleteness,
 } from '@/lib/resume/parse-experience-blocks'
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
+import {
+  normalizeResumeDocumentText,
+  stripResumeHeadingMarkers,
+} from '@/lib/resume/resume-text-normalize'
 
 const SECTION_HEADING =
-  /^(professional summary|summary|skills|technical skills|core competencies|(?:professional\s+)?(?:work\s+)?experience|employment|education|certifications?|personal ai projects|personal projects|side ventures?|product innovations?)\s*:?\s*$/i
+  /^(professional summary|summary|skills|technical skills|core competencies|(?:professional\s+)?(?:work\s+)?experience|employment|education|certifications?|personal ai projects?|personal ai project experience|personal projects?|side ventures?|product innovations?)\s*:?\s*$/i
 
 const INFERRED_SKILL_TERMS = [
   'release management',
@@ -47,6 +57,10 @@ function splitLines(text: string): string[] {
   return text.replace(/\r\n/g, '\n').split('\n')
 }
 
+function isSectionHeadingLine(line: string): boolean {
+  return SECTION_HEADING.test(stripResumeHeadingMarkers(line))
+}
+
 function isBulletLine(line: string): boolean {
   return /^[\s•\-*–—]\s*\S/.test(line.trim())
 }
@@ -61,14 +75,16 @@ function extractContact(text: string) {
   const linkedin =
     text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+/i)?.[0] ?? ''
 
-  const lines = splitLines(text).map((line) => line.trim()).filter(Boolean)
+  const lines = splitLines(text)
+    .map((line) => stripResumeHeadingMarkers(line.trim()))
+    .filter(Boolean)
 
   const capsName = lines.find(
     (line) =>
       /^[A-Z][A-Z\s.'-]{2,50}$/.test(line) &&
       line.split(/\s+/).length <= 5 &&
       !line.includes('@') &&
-      !SECTION_HEADING.test(line)
+      !isSectionHeadingLine(line)
   )
 
   const titleCasePerson = lines.slice(0, 8).find(looksLikePersonName)
@@ -85,13 +101,13 @@ function extractContact(text: string) {
   const inferredFromEmail = email ? inferNameFromEmail(email) : null
 
   const resolvedName =
-    (capsName ? titleCaseName(capsName) : null) ??
+    (capsName && looksLikeCandidateName(capsName) ? titleCaseName(capsName) : null) ??
     (titleCasePerson ? titleCaseName(titleCasePerson) : null) ??
-    inferredFromEmail ??
-    'Professional Candidate'
+    (inferredFromEmail && looksLikeCandidateName(inferredFromEmail) ? inferredFromEmail : null) ??
+    resolveCandidateNameFromSource(text, email)
 
   return {
-    name: resolvedName,
+    name: sanitizeCandidateName(resolvedName, text),
     email,
     phone,
     linkedin,
@@ -100,14 +116,14 @@ function extractContact(text: string) {
 }
 
 function extractSection(lines: string[], heading: RegExp): string[] {
-  const start = lines.findIndex((line) => heading.test(line.trim()))
+  const start = lines.findIndex((line) => heading.test(stripResumeHeadingMarkers(line)))
   if (start < 0) return []
 
   const content: string[] = []
   for (let index = start + 1; index < lines.length; index += 1) {
-    const line = lines[index]?.trim() ?? ''
+    const line = stripResumeHeadingMarkers(lines[index]?.trim() ?? '')
     if (!line) continue
-    if (SECTION_HEADING.test(line)) break
+    if (isSectionHeadingLine(line)) break
     content.push(line)
   }
 
@@ -123,6 +139,7 @@ function isValidSkillToken(skill: string): boolean {
   }
   if (/^[A-Z0-9]{3}\s?[A-Z0-9]{3}$/.test(trimmed)) return false
   if (/^(and|the|with|for|from|into|using|utilizing|leveraging)$/i.test(trimmed)) return false
+  if (isResumeStructuralHeading(trimmed)) return false
   return true
 }
 
@@ -165,9 +182,11 @@ function parseSkills(lines: string[], fullText: string): string[] {
   return dedupeSkills([...new Set([...deduped, ...inferred])]).slice(0, 24)
 }
 
-function parseExperience(lines: string[]): Experience[] {
-  const parsed = parseExperienceFromLines(lines)
-  if (parsed.length > 0) return parsed
+function parseExperienceAndProjects(lines: string[]): { experience: Experience[]; projects: Experience[] } {
+  const parsed = parseWorkAndProjectsFromLines(lines.map((line) => stripResumeHeadingMarkers(line)))
+  if (parsed.experience.length > 0 || parsed.projects.length > 0) {
+    return parsed
+  }
 
   const bullets = lines
     .filter(isBulletLine)
@@ -175,18 +194,21 @@ function parseExperience(lines: string[]): Experience[] {
     .filter((bullet) => bullet.length > 12)
     .filter((bullet) => !/utilizing .+ utilizing/i.test(bullet))
 
-  if (bullets.length === 0) return []
+  if (bullets.length === 0) return { experience: [], projects: [] }
 
-  return [
-    {
-      title: 'Consultant',
-      company: 'Independent',
-      location: '',
-      startDate: '',
-      endDate: 'Present',
-      bullets: bullets.slice(0, 8),
-    },
-  ]
+  return {
+    experience: [
+      {
+        title: 'Consultant',
+        company: 'Independent',
+        location: '',
+        startDate: '',
+        endDate: 'Present',
+        bullets: bullets.slice(0, 8),
+      },
+    ],
+    projects: [],
+  }
 }
 
 function parseEducation(lines: string[]): Education[] {
@@ -196,7 +218,7 @@ function parseEducation(lines: string[]): Education[] {
   return section.slice(0, 3).map((line) => ({
     degree: line,
     school: '',
-    graduationDate: '',
+    graduationDate: line.match(/\b(19|20)\d{2}\b/)?.[0] ?? '',
     details: '',
   }))
 }
@@ -208,14 +230,14 @@ function parseSummary(lines: string[]): string {
   }
 
   const prose = lines
+    .map((line) => stripResumeHeadingMarkers(line))
     .filter(
       (line) =>
         line.trim().length > 40 &&
         line.trim().length < 320 &&
         !isBulletLine(line) &&
-        !SECTION_HEADING.test(line.trim()) &&
+        !isSectionHeadingLine(line) &&
         !line.includes('@') &&
-        !/^#{1,6}\s/.test(line.trim()) &&
         !/^analysis of/i.test(line.trim())
     )
     .slice(0, 2)
@@ -229,17 +251,20 @@ function parseSummary(lines: string[]): string {
 
 /** Best-effort plain-text resume → structured TailoredResume for local fallback mode. */
 export function parseResumeTextToTailoredResume(resumeText: string): TailoredResume {
-  const normalizedText = formatResumeText(resumeText.replace(/\r\n/g, '\n'))
+  const normalizedText = normalizeResumeDocumentText(resumeText)
   const lines = splitLines(normalizedText)
   const contact = extractContact(normalizedText)
+  const { experience, projects } = parseExperienceAndProjects(lines)
 
   return formatTailoredResume({
     contact,
     summary: parseSummary(lines),
     skills: parseSkills(lines, normalizedText),
-    experience: parseExperience(lines),
-    projects: [],
+    experience,
+    projects,
     education: parseEducation(lines),
     certifications: parseCertificationsFromResumeText(normalizedText),
   })
 }
+
+export { scoreExperienceCompleteness }

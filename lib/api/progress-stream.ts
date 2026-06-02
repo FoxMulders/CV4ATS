@@ -1,6 +1,7 @@
 import type { DeepPartial } from 'ai'
 
 import type { AiGenerationResult, GenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
 
 export type ScorePassEvent = {
   type: 'score-pass'
@@ -244,7 +245,7 @@ export function coalesceStreamingResume(
 
   return {
     contact: {
-      name: resume.contact.name,
+      name: sanitizeCandidateName(resume.contact.name),
       email: resume.contact.email ?? '',
       phone: resume.contact.phone ?? '',
       location: resume.contact.location ?? '',

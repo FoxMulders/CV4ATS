@@ -1,6 +1,7 @@
 import type { TailoredResume } from '@/lib/ai/schemas'
 
 import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
 
 const DANGLING_TAIL =
   /\s+(?:,|;|:|\band\b|\bor\b|\bwith\b|\bincluding\b|\bsuch as\b|\bmissing\b|\blike\b)\s*$/i
@@ -27,6 +28,10 @@ export function prepareResumeForDisplay(resume: TailoredResume): TailoredResume 
 
   return {
     ...formatted,
+    contact: {
+      ...formatted.contact,
+      name: sanitizeCandidateName(formatted.contact.name),
+    },
     summary: finalizeDisplayText(formatted.summary),
     skills: finalizeDisplayList(formatted.skills),
     experience: (formatted.experience ?? []).map((job) => ({

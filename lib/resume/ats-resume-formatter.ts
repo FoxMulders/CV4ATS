@@ -1,4 +1,5 @@
 import type { Experience, TailoredResume } from '@/lib/ai/schemas'
+import { normalizeResumeDocumentText } from '@/lib/resume/resume-text-normalize'
 
 /** Common PDF/DOCX paste artifacts where compound adjectives lose hyphens or spaces. */
 const MERGED_WORD_FIXES: ReadonlyArray<[RegExp, string]> = [
@@ -104,14 +105,22 @@ function fixMergedWords(text: string): string {
 }
 
 function fixBulletSpacing(text: string): string {
+  if (text.includes('\n')) {
+    return text
+      .split('\n')
+      .map((line) => line.replace(/^\s*[•\-*–—]\s+/, '').trim())
+      .join('\n')
+  }
+
   return text
     .replace(/([A-Za-z])•([A-Za-z])/g, '$1 • $2')
     .replace(/([A-Za-z]),([A-Za-z])/g, '$1, $2')
     .replace(/\s•\s*/g, ' • ')
-    .replace(/^\s*[•\-*–—]\s*/g, '')
+    .replace(/^\s*[•\-*–—]\s+/, '')
 }
 
-export function formatResumeText(text: string): string {
+/** Collapse whitespace for single-field values (names, titles, bullets). */
+export function formatResumeFieldText(text: string): string {
   if (!text) return text
 
   let result = normalizeSpecialCharacters(text)
@@ -119,6 +128,14 @@ export function formatResumeText(text: string): string {
   result = fixBulletSpacing(result)
   result = normalizeWhitespace(result)
   return result
+}
+
+export function formatResumeText(text: string): string {
+  if (!text) return text
+  if (text.includes('\n')) {
+    return normalizeResumeDocumentText(text)
+  }
+  return formatResumeFieldText(text)
 }
 
 function isPresentRole(endDate: string): boolean {

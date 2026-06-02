@@ -11,7 +11,7 @@ const SECTION_STOP =
   /^(education|certifications?|skills|technical skills|references|interests)\s*:?\s*$/i
 
 const PROJECTS_SECTION =
-  /^personal ai projects|^personal projects|^side ventures?|^product innovations?|^projects\s*:?\s*$/i
+  /^personal ai projects?|^personal ai project experience|^personal projects?|^side ventures?|^product innovations?|^projects\s*:?\s*$/i
 
 function isBulletLine(line: string): boolean {
   return /^[\s•\-*–—]\s*\S/.test(line.trim())
@@ -173,11 +173,22 @@ function findNextNonEmpty(lines: string[], fromIndex: number): number {
 }
 
 /** Block-oriented parser for work history and personal project sections. */
-export function parseExperienceFromLines(lines: string[]): Experience[] {
-  const entries: Experience[] = []
+export function parseWorkAndProjectsFromLines(lines: string[]): {
+  experience: Experience[]
+  projects: Experience[]
+} {
+  const experience: Experience[] = []
+  const projects: Experience[] = []
   let current: Experience | null = null
   let inRelevantSection = false
   let inProjectsSection = false
+
+  const flushCurrent = () => {
+    if (!current) return
+    const target = inProjectsSection ? projects : experience
+    flushEntry(current, target)
+    current = null
+  }
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]!.trim()
@@ -186,16 +197,14 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
     if (SECTION_STOP.test(line)) break
 
     if (isExperienceSectionHeading(line)) {
-      flushEntry(current, entries)
-      current = null
+      flushCurrent()
       inRelevantSection = true
       inProjectsSection = false
       continue
     }
 
     if (PROJECTS_SECTION.test(line)) {
-      flushEntry(current, entries)
-      current = null
+      flushCurrent()
       inRelevantSection = true
       inProjectsSection = true
       continue
@@ -233,7 +242,7 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
 
     const rolePipe = line.match(/^(.+?)\s*(?:—|–|-|\|)\s*(.+?)(?:\s*\((.+)\))?$/i)
     if (rolePipe && looksLikeJobTitle(rolePipe[1]!) && rolePipe[2]!.trim().length > 1) {
-      flushEntry(current, entries)
+      flushCurrent()
       current = {
         title: rolePipe[1]!.trim(),
         company: rolePipe[2]!.trim(),
@@ -247,7 +256,7 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
 
     const atMatch = line.match(/^(.+?)\s+at\s+(.+)$/i)
     if (atMatch) {
-      flushEntry(current, entries)
+      flushCurrent()
       current = {
         title: atMatch[1]!.trim(),
         company: atMatch[2]!.trim(),
@@ -265,13 +274,13 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
       looksLikeJobTitle(nextLine) &&
       !isBulletLine(nextLine)
     ) {
-      flushEntry(current, entries)
+      flushCurrent()
       current = {
         company: line,
         title: inProjectsSection ? 'Personal AI Project' : nextLine,
         location: '',
         startDate: '',
-        endDate: inProjectsSection ? 'Present' : 'Present',
+        endDate: 'Present',
         bullets: [],
       }
       index = nextIndex
@@ -292,7 +301,7 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
       looksLikeCompanyLine(nextLine) &&
       !isBulletLine(nextLine)
     ) {
-      flushEntry(current, entries)
+      flushCurrent()
       current = {
         title: line,
         company: nextLine,
@@ -314,7 +323,7 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
     }
 
     if (inProjectsSection && looksLikeCompanyLine(line) && !looksLikeJobTitle(line)) {
-      flushEntry(current, entries)
+      flushCurrent()
       current = {
         company: line,
         title: 'Personal AI Project',
@@ -327,9 +336,16 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
     }
   }
 
-  flushEntry(current, entries)
+  flushCurrent()
 
-  return entries.filter((entry) => entry.bullets.length > 0 || entry.company.trim().length > 2)
+  return {
+    experience: experience.filter((entry) => entry.bullets.length > 0 || entry.company.trim().length > 2),
+    projects: projects.filter((entry) => entry.bullets.length > 0 || entry.company.trim().length > 2),
+  }
+}
+
+export function parseExperienceFromLines(lines: string[]): Experience[] {
+  return parseWorkAndProjectsFromLines(lines).experience
 }
 
 export function scoreExperienceCompleteness(entries: Experience[]): number {

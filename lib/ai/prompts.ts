@@ -15,6 +15,7 @@ import {
   buildPersonalProjectsPromptAddendum,
 } from '@/lib/ai/personal-projects-strategy'
 import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
+import { RESUME_BLOCK_SCHEMA_DIRECTIVE } from '@/lib/ai/resume-block-schema-directive'
 
 /** Banned cover letter phrases — AI clichés and repetitive openers. */
 export const COVER_LETTER_BANNED_PHRASES = [
@@ -457,6 +458,8 @@ Rebuild every resume for ATS parsing and human hiring managers:
 - **suggestions**: 3-5 actionable, honest improvements focused on weaving missing hard skills and methodologies into summary, skills, or bullets.
 
 ## Structured output fields
+${RESUME_BLOCK_SCHEMA_DIRECTIVE}
+
 Return JSON with exactly these top-level keys: keywordReport, tailoredResume, coverLetter.
 
 tailoredResume must use these exact field names:
