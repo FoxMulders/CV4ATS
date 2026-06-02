@@ -1,4 +1,5 @@
 import { generateTailoredResumeLocally } from '../lib/ai/local-fallback'
+import { buildCandidateNarrativeAddendum } from '../lib/ai/candidate-narratives'
 import { inferNameFromEmail } from '../lib/resume/contact-extraction'
 import { parseResumeTextToTailoredResume } from '../lib/resume/text-to-structured'
 
@@ -13,8 +14,11 @@ PROFESSIONAL EXPERIENCE
 Pleasant Solutions
 Technical Project Manager
 02/2024 - Present
+• Originally interviewed for a Business Analyst role; promoted into Project Manager based on technical depth and Kolbe-verified problem-solving aptitude.
+• Steered end-to-end release and launch of three custom software applications: Sheetast, Turbo Diagrams, and Paranoid Photos.
+• Inherited and unblocked a massive legacy application with significant prior investment; drove it to release under volatile market conditions.
 • Led cross-functional release planning for enterprise clients using Agile, Jira, and Linear workflows.
-• Identified deployment bottlenecks and established release governance across GitHub PR tracking.
+• Established release governance across GitHub PR tracking and deployment bottlenecks.
 
 Alberta Motor Association
 Systems Developer
@@ -52,6 +56,11 @@ console.log('parsed experience count:', parsed.experience.length)
 parsed.experience.forEach((entry, index) => {
   console.log(`  [${index}] ${entry.company} | ${entry.title} | ${entry.bullets.length} bullets`)
 })
+
+console.log('\n--- candidate narrative addendum ---')
+const narrative = buildCandidateNarrativeAddendum(bradLikeResume, cohereJobDescription)
+console.log('narrative present:', narrative.length > 0)
+console.log('includes Sheetast:', narrative.includes('Sheetast'))
 
 console.log('\n--- generateTailoredResumeLocally ---')
 const result = generateTailoredResumeLocally(cohereJobDescription, bradLikeResume)

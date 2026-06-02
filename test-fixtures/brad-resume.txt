@@ -9,8 +9,11 @@ PROFESSIONAL EXPERIENCE
 Pleasant Solutions
 Technical Project Manager
 02/2024 - Present
+• Originally interviewed for a Business Analyst role; promoted into Project Manager based on technical depth and Kolbe-verified problem-solving aptitude.
+• Steered end-to-end release and launch of three custom software applications: Sheetast, Turbo Diagrams, and Paranoid Photos.
+• Inherited and unblocked a massive legacy application with significant prior investment; drove it to release under volatile market conditions.
 • Led cross-functional release planning for enterprise clients using Agile, Jira, and Linear workflows.
-• Identified deployment bottlenecks and established release governance across GitHub PR tracking.
+• Established release governance across GitHub PR tracking and deployment bottlenecks.
 
 Alberta Motor Association
 Systems Developer

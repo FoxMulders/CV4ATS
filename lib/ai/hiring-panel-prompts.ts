@@ -3,6 +3,7 @@ import {
   RESUME_STYLISTIC_BLACKLIST,
 } from '@/lib/ai/prompts'
 import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
+import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
 import { PERSONAL_PROJECT_PRESERVATION_DIRECTIVE } from '@/lib/ai/personal-projects-strategy'
 import { PANEL_DATA_INTEGRITY_DIRECTIVE } from '@/lib/ai/panel-validation-mandates'
 import {
@@ -131,13 +132,17 @@ export function buildHiringPanelRevisionPrompt(
   const panelFeedbackBlock = options.panelFeedbackAddendum?.trim()
     ? `\n${options.panelFeedbackAddendum.trim()}\n`
     : ''
+  const candidateNarrativeBlock = buildCandidateNarrativeAddendum(sourceResumeText, jobDescription)
+  const candidateNarrativeSection = candidateNarrativeBlock.trim()
+    ? `\n${candidateNarrativeBlock.trim()}\n`
+    : ''
 
   return `JOB DESCRIPTION:
 ${truncate(jobDescription.trim(), MAX_JOB_DESCRIPTION_LENGTH)}
 
 SOURCE RESUME (ground truth):
 ${truncate(sourceResumeText.trim(), MAX_RESUME_TEXT_LENGTH)}
-${supplementBlock}${panelFeedbackBlock}
+${supplementBlock}${panelFeedbackBlock}${candidateNarrativeSection}
 CURRENT TAILORED RESUME:
 ${truncate(serializeTailoredResume(draft.tailoredResume), MAX_RESUME_TEXT_LENGTH)}
 
@@ -153,5 +158,5 @@ ${review.revisionRecommendations.map((r) => `- ${r}`).join('\n') || '- Address a
 DISSENTING MANAGERS (${dissent.length}/10):
 ${dissentBlock || '- None'}
 
-Revise the tailored resume and cover letter to resolve every item above. The cover letter must not contain any banned phrase.`
+Revise the tailored resume and cover letter to resolve every item above. The cover letter must not contain any banned phrase. When candidate narrative is present, preserve its Pleasant Solutions story spine and role-specific tailoring.`
 }

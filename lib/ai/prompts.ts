@@ -14,6 +14,7 @@ import {
   PERSONAL_PROJECT_PRESERVATION_DIRECTIVE,
   buildPersonalProjectsPromptAddendum,
 } from '@/lib/ai/personal-projects-strategy'
+import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
 
 /** Banned cover letter phrases — AI clichés and repetitive openers. */
 export const COVER_LETTER_BANNED_PHRASES = [
@@ -523,9 +524,14 @@ export function buildUserPrompt(
     ? `\n${personalProjectsBlock.trim()}\n`
     : ''
 
+  const candidateNarrativeBlock = buildCandidateNarrativeAddendum(resumeText, jobDescription)
+  const candidateNarrativeSection = candidateNarrativeBlock.trim()
+    ? `\n${candidateNarrativeBlock.trim()}\n`
+    : ''
+
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}${panelFeedbackBlock}${personalProjectsSection}
+${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}${panelFeedbackBlock}${personalProjectsSection}${candidateNarrativeSection}
 SOURCE RESUME:
 ${resumeText}
 
@@ -537,7 +543,7 @@ TASK:
 5. Weave Core Competency Checklist terms and absent keywords into the summary (including Core Expertise line), skills section, and experience bullets — use **exact JD competency tokens** where truthful, embedded in Action + Scope + Business Impact statements. Every checklist term must appear at least once in the final output. Do not mirror full posting sentences or duty clauses.
 6. For PM/consulting roles (e.g., Pleasant Solutions): impact-first bullets for scope ownership, roadmap sequencing, delivery strategy, proactive unblocking, Agile/Kanban/Jira, and product ownership/backlog coaching.
 7. For technical/infrastructure roles (e.g., Alberta Motor Association): frame workflows, automation platforms, internal tools, custom software, and AI agents as strategic business wins with measurable operational impact.
-8. Generate the cover letter using the Cover Letter Generation Engine rules: core moat → distinct JD-specific hook → quantified proof points → role-fit close. When personal AI projects exist in the source, anchor "Why this role?" on those projects by name (PopUpHub, Tipsy Fox, etc. — source only). Apply Adaptive Phrase Diversification standards (varied sentence openers, mixed sentence lengths, banned AI clichés, regeneration variance). Include the candidate's contact details from the resume in the letter header.
+8. Generate the cover letter using the Cover Letter Generation Engine rules: core moat → distinct JD-specific hook → quantified proof points → role-fit close. When a **Candidate narrative** block is present, follow its mandatory architecture and role-specific tailoring exactly while still obeying banned-phrase and exact-phrasing rules. When personal AI projects exist in the source, anchor "Why this role?" on those projects by name (PopUpHub, Tipsy Fox, etc. — source only). Apply Adaptive Phrase Diversification standards (varied sentence openers, mixed sentence lengths, banned AI clichés, regeneration variance). Include the candidate's contact details from the resume in the letter header.
 9. When personal AI projects exist in the source, populate tailoredResume.projects[] with every project entry — never merge them into experience[] or omit them.
 10. Produce the keyword report — score should reflect keywords already present in your rewritten resume text.
 11. Before finishing, run the **Twin-Auditor** check on the resume: (a) summary has Executive Value Proposition + Core Expertise pipe line — no stylistic blacklist phrases; (b) every bullet follows Action + Scope + Business Impact; (c) no bullet starts with banned passive openers; (d) no two consecutive bullets share the same verb or sentence mechanics; (e) no ${PHRASING_COMPLIANCE_WORD_LIMIT}+ consecutive JD words anywhere; (f) personal projects from source appear in projects[] with full bullets. Audit the cover letter: (g) no banned AI phrases; (h) no three consecutive sentences with the same grammatical opener; (i) personal projects referenced by name when present in source. Rewrite any failures.
@@ -562,9 +568,14 @@ export function buildRefinementPrompt(
     ? `\nUSER-PROVIDED ACHIEVEMENT DETAILS (ground truth):\n${achievementSupplement.trim()}\n`
     : ''
 
+  const candidateNarrativeBlock = buildCandidateNarrativeAddendum(sourceResumeText, jobDescription)
+  const candidateNarrativeSection = candidateNarrativeBlock.trim()
+    ? `\n${candidateNarrativeBlock.trim()}\n`
+    : ''
+
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${achievementBlock}
+${checklistBlock}${achievementBlock}${candidateNarrativeSection}
 ORIGINAL SOURCE RESUME (ground truth — do not invent beyond this):
 ${sourceResumeText}
 
@@ -588,7 +599,7 @@ Rules for this pass:
 - Maintain confident, execution-oriented tone for a senior technical leader.
 - Do not invent employers, tools, or achievements.
 - Never add or infer certifications. If the source resume has no CERTIFICATIONS section, keep certifications as [].
-- Refresh the cover letter via the Cover Letter Generation Engine with full structural diversification: distinct JD-specific hook, varied sentence mechanics (no consecutive duplicate openers, mixed lengths), banned AI clichés enforced, contextual achievement blending, exact-phrasing guardrails, and regeneration-level narrative variance — while preserving resume facts. Include contact header; no generic "I am applying / writing to express" openings.
+- Refresh the cover letter via the Cover Letter Generation Engine with full structural diversification: distinct JD-specific hook, varied sentence mechanics (no consecutive duplicate openers, mixed lengths), banned AI clichés enforced, contextual achievement blending, exact-phrasing guardrails, and regeneration-level narrative variance — while preserving resume facts. When a **Candidate narrative** block is present, preserve its mandatory Pleasant Solutions story spine and role-specific close. Include contact header; no generic "I am applying / writing to express" openings.
 - Stop refining once remaining gaps are posting noise — coherence and edge beat a forced 100% match.
 - Re-run **Generation Hygiene & Validation**: complete sentences only; no "Recent – Present" placeholders; cover letter proof points must match resume employer timelines.
 

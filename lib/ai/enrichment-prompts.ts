@@ -1,4 +1,5 @@
 import { COVER_LETTER_BANNED_PHRASES } from '@/lib/ai/prompts'
+import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
 import { extractCleanJobContext } from '@/lib/resume/extract-job-title'
 import {
   extractAiEnrichmentInput,
@@ -83,6 +84,14 @@ export function buildEnrichmentUserPrompt(input: EnrichmentPromptInput): string 
     ? `\nUSER ACHIEVEMENT SUPPLEMENT:\n${options.achievementSupplement.trim()}\n`
     : ''
 
+  const candidateNarrativeBlock = buildCandidateNarrativeAddendum(
+    input.sourceResumeText,
+    input.jobDescription
+  )
+  const candidateNarrativeSection = candidateNarrativeBlock.trim()
+    ? `\n${candidateNarrativeBlock.trim()}\n`
+    : ''
+
   return `CLEAN JOB CONTEXT (cover letter only):
 - jobTitle: "${jobContext.jobTitle}"
 - companyName: "${jobContext.companyName ?? 'the hiring company'}"
@@ -96,8 +105,8 @@ ${locked.summary}
 
 JOB DESCRIPTION:
 ${input.jobDescription}
-${checklistBlock}${missingBlock}${skillsBlock}${achievementBlock}
-TASK: Enrich skills and experienceBullets only. Preserve every blockKey. Return JSON matching the schema.`
+${checklistBlock}${missingBlock}${skillsBlock}${achievementBlock}${candidateNarrativeSection}
+TASK: Enrich skills and experienceBullets only. Preserve every blockKey. When candidate narrative is present, rewrite coverLetter using its mandatory architecture and role-specific tailoring. Return JSON matching the schema.`
 }
 
 export function buildEnrichmentRefinementPrompt(
