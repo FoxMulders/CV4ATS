@@ -79,6 +79,11 @@ export function HiringPanelReviewPanel({
           Final assessment
         </p>
         <p className="mt-1 text-sm leading-relaxed text-foreground">{panel.finalVerdict}</p>
+        {panel.autoCorrectionSummary ? (
+          <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm leading-relaxed text-emerald-950 dark:text-emerald-100">
+            {panel.autoCorrectionSummary}
+          </p>
+        ) : null}
         {!panel.unanimousApproval ? (
           <p className="mt-2 text-sm leading-relaxed text-amber-800 dark:text-amber-200">
             When managers flag missing tool evidence (e.g. Jenkins CI/CD) or banned cover letter
@@ -112,6 +117,22 @@ export function HiringPanelReviewPanel({
           </Button>
         ) : null}
       </div>
+
+      {panel.correctedIssues && panel.correctedIssues.length > 0 ? (
+        <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900 dark:text-emerald-100">
+            Automatically corrected before you apply
+          </p>
+          <ul className="space-y-2 text-sm leading-relaxed text-foreground">
+            {panel.correctedIssues.map((item) => (
+              <li key={item} className="flex gap-2">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {panel.revisionRecommendations.length > 0 ? (
         <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">

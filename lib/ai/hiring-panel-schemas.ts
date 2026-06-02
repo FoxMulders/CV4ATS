@@ -26,4 +26,10 @@ export type HiringPanelSessionResult = {
   reviewFailed?: boolean
   /** Server/client diagnostic when reviewFailed is true. */
   failureReason?: string
+  /** Score before Editor Agent auto-corrections (first panel pass). */
+  initialAggregateScore?: number
+  /** Human-readable proof-of-work summary for the UI. */
+  autoCorrectionSummary?: string
+  /** Deterministic/editor-resolved issue labels. */
+  correctedIssues?: string[]
 }

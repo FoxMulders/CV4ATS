@@ -1,8 +1,6 @@
 /**
- * Purpose: Closed-loop hiring panel orchestration — feeds manager critiques back into revision prompts
- * until unanimous approval, banned-phrase cleanup, or max rounds.
- * Upstream dependencies: `@/lib/ai/hiring-panel` review/revision generators, cover-letter compliance,
- * and draft normalization for API-safe payloads.
+ * Purpose: Closed-loop hiring panel orchestration — feeds manager critiques back into Editor Agent 3
+ * for silent auto-correction until unanimous approval, banned-phrase cleanup, or max rounds.
  */
 
 import type { HiringPanelReview, HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
@@ -11,9 +9,12 @@ import {
   buildSessionResult,
   enforceCoverLetterComplianceForPanel,
   runHiringPanelReview,
-  runHiringPanelRevision,
   type HiringPanelRunOptions,
 } from '@/lib/ai/hiring-panel'
+import {
+  buildAutoCorrectionSummary,
+  runEditorAgentCorrection,
+} from '@/lib/ai/editor-agent'
 import type { AiGenerationResult } from '@/lib/ai/schemas'
 import { normalizeGenerationDraftForApi } from '@/lib/api/normalize-generation-draft'
 import { findCoverLetterBannedPhrases } from '@/lib/resume/cover-letter-compliance'
@@ -45,6 +46,11 @@ function preserveDraft(draft: AiGenerationResult, sourceResumeText: string): AiG
   return normalizeGenerationDraftForApi(draft, sourceResumeText)
 }
 
+function aggregateScore(review: HiringPanelReview): number {
+  if (review.managers.length === 0) return 0
+  return Math.round(review.managers.reduce((sum, manager) => sum + manager.score, 0) / review.managers.length)
+}
+
 export async function runHiringPanelWithRevisions(
   jobDescription: string,
   sourceResumeText: string,
@@ -55,6 +61,8 @@ export async function runHiringPanelWithRevisions(
   let current: AiGenerationResult = draft
   let revisionRounds = 0
   let lastReview: HiringPanelReview | null = null
+  let initialAggregateScore: number | undefined
+  const correctedIssues = new Set<string>()
 
   while (true) {
     await onProgress?.(
@@ -74,13 +82,26 @@ export async function runHiringPanelWithRevisions(
         aiResult: current,
         panel:
           lastReview != null
-            ? buildSessionResult(lastReview, revisionRounds)
+            ? buildSessionResult(lastReview, revisionRounds, {
+                initialAggregateScore,
+                correctedIssues: [...correctedIssues],
+                autoCorrectionSummary: buildAutoCorrectionSummary({
+                  initialScore: initialAggregateScore ?? 0,
+                  finalScore: aggregateScore(lastReview),
+                  correctedIssues: [...correctedIssues],
+                  revisionRounds,
+                }),
+              })
             : buildFailedPanelSession(
                 failureReason ??
                   'Hiring panel review could not be completed. Regenerate to retry manager feedback.',
                 partialCritiques
               ),
       }
+    }
+
+    if (initialAggregateScore == null) {
+      initialAggregateScore = aggregateScore(review)
     }
 
     lastReview = review
@@ -96,23 +117,38 @@ export async function runHiringPanelWithRevisions(
         ),
         sourceResumeText
       )
+
+      const finalScore = aggregateScore(review)
       return {
         aiResult: current,
-        panel: buildSessionResult(review, revisionRounds),
+        panel: buildSessionResult(review, revisionRounds, {
+          initialAggregateScore,
+          correctedIssues: [...correctedIssues],
+          autoCorrectionSummary: buildAutoCorrectionSummary({
+            initialScore: initialAggregateScore ?? finalScore,
+            finalScore,
+            correctedIssues: [...correctedIssues],
+            revisionRounds,
+          }),
+        }),
       }
     }
 
-    await onProgress?.('Applying all panel improvement suggestions…')
+    await onProgress?.('Editor Agent correcting draft from panel audit…')
 
-    const revision = await runHiringPanelRevision(
+    const editorResult = await runEditorAgentCorrection(
       jobDescription,
       sourceResumeText,
       current,
       review,
-      options
+      { achievementSupplement: options.achievementSupplement }
     )
 
-    if (!revision?.coverLetter.trim()) {
+    for (const issue of editorResult.correctedIssueSummaries) {
+      correctedIssues.add(issue)
+    }
+
+    if (!editorResult.draft.coverLetter.trim()) {
       current = preserveDraft(
         await enforceCoverLetterComplianceForPanel(
           current,
@@ -125,20 +161,22 @@ export async function runHiringPanelWithRevisions(
       )
       return {
         aiResult: current,
-        panel: buildSessionResult(review, revisionRounds),
+        panel: buildSessionResult(review, revisionRounds, {
+          initialAggregateScore,
+          correctedIssues: [...correctedIssues],
+          autoCorrectionSummary: buildAutoCorrectionSummary({
+            initialScore: initialAggregateScore ?? aggregateScore(review),
+            finalScore: aggregateScore(review),
+            correctedIssues: [...correctedIssues],
+            revisionRounds,
+          }),
+        }),
       }
     }
 
-    current = preserveDraft(
-      {
-        ...current,
-        tailoredResume: revision.tailoredResume,
-        coverLetter: revision.coverLetter,
-      },
-      sourceResumeText
-    )
+    current = preserveDraft(editorResult.draft, sourceResumeText)
 
-    await onProgress?.('Re-running hiring panel after applying suggestions…')
+    await onProgress?.('Polishing cover letter after editor pass…')
 
     current = preserveDraft(
       await enforceCoverLetterComplianceForPanel(

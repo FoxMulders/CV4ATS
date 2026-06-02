@@ -311,7 +311,13 @@ function aggregateScore(managers: HiringPanelReview['managers']): number {
 
 export function buildSessionResult(
   review: HiringPanelReview,
-  revisionRounds: number
+  revisionRounds: number,
+  extras: Partial<
+    Pick<
+      HiringPanelSessionResult,
+      'initialAggregateScore' | 'autoCorrectionSummary' | 'correctedIssues'
+    >
+  > = {}
 ): HiringPanelSessionResult {
   const unanimousApproval = review.managers.every((m) => m.approved)
   return {
@@ -321,6 +327,7 @@ export function buildSessionResult(
     managers: review.managers,
     finalVerdict: review.finalVerdict,
     revisionRecommendations: review.revisionRecommendations,
+    ...extras,
   }
 }
 
