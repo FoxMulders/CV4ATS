@@ -1,7 +1,10 @@
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+import {
+  splitResumeDocumentBySections,
+  type ResumeSectionBodies,
+} from '@/lib/resume/defensive-markdown-parser'
 import { parseWorkAndProjectsFromLines } from '@/lib/resume/parse-experience-blocks'
-import { stripResumeHeadingMarkers } from '@/lib/resume/resume-text-normalize'
 
 /** Canonical section titles for on-device markdown resume output. */
 export const LOCAL_RESUME_SECTION = {
@@ -14,7 +17,7 @@ export const LOCAL_RESUME_SECTION = {
 } as const
 
 export const LOCAL_RESUME_SECTION_TITLE_REGEX =
-  /^(PROFESSIONAL SUMMARY|SUMMARY|SKILLS|TECHNICAL SKILLS|WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT|PERSONAL AI PROJECT(?: EXPERIENCE|S)?|PERSONAL PROJECTS?|EDUCATION|CERTIFICATIONS)\s*$/i
+  /^(PROFESSIONAL SUMMARY|SUMMARY|PROFILE|SKILLS|TECHNICAL SKILLS|CORE COMPETENCIES|WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT|PROFESSIONAL EXPERIENCE|WORK HISTORY|PERSONAL AI PROJECT(?: EXPERIENCE|S)?|PERSONAL PROJECTS?|SIDE VENTURES|PRODUCT INNOVATIONS|PROJECTS|AI EXPERIENCE|EDUCATION|CERTIFICATIONS?)\s*$/i
 
 export const LOCAL_RESUME_SECTION_REGEX =
   /^#{1,6}\s+(PROFESSIONAL SUMMARY|SUMMARY|SKILLS|TECHNICAL SKILLS|WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT|PERSONAL AI PROJECT(?: EXPERIENCE|S)?|PERSONAL PROJECTS?|EDUCATION|CERTIFICATIONS)\s*$/i
@@ -151,42 +154,20 @@ export type MarkdownResumeSections = Partial<
   >
 >
 
+function mapCanonicalSections(sections: ResumeSectionBodies): MarkdownResumeSections {
+  return {
+    summary: sections.summary,
+    skills: sections.skills,
+    workExperience: sections.workExperience,
+    personalProjects: sections.personalProjects,
+    education: sections.education,
+    certifications: sections.certifications,
+  }
+}
+
 /** Split markdown resume text into section bodies for UI field mapping. */
 export function splitMarkdownResumeSections(text: string): MarkdownResumeSections {
-  const sections: MarkdownResumeSections = {}
-  let currentKey: keyof MarkdownResumeSections | null = null
-  const buffers = new Map<keyof MarkdownResumeSections, string[]>()
-
-  for (const rawLine of text.replace(/\r\n/g, '\n').split('\n')) {
-    const line = stripResumeHeadingMarkers(rawLine.trim())
-    if (!line) continue
-
-    if (LOCAL_RESUME_SECTION_TITLE_REGEX.test(line)) {
-      const normalized = line.toUpperCase()
-      if (/^PROFESSIONAL SUMMARY|^SUMMARY$/.test(normalized)) currentKey = 'summary'
-      else if (/^SKILLS|^TECHNICAL SKILLS$/.test(normalized)) currentKey = 'skills'
-      else if (/^WORK EXPERIENCE|^EXPERIENCE|^EMPLOYMENT$/.test(normalized)) currentKey = 'workExperience'
-      else if (/^PERSONAL AI PROJECT|^PERSONAL PROJECT/.test(normalized)) currentKey = 'personalProjects'
-      else if (/^EDUCATION$/.test(normalized)) currentKey = 'education'
-      else if (/^CERTIFICATIONS?$/.test(normalized)) currentKey = 'certifications'
-      else currentKey = null
-
-      if (currentKey && !buffers.has(currentKey)) {
-        buffers.set(currentKey, [])
-      }
-      continue
-    }
-
-    if (currentKey) {
-      buffers.get(currentKey)?.push(rawLine.trim())
-    }
-  }
-
-  for (const [key, lines] of buffers.entries()) {
-    sections[key] = lines.join('\n').trim()
-  }
-
-  return sections
+  return mapCanonicalSections(splitResumeDocumentBySections(text))
 }
 
 /** Parse role blocks from a markdown work-experience or personal-projects section body. */

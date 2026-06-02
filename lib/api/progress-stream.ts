@@ -1,6 +1,7 @@
 import type { DeepPartial } from 'ai'
 
-import type { AiGenerationResult, GenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import type { AiGenerationResult, Contact, GenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import { applyLockedContactToResume } from '@/lib/resume/identity-lock'
 import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
 
 export type ScorePassEvent = {
@@ -236,16 +237,20 @@ export function withGenerationTimeout<T>(
 
 /** Merge streamed partial fields into a displayable resume snapshot. */
 export function coalesceStreamingResume(
-  partial: DeepPartial<AiGenerationResult> | undefined
+  partial: DeepPartial<AiGenerationResult> | undefined,
+  options?: {
+    lockedContact?: Contact | null
+    sourceResumeText?: string
+  }
 ): TailoredResume | null {
   const resume = partial?.tailoredResume
   if (!resume?.contact?.name?.trim() || !resume.summary?.trim()) {
     return null
   }
 
-  return {
+  const coalesced: TailoredResume = {
     contact: {
-      name: sanitizeCandidateName(resume.contact.name),
+      name: sanitizeCandidateName(resume.contact.name, options?.sourceResumeText),
       email: resume.contact.email ?? '',
       phone: resume.contact.phone ?? '',
       location: resume.contact.location ?? '',
@@ -291,4 +296,10 @@ export function coalesceStreamingResume(
           ],
         })) ?? [],
   }
+
+  return applyLockedContactToResume(
+    coalesced,
+    options?.lockedContact,
+    options?.sourceResumeText
+  )
 }

@@ -13,6 +13,10 @@ import {
   isNonCompetencyMetadata,
 } from '@/lib/resume/non-competency-metadata-filter'
 import { stripResumeHeadingMarkers } from '@/lib/resume/resume-text-normalize'
+import {
+  resolveCanonicalSectionKey,
+  splitResumeDocumentBySections,
+} from '@/lib/resume/defensive-markdown-parser'
 import type { TailoredResume } from '@/lib/ai/schemas'
 
 export const SECTION_WEIGHTS = {
@@ -65,22 +69,19 @@ export interface WeightedScoringOptions {
   structuredResume?: TailoredResume | null
 }
 
-const SECTION_BOUNDARY =
-  /^(PROFESSIONAL SUMMARY|SUMMARY|SKILLS|TECHNICAL SKILLS|WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT|PERSONAL AI PROJECT(?: EXPERIENCE|S)?|PERSONAL PROJECTS?|EDUCATION|CERTIFICATIONS)\s*$/i
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+function isSectionBoundaryLine(line: string): boolean {
+  return resolveCanonicalSectionKey(line) !== null
 }
 
-function extractSectionBlock(lines: string[], heading: RegExp): string {
-  const start = lines.findIndex((line) => heading.test(stripResumeHeadingMarkers(line.trim())))
+function extractSectionBlock(lines: string[], sectionKey: 'summary' | 'skills' | 'workExperience'): string {
+  const start = lines.findIndex((line) => resolveCanonicalSectionKey(line) === sectionKey)
   if (start < 0) return ''
 
   const content: string[] = []
   for (let index = start + 1; index < lines.length; index += 1) {
     const line = stripResumeHeadingMarkers(lines[index]?.trim() ?? '')
     if (!line) continue
-    if (SECTION_BOUNDARY.test(line)) break
+    if (isSectionBoundaryLine(line)) break
     content.push(lines[index]!)
   }
 
@@ -90,14 +91,28 @@ function extractSectionBlock(lines: string[], heading: RegExp): string {
 /** Parse standard ATS section blocks from serialized or pasted resume text. */
 export function parseScoringSections(resumeText: string): ResumeScoringSections {
   const fullText = resumeText.replace(/\r\n/g, '\n').trim()
-  const lines = fullText.split('\n')
+  const canonical = splitResumeDocumentBySections(fullText)
 
-  const summary = extractSectionBlock(lines, /^(PROFESSIONAL SUMMARY|SUMMARY)$/i)
-  const skills = extractSectionBlock(lines, /^(SKILLS|TECHNICAL SKILLS)$/i)
-  const experience = extractSectionBlock(lines, /^(WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT)$/i)
+  const summary = canonical.summary ?? ''
+  const skills = canonical.skills ?? ''
+  const experience = canonical.workExperience ?? ''
 
   if (summary || skills || experience) {
     return { summary, skills, experience, fullText }
+  }
+
+  const lines = fullText.split('\n')
+  const summaryFallback = extractSectionBlock(lines, 'summary')
+  const skillsFallback = extractSectionBlock(lines, 'skills')
+  const experienceFallback = extractSectionBlock(lines, 'workExperience')
+
+  if (summaryFallback || skillsFallback || experienceFallback) {
+    return {
+      summary: summaryFallback,
+      skills: skillsFallback,
+      experience: experienceFallback,
+      fullText,
+    }
   }
 
   const proseBlocks = fullText
@@ -111,6 +126,10 @@ export function parseScoringSections(resumeText: string): ResumeScoringSections 
     experience: '',
     fullText,
   }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function countKeywordOccurrences(text: string, keyword: string): number {

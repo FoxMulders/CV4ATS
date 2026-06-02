@@ -1,5 +1,6 @@
 import type { Education, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
+import { verifyExperienceMatrixIntegrity } from '@/lib/resume/experience-matrix-guard'
 import {
   lockResumeState,
   mergeBulletsOntoOriginalExperience,
@@ -186,11 +187,18 @@ export function enforceContextConstrainedTailoring(
     allowGhostRoles
   )
 
+  const matrix = verifyExperienceMatrixIntegrity(
+    lockedResume.experience,
+    lockedResume.projects ?? [],
+    experience,
+    projects
+  )
+
   return {
     ...resume,
     contact: enforceLockedContact(resume, locked, source),
-    experience: experience.length > 0 ? experience : lockedResume.experience,
-    projects,
+    experience: matrix.experience.length > 0 ? matrix.experience : lockedResume.experience,
+    projects: matrix.projects,
     education: enforceEducationFromSource(resume.education ?? [], locked.education, source),
     certifications: enforceLockedCertifications(
       resume.certifications ?? [],

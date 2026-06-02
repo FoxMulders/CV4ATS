@@ -54,6 +54,7 @@ import { describeTailoredResumeEdit } from '@/lib/debug/resume-edit-log'
 import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
+import { applyLockedContactToResume, resolveLockedContactFromSource } from '@/lib/resume/identity-lock'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 import {
   detectAchievementGaps,
@@ -174,6 +175,17 @@ export function TailorWorkspacePage({
     resumeText.trim() ||
     (fileParse.status === 'ready' ? fileParse.parsedText.trim() : '')
 
+  const lockedContact = useMemo(
+    () => resolveLockedContactFromSource(activeResumeText),
+    [activeResumeText]
+  )
+
+  const applyIdentityLock = useCallback(
+    (resume: TailoredResume) =>
+      applyLockedContactToResume(resume, lockedContact, activeResumeText || undefined),
+    [activeResumeText, lockedContact]
+  )
+
   useSavedResume(resumeText, setResumeText, fileParse)
 
   useEffect(() => {
@@ -211,10 +223,11 @@ export function TailorWorkspacePage({
 
   const pushEditedResumeWithLog = useCallback(
     (nextResume: TailoredResume) => {
-      appendLog(describeTailoredResumeEdit(editedResume, nextResume))
-      pushEditedResume(nextResume)
+      const locked = applyIdentityLock(nextResume)
+      appendLog(describeTailoredResumeEdit(editedResume, locked))
+      pushEditedResume(locked)
     },
-    [appendLog, editedResume, pushEditedResume]
+    [appendLog, applyIdentityLock, editedResume, pushEditedResume]
   )
 
   const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
@@ -458,8 +471,8 @@ export function TailorWorkspacePage({
       const nextResult = applyHiringPanelResponse(result, panelResponse)
       setResult(nextResult)
       if (panelResponse.tailoredResume) {
-        resetEditedResume(panelResponse.tailoredResume)
-        setBaselineTailoredResume(panelResponse.tailoredResume)
+        resetEditedResume(applyIdentityLock(panelResponse.tailoredResume))
+        setBaselineTailoredResume(applyIdentityLock(panelResponse.tailoredResume))
       }
       if (panelResponse.coverLetter?.trim()) {
         setCoverLetter(panelResponse.coverLetter)
@@ -535,7 +548,7 @@ export function TailorWorkspacePage({
             }
           : current
       )
-      resetEditedResume(updated.tailoredResume)
+      resetEditedResume(applyIdentityLock(updated.tailoredResume))
       setCoverLetter(updated.coverLetter)
       setEditedKeywordReport(updated.keywordReport)
       setPanelExperienceOpen(false)
@@ -615,7 +628,7 @@ export function TailorWorkspacePage({
             }
           : current
       )
-      resetEditedResume(updated.tailoredResume)
+      resetEditedResume(applyIdentityLock(updated.tailoredResume))
       setCoverLetter(updated.coverLetter)
       setEditedKeywordReport(updated.keywordReport)
 
@@ -790,8 +803,8 @@ export function TailorWorkspacePage({
         }
 
         setResult(nextResult)
-        resetEditedResume(nextResult.tailoredResume)
-        setBaselineTailoredResume(nextResult.tailoredResume)
+        resetEditedResume(applyIdentityLock(nextResult.tailoredResume))
+        setBaselineTailoredResume(applyIdentityLock(nextResult.tailoredResume))
         setEditedKeywordReport(nextResult.keywordReport)
         setBaselineKeywordReport(nextResult.baselineKeywordReport)
         if (nextResult.preScan) {
@@ -869,9 +882,12 @@ export function TailorWorkspacePage({
           setScorePassLines((current) => [...current, formatScorePassLine(event)])
         },
         onPartial: (preview) => {
-          const resumeSnapshot = coalesceStreamingResume(preview)
+          const resumeSnapshot = coalesceStreamingResume(preview, {
+            lockedContact,
+            sourceResumeText: activeResumeText || undefined,
+          })
           if (resumeSnapshot) {
-            setStreamingResume(resumeSnapshot)
+            setStreamingResume(applyIdentityLock(resumeSnapshot))
           }
           if (preview.coverLetter?.trim()) {
             setStreamingCoverLetter(preview.coverLetter)
@@ -880,8 +896,8 @@ export function TailorWorkspacePage({
       })
 
       setResult({ ...data, generationSource: 'server' })
-      resetEditedResume(data.tailoredResume)
-      setBaselineTailoredResume(data.tailoredResume)
+      resetEditedResume(applyIdentityLock(data.tailoredResume))
+      setBaselineTailoredResume(applyIdentityLock(data.tailoredResume))
       setEditedKeywordReport(data.keywordReport)
       setBaselineKeywordReport(data.baselineKeywordReport)
       if (data.preScan) {
@@ -1025,6 +1041,7 @@ export function TailorWorkspacePage({
           originalText={originalResumeText}
           jobDescription={jobDescription}
           layout="accordion"
+          lockedContact={lockedContact}
         />
       ) : (
         <WorkspaceAccordion

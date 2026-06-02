@@ -15,6 +15,7 @@ interface EditableResumePreviewProps {
   originalText?: string | null
   jobDescription?: string
   layout?: 'card' | 'accordion'
+  lockedContact?: TailoredResume['contact'] | null
 }
 
 export function EditableResumePreview({
@@ -24,6 +25,7 @@ export function EditableResumePreview({
   originalText,
   jobDescription,
   layout = 'card',
+  lockedContact = null,
 }: EditableResumePreviewProps) {
   const isAccordion = layout === 'accordion'
 
@@ -49,6 +51,7 @@ export function EditableResumePreview({
         onChange={onResumeChange}
         jobDescription={jobDescription}
         layout={layout}
+        lockedContact={lockedContact}
       />
       {isAccordion ? (
         <AddExperiencePanel

@@ -22,6 +22,8 @@ interface EditableParsedResumeFormProps {
   onChange: (resume: TailoredResume) => void
   jobDescription?: string
   layout?: 'card' | 'accordion'
+  /** Immutable identity from uploaded resume — decoupled from LLM/stream mutations. */
+  lockedContact?: TailoredResume['contact'] | null
 }
 
 function updateExperience(
@@ -102,21 +104,44 @@ export function EditableParsedResumeForm({
   onChange,
   jobDescription,
   layout = 'card',
+  lockedContact = null,
 }: EditableParsedResumeFormProps) {
   const isAccordion = layout === 'accordion'
+  const identityLocked = Boolean(lockedContact?.name?.trim())
+
+  const emitChange = (patch: TailoredResume) => {
+    if (!identityLocked || !lockedContact) {
+      onChange(patch)
+      return
+    }
+    onChange({
+      ...patch,
+      contact: {
+        name: lockedContact.name,
+        email: lockedContact.email,
+        phone: lockedContact.phone,
+        location: lockedContact.location,
+        linkedin: lockedContact.linkedin,
+      },
+    })
+  }
+
+  const contactDisplay = identityLocked ? lockedContact! : resume.contact
 
   const personalFields = (
     <div className="space-y-3">
       <EditableFieldShell
         label="Name"
         htmlFor="parsed-resume-name"
-        edited={isFieldEdited(resume.contact.name, baseline.contact.name)}
+        edited={isFieldEdited(contactDisplay.name, baseline.contact.name)}
       >
         <Input
           id="parsed-resume-name"
-          value={resume.contact.name}
+          value={contactDisplay.name}
+          readOnly={identityLocked}
+          aria-readonly={identityLocked}
           onChange={(event) =>
-            onChange({
+            emitChange({
               ...resume,
               contact: { ...resume.contact, name: event.target.value },
             })
@@ -130,13 +155,15 @@ export function EditableParsedResumeForm({
             key={field}
             label={field}
             htmlFor={`parsed-resume-${field}`}
-            edited={isFieldEdited(resume.contact[field], baseline.contact[field])}
+            edited={isFieldEdited(contactDisplay[field], baseline.contact[field])}
           >
             <Input
               id={`parsed-resume-${field}`}
-              value={resume.contact[field]}
+              value={contactDisplay[field]}
+              readOnly={identityLocked}
+              aria-readonly={identityLocked}
               onChange={(event) =>
-                onChange({
+                emitChange({
                   ...resume,
                   contact: { ...resume.contact, [field]: event.target.value },
                 })
@@ -158,7 +185,7 @@ export function EditableParsedResumeForm({
         id="parsed-resume-summary"
         value={resume.summary}
         rows={4}
-        onChange={(event) => onChange({ ...resume, summary: event.target.value })}
+        onChange={(event) => emitChange({ ...resume, summary: event.target.value })}
       />
       {jobDescription?.trim() ? (
         <PhrasingSimilarityPreview
@@ -175,7 +202,7 @@ export function EditableParsedResumeForm({
       label="Skills"
       values={resume.skills}
       baselineValues={baseline.skills}
-      onChange={(skills) => onChange({ ...resume, skills })}
+      onChange={(skills) => emitChange({ ...resume, skills })}
       placeholder="Add a skill…"
     />
   )
@@ -202,7 +229,7 @@ export function EditableParsedResumeForm({
                 size="icon"
                 className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
                 aria-label={`Delete ${job.company || 'experience block'}`}
-                onClick={() => onChange(deleteExperience(resume, jobIndex))}
+                onClick={() => emitChange(deleteExperience(resume, jobIndex))}
               >
                 <Trash2 className="size-4" aria-hidden="true" />
               </Button>
@@ -217,7 +244,7 @@ export function EditableParsedResumeForm({
                   id={`job-title-${jobIndex}`}
                   value={job.title}
                   onChange={(event) =>
-                    onChange(updateExperience(resume, jobIndex, { title: event.target.value }))
+                    emitChange(updateExperience(resume, jobIndex, { title: event.target.value }))
                   }
                 />
               </EditableFieldShell>
@@ -231,7 +258,7 @@ export function EditableParsedResumeForm({
                   id={`job-company-${jobIndex}`}
                   value={job.company}
                   onChange={(event) =>
-                    onChange(updateExperience(resume, jobIndex, { company: event.target.value }))
+                    emitChange(updateExperience(resume, jobIndex, { company: event.target.value }))
                   }
                 />
               </EditableFieldShell>
@@ -245,7 +272,7 @@ export function EditableParsedResumeForm({
                   id={`job-location-${jobIndex}`}
                   value={job.location}
                   onChange={(event) =>
-                    onChange(updateExperience(resume, jobIndex, { location: event.target.value }))
+                    emitChange(updateExperience(resume, jobIndex, { location: event.target.value }))
                   }
                 />
               </EditableFieldShell>
@@ -260,7 +287,7 @@ export function EditableParsedResumeForm({
                     id={`job-start-${jobIndex}`}
                     value={job.startDate}
                     onChange={(event) =>
-                      onChange(updateExperience(resume, jobIndex, { startDate: event.target.value }))
+                      emitChange(updateExperience(resume, jobIndex, { startDate: event.target.value }))
                     }
                   />
                 </EditableFieldShell>
@@ -274,7 +301,7 @@ export function EditableParsedResumeForm({
                     id={`job-end-${jobIndex}`}
                     value={job.endDate}
                     onChange={(event) =>
-                      onChange(updateExperience(resume, jobIndex, { endDate: event.target.value }))
+                      emitChange(updateExperience(resume, jobIndex, { endDate: event.target.value }))
                     }
                   />
                 </EditableFieldShell>
@@ -297,7 +324,7 @@ export function EditableParsedResumeForm({
                     value={bullet}
                     rows={3}
                     onChange={(event) =>
-                      onChange(updateBullet(resume, jobIndex, bulletIndex, event.target.value))
+                      emitChange(updateBullet(resume, jobIndex, bulletIndex, event.target.value))
                     }
                   />
                   {jobDescription?.trim() ? (
@@ -332,7 +359,7 @@ export function EditableParsedResumeForm({
                 <Input
                   value={edu.degree}
                   onChange={(event) =>
-                    onChange({
+                    emitChange({
                       ...resume,
                       education: resume.education.map((entry, index) =>
                         index === eduIndex ? { ...entry, degree: event.target.value } : entry
@@ -348,7 +375,7 @@ export function EditableParsedResumeForm({
                 <Input
                   value={edu.school}
                   onChange={(event) =>
-                    onChange({
+                    emitChange({
                       ...resume,
                       education: resume.education.map((entry, index) =>
                         index === eduIndex ? { ...entry, school: event.target.value } : entry
@@ -371,7 +398,7 @@ export function EditableParsedResumeForm({
         label="Certifications"
         values={resume.certifications}
         baselineValues={baseline.certifications}
-        onChange={(certifications) => onChange({ ...resume, certifications })}
+        onChange={(certifications) => emitChange({ ...resume, certifications })}
         placeholder="Add a certification…"
       />
     ) : null
