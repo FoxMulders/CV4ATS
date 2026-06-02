@@ -16,6 +16,7 @@ import {
 } from '@/lib/ai/personal-projects-strategy'
 import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
 import { RESUME_BLOCK_SCHEMA_DIRECTIVE } from '@/lib/ai/resume-block-schema-directive'
+import { buildLockedTimelinePromptBlock } from '@/lib/resume/strict-resume-state'
 
 /** Banned cover letter phrases — AI clichés and repetitive openers. */
 export const COVER_LETTER_BANNED_PHRASES = [
@@ -532,10 +533,16 @@ export function buildUserPrompt(
     ? `\n${candidateNarrativeBlock.trim()}\n`
     : ''
 
+  const lockedTimelineSource = options.currentResume ?? resumeText
+  const lockedTimelineBlock = buildLockedTimelinePromptBlock(lockedTimelineSource)
+  const lockedTimelineSection = lockedTimelineBlock.trim()
+    ? `\n${lockedTimelineBlock.trim()}\n`
+    : ''
+
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}${panelFeedbackBlock}${personalProjectsSection}${candidateNarrativeSection}
-SOURCE RESUME:
+${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}${panelFeedbackBlock}${personalProjectsSection}${candidateNarrativeSection}${lockedTimelineSection}
+SOURCE RESUME (ground truth — do not invent beyond this):
 ${resumeText}
 
 TASK:
@@ -576,9 +583,14 @@ export function buildRefinementPrompt(
     ? `\n${candidateNarrativeBlock.trim()}\n`
     : ''
 
+  const lockedTimelineBlock = buildLockedTimelinePromptBlock(sourceResumeText)
+  const lockedTimelineSection = lockedTimelineBlock.trim()
+    ? `\n${lockedTimelineBlock.trim()}\n`
+    : ''
+
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${achievementBlock}${candidateNarrativeSection}
+${checklistBlock}${achievementBlock}${candidateNarrativeSection}${lockedTimelineSection}
 ORIGINAL SOURCE RESUME (ground truth — do not invent beyond this):
 ${sourceResumeText}
 

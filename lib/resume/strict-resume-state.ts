@@ -209,6 +209,60 @@ export function serializeAiEnrichmentInputForPrompt(input: AiEnrichmentInput): s
   return JSON.stringify(input, null, 2)
 }
 
+/** JSON scaffold injected into full-generation prompts so the LLM cannot merge employers. */
+export function serializeLockedTimelineForPrompt(state: StrictResumeState): string {
+  return JSON.stringify(
+    {
+      contactName: state.contact.name,
+      workExperience: state.workExperience.map((block) => ({
+        blockKey: block.blockKey,
+        company: block.company,
+        title: block.title,
+        location: block.location,
+        dates: block.datesDisplay,
+        bullets: block.bullets,
+      })),
+      projects: state.projects.map((block) => ({
+        blockKey: block.blockKey,
+        productOrVenture: block.company,
+        title: block.title,
+        dates: block.datesDisplay,
+        bullets: block.bullets,
+      })),
+      education: state.education.map((entry) => ({
+        degree: entry.degree,
+        school: entry.school,
+        graduationDate: entry.graduationDate,
+      })),
+      certifications: state.certifications,
+    },
+    null,
+    2
+  )
+}
+
+export function buildLockedTimelinePromptBlock(source: TailoredResume | string): string {
+  const state = lockResumeState(source)
+  const workCount = state.workExperience.length
+  const projectCount = state.projects.length
+
+  if (workCount === 0 && projectCount === 0) return ''
+
+  const identity =
+    state.contact.name && state.contact.name !== 'Professional Candidate'
+      ? state.contact.name
+      : 'the candidate'
+
+  return `LOCKED EXPERIENCE TIMELINE (pre-parsed from source — mandatory scaffold):
+- Emit exactly ${workCount} experience[] object(s) and ${projectCount} projects[] object(s) — one per entry below, in the same order.
+- Do NOT merge, drop, reorder, or reassign bullets across employers or projects.
+- Rewrite bullet prose only; preserve each entry's company, title, dates, and block boundaries.
+- contact.name must remain "${identity}" — never a section heading or summary phrase.
+- Map each blockKey below to a distinct object in tailoredResume.experience[] or tailoredResume.projects[].
+
+${serializeLockedTimelineForPrompt(state)}`
+}
+
 export function parseCurrentResumeJson(raw: unknown): TailoredResume | null {
   if (!raw || typeof raw !== 'string' || !raw.trim()) return null
   try {
