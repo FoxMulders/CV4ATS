@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { rateLimitExceededResponse } from '@/lib/api/rate-limit-response'
 import { MAX_FILE_SIZE_BYTES } from '@/lib/ai/schemas'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { parseResumeDeterministic } from '@/lib/resume/deterministic-resume-parser'
 import { parseResumeFile, ResumeParseError } from '@/lib/resume/parse-file'
 
 /** Resume parsing (PDF/DOCX) can exceed the default 10s on large files. */
@@ -29,7 +30,8 @@ export async function POST(request: Request) {
     }
 
     const text = await parseResumeFile(file)
-    return NextResponse.json({ text })
+    const structured = parseResumeDeterministic(text)
+    return NextResponse.json({ text, structured })
   } catch (error) {
     if (error instanceof ResumeParseError) {
       return NextResponse.json({ error: error.message }, { status: 400 })

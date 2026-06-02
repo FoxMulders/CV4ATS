@@ -11,7 +11,7 @@ const SECTION_STOP =
   /^(education|certifications?|skills|technical skills|references|interests)\s*:?\s*$/i
 
 const PROJECTS_SECTION =
-  /^personal ai projects?|^personal ai project experience|^personal projects?|^side ventures?|^product innovations?|^projects\s*:?\s*$/i
+  /^personal ai projects?|^personal ai project experience|^personal projects?|^side ventures?|^product innovations?|^projects?\s*:?\s*$|^ai experience\s*:?\s*$/i
 
 function isBulletLine(line: string): boolean {
   return /^[\s•\-*–—]\s*\S/.test(line.trim())
@@ -22,8 +22,11 @@ function stripBullet(line: string): string {
 }
 
 export function looksLikeJobTitle(line: string): boolean {
-  return /(?:manager|engineer|director|lead|analyst|consultant|developer|architect|specialist|coordinator|administrator|owner|program|project|designer)/i.test(
-    line
+  const trimmed = line.trim()
+  // Past-tense bullet openers ("Led release planning") are not job titles.
+  if (/^led\s+\w/i.test(trimmed)) return false
+  return /(?:manager|engineer|director|\blead(?:er|ership)?\b|analyst|consultant|developer|architect|specialist|coordinator|administrator|owner|program|project|designer)/i.test(
+    trimmed
   )
 }
 
@@ -33,6 +36,9 @@ export function looksLikeCompanyLine(line: string): boolean {
   if (isBulletLine(trimmed)) return false
   if (/@|https?:\/\//.test(trimmed)) return false
   if (/^(professional summary|work experience|professional experience)$/i.test(trimmed)) return false
+  // Prose achievement lines ("Led release planning.") are not employer names.
+  if (/\.$/.test(trimmed) && /[a-z]/.test(trimmed.slice(1))) return false
+  if (/^led\s+[a-z]/i.test(trimmed)) return false
   if (COMPANY_HINT.test(trimmed)) return true
   if (/^tipsy fox/i.test(trimmed)) return true
   if (
@@ -346,6 +352,79 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
 
 export function parseExperienceFromLines(lines: string[]): Experience[] {
   return parseWorkAndProjectsFromLines(lines).experience
+}
+
+/** Split nested employer sub-blocks that were incorrectly flattened into one role's bullets. */
+export function splitNestedEmployersInSingleEntry(entry: Experience): Experience[] {
+  const chunks: Experience[] = []
+  let current: Experience = {
+    title: entry.title,
+    company: entry.company,
+    location: entry.location,
+    startDate: entry.startDate,
+    endDate: entry.endDate,
+    bullets: [],
+  }
+
+  const pushCurrent = () => {
+    if (!current.company.trim() && current.bullets.length === 0) return
+    chunks.push({
+      ...current,
+      title: current.title.trim() || 'Consultant',
+      company: current.company.trim() || entry.company.trim() || 'Independent',
+      bullets: current.bullets.map((bullet) => bullet.trim()).filter(Boolean),
+    })
+  }
+
+  for (const bullet of entry.bullets) {
+    const trimmed = bullet.trim()
+    if (!trimmed) continue
+
+    const isNewEmployer =
+      looksLikeCompanyLine(trimmed) &&
+      !looksLikeJobTitle(trimmed) &&
+      trimmed.toLowerCase() !== current.company.trim().toLowerCase()
+
+    if (isNewEmployer) {
+      pushCurrent()
+      current = emptyEntry()
+      current.company = trimmed
+      continue
+    }
+
+    if (looksLikeJobTitle(trimmed) && current.company.trim() && !current.title.trim()) {
+      current.title = trimmed
+      continue
+    }
+
+    if (isDateLine(trimmed) && current.company.trim()) {
+      const dates = parseDateLine(trimmed)
+      if (dates) {
+        current.startDate = dates.startDate
+        current.endDate = dates.endDate
+      }
+      continue
+    }
+
+    if (looksLikeCompanyLine(trimmed) || looksLikeJobTitle(trimmed) || isDateLine(trimmed)) {
+      continue
+    }
+
+    current.bullets.push(trimmed)
+  }
+
+  pushCurrent()
+
+  const normalized = chunks.filter((chunk) => chunk.bullets.length > 0 && chunk.company.trim())
+  return normalized.length > 1 ? normalized : [entry]
+}
+
+export function deflateNestedWorkExperience(blocks: {
+  experience: Experience[]
+  projects: Experience[]
+}): { experience: Experience[]; projects: Experience[] } {
+  const experience = blocks.experience.flatMap(splitNestedEmployersInSingleEntry)
+  return { experience, projects: blocks.projects }
 }
 
 export function scoreExperienceCompleteness(entries: Experience[]): number {
