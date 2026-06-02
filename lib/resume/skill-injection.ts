@@ -83,7 +83,7 @@ function parseResumeLines(lines: string[]): ParsedResume {
     if (/^(professional summary|summary|skills|work experience|experience|education)/i.test(trimmed)) {
       continue
     }
-    if (trimmed.includes('—') || trimmed.includes(' - ') || /\bat\b/i.test(trimmed)) {
+    if (/^#{1,6}\s+\S/.test(trimmed) || trimmed.includes('—') || trimmed.includes(' - ') || /\bat\b/i.test(trimmed)) {
       roleHeaderIndices.push(index)
     }
   }

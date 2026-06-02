@@ -3,6 +3,7 @@ import { describe, test } from 'node:test'
 import type { TailoredResume } from '@/lib/ai/schemas'
 import {
   LOCAL_RESUME_SECTION,
+  parseRoleBlocksFromMarkdownSection,
   serializeTailoredResumeMarkdown,
   splitMarkdownResumeSections,
 } from '@/lib/resume/local-on-device-resume-engine'
@@ -68,6 +69,31 @@ const sampleResume: TailoredResume = {
 }
 
 describe('local on-device resume engine', () => {
+  test('serializeTailoredResumeMarkdown uses ### role block headers with date line', () => {
+    const markdown = serializeTailoredResumeMarkdown(sampleResume)
+    assert.match(markdown, /^### Director of IT — Pleasant Solutions$/m)
+    assert.match(markdown, /^2018 – 2023$/m)
+    assert.match(markdown, /^### IT Manager — Alberta Motor Association$/m)
+    assert.match(markdown, /^### Systems Administrator — Microserve$/m)
+    assert.match(markdown, /^### Personal AI Project — cv2ats\.ca$/m)
+  })
+
+  test('parseRoleBlocksFromMarkdownSection round-trips role fields', () => {
+    const markdown = serializeTailoredResumeMarkdown(sampleResume)
+    const sections = splitMarkdownResumeSections(markdown)
+    const work = parseRoleBlocksFromMarkdownSection(sections.workExperience ?? '')
+    assert.equal(work.experience.length, 3)
+    assert.equal(work.experience[0]?.company, 'Pleasant Solutions')
+    assert.equal(work.experience[0]?.title, 'Director of IT')
+    assert.equal(work.experience[0]?.startDate, '2018')
+    assert.equal(work.experience[0]?.endDate, '2023')
+    assert.equal(work.experience[2]?.company, 'Microserve')
+
+    const projects = parseRoleBlocksFromMarkdownSection(sections.personalProjects ?? '', 'projects')
+    assert.equal(projects.projects.length, 2)
+    assert.equal(projects.projects[0]?.company, 'cv2ats.ca')
+  })
+
   test('serializeTailoredResumeMarkdown uses #### section headers', () => {
     const markdown = serializeTailoredResumeMarkdown(sampleResume)
     assert.match(markdown, /^#### PROFESSIONAL SUMMARY$/m)

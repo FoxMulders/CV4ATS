@@ -3,6 +3,7 @@ import {
   isExperienceSectionHeading,
   isValidExperienceBullet,
 } from '@/lib/resume/contact-extraction'
+import { stripResumeHeadingMarkers } from '@/lib/resume/resume-text-normalize'
 
 const COMPANY_HINT =
   /\b(solutions|association|inc|corp|corporation|ltd|limited|company|group|technologies|labs|bank|university|college|ama|cohere|microserve|motor|popup|hub)\b/i
@@ -11,7 +12,7 @@ const SECTION_STOP =
   /^(education|certifications?|skills|technical skills|references|interests)\s*:?\s*$/i
 
 const PROJECTS_SECTION =
-  /^personal ai projects?(?:\s+experience)?|^personal ai project experience|^personal projects?|^side ventures?|^product innovations?|^projects?\s*:?\s*$|^ai experience\s*:?\s*$/i
+  /^personal ai projects?(?:\s+experience)?$|^personal ai project experience$|^personal projects?$|^side ventures?$|^product innovations?$|^projects?$|^ai experience\s*:?\s*$/i
 
 function isBulletLine(line: string): boolean {
   return /^[\s•\-*–—]\s*\S/.test(line.trim())
@@ -197,7 +198,7 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
   }
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]!.trim()
+    const line = stripResumeHeadingMarkers(lines[index]!.trim())
     if (!line) continue
 
     if (SECTION_STOP.test(line)) break
@@ -242,9 +243,9 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
     }
 
     const nextIndex = findNextNonEmpty(lines, index)
-    const nextLine = nextIndex >= 0 ? lines[nextIndex]!.trim() : ''
+    const nextLine = nextIndex >= 0 ? stripResumeHeadingMarkers(lines[nextIndex]!.trim()) : ''
     const nextNextIndex = nextIndex >= 0 ? findNextNonEmpty(lines, nextIndex) : -1
-    const nextNextLine = nextNextIndex >= 0 ? lines[nextNextIndex]!.trim() : ''
+    const nextNextLine = nextNextIndex >= 0 ? stripResumeHeadingMarkers(lines[nextNextIndex]!.trim()) : ''
 
     const rolePipe = line.match(/^(.+?)\s*(?:—|–|-|\|)\s*(.+?)(?:\s*\((.+)\))?$/i)
     if (rolePipe && looksLikeJobTitle(rolePipe[1]!) && rolePipe[2]!.trim().length > 1) {
