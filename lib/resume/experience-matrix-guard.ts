@@ -1,5 +1,6 @@
 import type { Experience } from '@/lib/ai/schemas'
 import { mergeExperienceArraysNonDestructive } from '@/lib/resume/experience-preservation'
+import { explodeFlattenedExperienceEntries } from '@/lib/resume/parse-experience-blocks'
 
 function companyKey(company: string): string {
   return company.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
@@ -21,8 +22,12 @@ export function verifyExperienceMatrixIntegrity(
   candidateWork: Experience[],
   candidateProjects: Experience[]
 ): ExperienceMatrixVerification {
-  const mergedWork = mergeExperienceArraysNonDestructive(baselineWork, candidateWork)
-  const mergedProjects = mergeExperienceArraysNonDestructive(baselineProjects, candidateProjects)
+  const mergedWork = explodeFlattenedExperienceEntries(
+    mergeExperienceArraysNonDestructive(baselineWork, candidateWork)
+  )
+  const mergedProjects = explodeFlattenedExperienceEntries(
+    mergeExperienceArraysNonDestructive(baselineProjects, candidateProjects)
+  )
 
   const baselineKeys = new Set(
     [...baselineWork, ...baselineProjects]

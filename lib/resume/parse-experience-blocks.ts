@@ -3,6 +3,10 @@ import {
   isExperienceSectionHeading,
   isValidExperienceBullet,
 } from '@/lib/resume/contact-extraction'
+import {
+  isGhostConsolidatedEmployer,
+  parseRoleBoundaryLine,
+} from '@/lib/resume/role-boundary-parser'
 import { stripResumeHeadingMarkers } from '@/lib/resume/resume-text-normalize'
 
 const COMPANY_HINT =
@@ -12,7 +16,7 @@ const SECTION_STOP =
   /^(education|certifications?|skills|technical skills|references|interests)\s*:?\s*$/i
 
 const PROJECTS_SECTION =
-  /^personal ai projects?(?:\s+experience)?$|^personal ai project experience$|^personal projects?$|^side ventures?$|^product innovations?$|^projects?$|^ai experience\s*:?\s*$/i
+  /^personal ai projects$|^personal ai project experience$|^personal projects$|^side ventures$|^product innovations$|^projects$|^ai experience\s*:?\s*$/i
 
 function isBulletLine(line: string): boolean {
   return /^[\s•\-*–—]\s*\S/.test(line.trim())
@@ -108,6 +112,7 @@ export function isRealExperienceBullet(text: string): boolean {
   if (looksLikeJobTitle(trimmed) && !/\d|%/.test(trimmed) && trimmed.split(/\s+/).length <= 6) {
     return false
   }
+  if (parseRoleBoundaryLine(trimmed)) return false
   if (/^(professional summary|summary|skills|education)$/i.test(trimmed)) return false
   return true
 }
@@ -160,16 +165,27 @@ function flushEntry(current: Experience | null, entries: Experience[]) {
 
   const entry: Experience = {
     ...current,
-    title: current.title.trim() || 'Consultant',
-    company: current.company.trim() || 'Independent',
+    title: current.title.trim(),
+    company: current.company.trim(),
     startDate: current.startDate.trim(),
     endDate: current.endDate.trim() || 'Present',
     bullets: current.bullets.filter(isRealExperienceBullet),
   }
 
   if (looksLikeRogueExperienceBlock(entry)) return
+  if (!entry.company.trim() && !entry.title.trim()) return
+  if (
+    isGhostConsolidatedEmployer(entry.company, entry.title) &&
+    entry.bullets.length === 0
+  ) {
+    return
+  }
 
-  entries.push(entry)
+  entries.push({
+    ...entry,
+    title: entry.title.trim() || 'Role',
+    company: entry.company.trim() || 'Employer',
+  })
 }
 
 function findNextNonEmpty(lines: string[], fromIndex: number): number {
@@ -224,17 +240,53 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
     }
 
     if (isDateLine(line)) {
-      if (!current) current = emptyEntry()
-      const dates = parseDateLine(line)
-      if (dates) {
-        current.startDate = dates.startDate
-        current.endDate = dates.endDate
+      if (current?.company.trim() || current?.title.trim()) {
+        const dates = parseDateLine(line)
+        if (dates) {
+          current.startDate = dates.startDate
+          current.endDate = dates.endDate
+        }
+      }
+      continue
+    }
+
+    const roleBoundary = parseRoleBoundaryLine(line)
+    if (roleBoundary) {
+      flushCurrent()
+      current = {
+        title: roleBoundary.title,
+        company: roleBoundary.company,
+        location: roleBoundary.location,
+        startDate: '',
+        endDate: 'Present',
+        bullets: [],
       }
       continue
     }
 
     if (isBulletLine(line)) {
       const bullet = stripBullet(line)
+      if (parseRoleBoundaryLine(bullet)) {
+        flushCurrent()
+        const boundary = parseRoleBoundaryLine(bullet)!
+        current = {
+          title: boundary.title,
+          company: boundary.company,
+          location: boundary.location,
+          startDate: '',
+          endDate: 'Present',
+          bullets: [],
+        }
+        continue
+      }
+      if (isDateLine(bullet)) {
+        const dates = parseDateLine(bullet)
+        if (dates && current) {
+          current.startDate = dates.startDate
+          current.endDate = dates.endDate
+        }
+        continue
+      }
       if (isRealExperienceBullet(bullet)) {
         if (!current) current = emptyEntry()
         current.bullets.push(bullet)
@@ -248,17 +300,20 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
     const nextNextLine = nextNextIndex >= 0 ? stripResumeHeadingMarkers(lines[nextNextIndex]!.trim()) : ''
 
     const rolePipe = line.match(/^(.+?)\s*(?:—|–|-|\|)\s*(.+?)(?:\s*\((.+)\))?$/i)
-    if (rolePipe && looksLikeJobTitle(rolePipe[1]!) && rolePipe[2]!.trim().length > 1) {
-      flushCurrent()
-      current = {
-        title: rolePipe[1]!.trim(),
-        company: rolePipe[2]!.trim(),
-        location: rolePipe[3]?.trim() ?? '',
-        startDate: '',
-        endDate: 'Present',
-        bullets: [],
+    if (rolePipe) {
+      const boundary = parseRoleBoundaryLine(line)
+      if (boundary) {
+        flushCurrent()
+        current = {
+          title: boundary.title,
+          company: boundary.company,
+          location: boundary.location,
+          startDate: '',
+          endDate: 'Present',
+          bullets: [],
+        }
+        continue
       }
-      continue
     }
 
     const atMatch = line.match(/^(.+?)\s+at\s+(.+)$/i)
@@ -357,6 +412,11 @@ export function parseExperienceFromLines(lines: string[]): Experience[] {
 
 /** Split nested employer sub-blocks that were incorrectly flattened into one role's bullets. */
 export function splitNestedEmployersInSingleEntry(entry: Experience): Experience[] {
+  const segments = entry.bullets.map((bullet) => bullet.trim()).filter(Boolean)
+  if (segments.length === 0) {
+    return entry.company.trim() || entry.title.trim() ? [entry] : []
+  }
+
   const chunks: Experience[] = []
   let current: Experience = {
     title: entry.title,
@@ -368,38 +428,39 @@ export function splitNestedEmployersInSingleEntry(entry: Experience): Experience
   }
 
   const pushCurrent = () => {
-    if (!current.company.trim() && current.bullets.length === 0) return
+    const hasIdentity = current.company.trim() || current.title.trim()
+    const hasBullets = current.bullets.some(isRealExperienceBullet)
+    if (!hasIdentity && !hasBullets) return
+
     chunks.push({
       ...current,
-      title: current.title.trim() || 'Consultant',
-      company: current.company.trim() || entry.company.trim() || 'Independent',
-      bullets: current.bullets.map((bullet) => bullet.trim()).filter(Boolean),
+      title: current.title.trim(),
+      company: current.company.trim(),
+      startDate: current.startDate.trim(),
+      endDate: current.endDate.trim() || 'Present',
+      bullets: current.bullets.filter(isRealExperienceBullet),
     })
   }
 
-  for (const bullet of entry.bullets) {
-    const trimmed = bullet.trim()
-    if (!trimmed) continue
+  for (let index = 0; index < segments.length; index += 1) {
+    const line = segments[index]!
+    const boundary = parseRoleBoundaryLine(line)
 
-    const isNewEmployer =
-      looksLikeCompanyLine(trimmed) &&
-      !looksLikeJobTitle(trimmed) &&
-      trimmed.toLowerCase() !== current.company.trim().toLowerCase()
-
-    if (isNewEmployer) {
+    if (boundary) {
       pushCurrent()
-      current = emptyEntry()
-      current.company = trimmed
+      current = {
+        title: boundary.title,
+        company: boundary.company,
+        location: boundary.location,
+        startDate: '',
+        endDate: 'Present',
+        bullets: [],
+      }
       continue
     }
 
-    if (looksLikeJobTitle(trimmed) && current.company.trim() && !current.title.trim()) {
-      current.title = trimmed
-      continue
-    }
-
-    if (isDateLine(trimmed) && current.company.trim()) {
-      const dates = parseDateLine(trimmed)
+    if (isDateLine(line)) {
+      const dates = parseDateLine(line)
       if (dates) {
         current.startDate = dates.startDate
         current.endDate = dates.endDate
@@ -407,25 +468,73 @@ export function splitNestedEmployersInSingleEntry(entry: Experience): Experience
       continue
     }
 
-    if (looksLikeCompanyLine(trimmed) || looksLikeJobTitle(trimmed) || isDateLine(trimmed)) {
+    if (
+      looksLikeCompanyLine(line) &&
+      !looksLikeJobTitle(line) &&
+      line.toLowerCase() !== current.company.trim().toLowerCase()
+    ) {
+      const next = segments[index + 1]?.trim() ?? ''
+      pushCurrent()
+      current = emptyEntry()
+      current.company = line
+      if (next && looksLikeJobTitle(next) && !isDateLine(next)) {
+        current.title = next
+        index += 1
+      }
+      const afterTitle = segments[index + 1]?.trim() ?? ''
+      if (afterTitle && isDateLine(afterTitle)) {
+        const dates = parseDateLine(afterTitle)
+        if (dates) {
+          current.startDate = dates.startDate
+          current.endDate = dates.endDate
+        }
+        index += 1
+      }
       continue
     }
 
-    current.bullets.push(trimmed)
+    if (looksLikeJobTitle(line) && current.company.trim() && !current.title.trim()) {
+      current.title = line
+      continue
+    }
+
+    if (looksLikeCompanyLine(line) || looksLikeJobTitle(line) || isDateLine(line)) {
+      continue
+    }
+
+    if (isRealExperienceBullet(line)) {
+      current.bullets.push(line)
+    }
   }
 
   pushCurrent()
 
-  const normalized = chunks.filter((chunk) => chunk.bullets.length > 0 && chunk.company.trim())
-  return normalized.length > 1 ? normalized : [entry]
+  const normalized = chunks.filter(
+    (chunk) => (chunk.company.trim() || chunk.title.trim()) && chunk.bullets.length > 0
+  )
+
+  if (normalized.length > 1) return normalized
+  if (normalized.length === 1 && !isGhostConsolidatedEmployer(entry.company, entry.title)) {
+    return normalized
+  }
+  return entry.bullets.length > 0 ? normalized : [entry]
+}
+
+/** Expand any consolidated roles into distinct workExperience array items. */
+export function explodeFlattenedExperienceEntries(experience: Experience[]): Experience[] {
+  return experience.flatMap((entry) => {
+    const split = splitNestedEmployersInSingleEntry(entry)
+    return split.length > 0 ? split : [entry]
+  })
 }
 
 export function deflateNestedWorkExperience(blocks: {
   experience: Experience[]
   projects: Experience[]
 }): { experience: Experience[]; projects: Experience[] } {
-  const experience = blocks.experience.flatMap(splitNestedEmployersInSingleEntry)
-  return { experience, projects: blocks.projects }
+  const experience = explodeFlattenedExperienceEntries(blocks.experience)
+  const projects = explodeFlattenedExperienceEntries(blocks.projects)
+  return { experience, projects }
 }
 
 export function scoreExperienceCompleteness(entries: Experience[]): number {

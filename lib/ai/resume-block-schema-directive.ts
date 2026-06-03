@@ -17,8 +17,10 @@ Return tailoredResume as four isolated, non-overlapping blocks. **Never place se
 - Do not embed employers, job titles, or narrative sentences
 
 ### 3. experience (reverse-chronological work history array)
+- **Strict object split:** ONE array item per employer/role — never nest another company's title, dates, or location inside a sibling role's bullets[]
+- **Never** collapse multiple employers into a single "Consultant — Independent" (or similar) parent with other jobs as bullets
 - **Non-destructive rule:** include EVERY distinct employer from the source resume as its own object — do not truncate, merge adjacent roles, or drop older entries to save tokens
-- Each object: title, company, location, startDate, endDate, bullets[]
+- Each object: title, company, location, startDate, endDate, bullets[] (achievement prose only in bullets — never job headers or date ranges)
 - Preserve reverse-chronological order (most recent first)
 - Map non-traditional headers (e.g. "Personal AI Project Experience", "Side Ventures") to projects[] — not experience[]
 

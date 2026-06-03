@@ -7,7 +7,8 @@ import {
   parseResumeDeterministic,
   parseResumeTextToTailoredResume,
 } from '@/lib/resume/deterministic-resume-parser'
-import { deflateNestedWorkExperience, splitNestedEmployersInSingleEntry } from '@/lib/resume/parse-experience-blocks'
+import { deflateNestedWorkExperience, explodeFlattenedExperienceEntries, parseWorkAndProjectsFromLines, splitNestedEmployersInSingleEntry } from '@/lib/resume/parse-experience-blocks'
+import { parseRoleBoundaryLine } from '@/lib/resume/role-boundary-parser'
 import type { Experience } from '@/lib/ai/schemas'
 
 const bradFixture = readFileSync(
@@ -165,4 +166,42 @@ test('parseResumeTextToTailoredResume delegates to deterministic engine', () => 
   assert.equal(tailored.experience.length, 2)
   assert.ok(tailored.projects.length >= 2)
   assert.ok(tailored.education.length >= 1)
+})
+
+const markdownFlattenedFixture = `PROFESSIONAL SUMMARY
+Program leader.
+
+WORK EXPERIENCE
+Consultant — Independent
+• ### Technical Project Manager — Pleasant Solutions
+• 02/2024 - Present
+• Led release planning for enterprise clients.
+• ### Systems Developer — Alberta Motor Association
+• 2013 - 2024
+• Built C# automation tools.
+
+EDUCATION
+Bachelor of Science, University of Alberta`
+
+test('explodeFlattenedExperienceEntries splits markdown role headers hijacked as bullets', () => {
+  const { experience } = parseWorkAndProjectsFromLines(
+    markdownFlattenedFixture.replace(/\r\n/g, '\n').split('\n')
+  )
+  const exploded = explodeFlattenedExperienceEntries(experience)
+  assert.equal(exploded.length, 2)
+  assert.match(exploded[0]!.company, /Pleasant Solutions/i)
+  assert.match(exploded[1]!.company, /Alberta Motor Association/i)
+  assert.doesNotMatch(exploded[0]!.bullets.join(' '), /Alberta Motor Association/i)
+  assert.ok(
+    exploded.every(
+      (entry) => !/Consultant — Independent/i.test(`${entry.title} — ${entry.company}`)
+    )
+  )
+})
+
+test('parseRoleBoundaryLine detects title company location pipe format', () => {
+  const parsed = parseRoleBoundaryLine('IT Manager — Alberta Motor Association | Edmonton, AB')
+  assert.ok(parsed)
+  assert.match(parsed!.company, /Alberta Motor Association/i)
+  assert.equal(parsed!.location, 'Edmonton, AB')
 })

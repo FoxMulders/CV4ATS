@@ -10,6 +10,7 @@ import {
 import { recoverEducationFromSource } from '@/lib/resume/education-preservation'
 import { mergeExperienceArraysNonDestructive } from '@/lib/resume/experience-preservation'
 import {
+  explodeFlattenedExperienceEntries,
   isRealExperienceBullet,
   parseWorkAndProjectsFromLines,
 } from '@/lib/resume/parse-experience-blocks'
@@ -87,10 +88,14 @@ function resolveExperienceFromSource(
 
   if (mergedExperience.some((entry) => entry.bullets.length > 0)) {
     return {
-      experience: mergedExperience
-        .map(normalizeExperience)
-        .filter((entry) => entry.bullets.length > 0),
-      projects: mergedProjects.map(normalizeExperience).filter((entry) => entry.bullets.length > 0),
+      experience: explodeFlattenedExperienceEntries(
+        mergedExperience
+          .map(normalizeExperience)
+          .filter((entry) => entry.bullets.length > 0)
+      ),
+      projects: explodeFlattenedExperienceEntries(
+        mergedProjects.map(normalizeExperience).filter((entry) => entry.bullets.length > 0)
+      ),
     }
   }
 
