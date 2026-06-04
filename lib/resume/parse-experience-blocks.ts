@@ -213,7 +213,13 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
     const line = stripResumeHeadingMarkers(lines[index]!.trim())
     if (!line) continue
 
-    if (SECTION_STOP.test(line)) break
+    if (SECTION_STOP.test(line)) {
+      if (inRelevantSection) {
+        flushCurrent()
+        break
+      }
+      continue
+    }
 
     if (isExperienceSectionHeading(line)) {
       flushCurrent()

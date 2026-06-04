@@ -22,7 +22,7 @@ if not exist "package.json" (
 )
 
 set "COMMIT_MSG=%~1"
-if not defined COMMIT_MSG set "COMMIT_MSG=Deploy cv2ats"
+if not defined COMMIT_MSG set "COMMIT_MSG=Fix experience parsing when section stop precedes work experience heading"
 
 set "REVIEWER=%~2"
 if not defined REVIEWER set "REVIEWER=%USERNAME%"
