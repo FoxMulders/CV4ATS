@@ -1,3 +1,4 @@
+import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
 import { COVER_LETTER_BANNED_PHRASES } from '@/lib/ai/prompts'
 import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
 import { extractCleanJobContext } from '@/lib/resume/extract-job-title'
@@ -35,6 +36,10 @@ export const ENRICHMENT_SYSTEM_PROMPT = `You are an elite executive resume edito
 - Write a custom letter for the candidate applying to the clean job title at the clean company name provided.
 - Do not copy job description headers or boilerplate into the letter body.
 - Banned phrases: ${COVER_LETTER_BANNED_PHRASES.slice(0, 12).map((p) => `"${p}"`).join(', ')}, and similar clichés.
+
+## Anti-fabrication (mandatory)
+${ANTI_FABRICATION_DIRECTIVE}
+- If a skill is missing from the source, focus on matching the candidate's existing leadership and project delivery methodologies — never invent tools, compliance standards, or software deployments.
 
 ## Output JSON (exact keys)
 {
@@ -92,13 +97,21 @@ export function buildEnrichmentUserPrompt(input: EnrichmentPromptInput): string 
     ? `\n${candidateNarrativeBlock.trim()}\n`
     : ''
 
+  const usingRawFallback = aiInput.experienceBullets.length === 0
+  const enrichmentPayload = usingRawFallback
+    ? input.sourceResumeText.trim()
+    : serializeAiEnrichmentInputForPrompt(aiInput)
+  const enrichmentLabel = usingRawFallback
+    ? 'ENRICHMENT INPUT (structured parse failed — use raw resume text as ground truth; preserve all employers, dates, and facts):'
+    : 'ENRICHMENT INPUT (skills + bullets ONLY — return same blockKeys):'
+
   return `CLEAN JOB CONTEXT (cover letter only):
 - jobTitle: "${jobContext.jobTitle}"
 - companyName: "${jobContext.companyName ?? 'the hiring company'}"
 - candidateName: "${locked.contact.name}"
 
-ENRICHMENT INPUT (skills + bullets ONLY — return same blockKeys):
-${serializeAiEnrichmentInputForPrompt(aiInput)}
+${enrichmentLabel}
+${enrichmentPayload}
 
 GROUND-TRUTH SUMMARY (optional refine only):
 ${locked.summary}

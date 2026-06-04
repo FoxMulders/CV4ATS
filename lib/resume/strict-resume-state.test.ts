@@ -48,6 +48,25 @@ test('buildLockedTimelinePromptBlock forbids merging employers', () => {
   assert.match(block, /Alberta Motor Association/)
 })
 
+test('buildLockedTimelinePromptBlock falls back to raw text when structured parse finds no blocks', () => {
+  const raw = [
+    'Jane Doe',
+    'jane@example.com',
+    '',
+    'Led delivery programs at Acme Corp for five years.',
+    '• Built internal APIs supporting 200+ users',
+    '• Coordinated cross-functional release planning',
+  ].join('\n')
+
+  const block = buildLockedTimelinePromptBlock(raw)
+
+  assert.match(block, /structured pre-parse failed/i)
+  assert.match(block, /RAW EXPERIENCE TEXT/i)
+  assert.match(block, /Acme Corp/)
+  assert.match(block, /Do NOT invent employers/i)
+  assert.doesNotMatch(block, /Emit exactly 0 experience/)
+})
+
 test('buildUserPrompt includes locked timeline scaffold before source resume', () => {
   const prompt = buildUserPrompt('Project Manager role', bradFixture)
 

@@ -371,7 +371,8 @@ export function parseStructuredResumeDocument(resumeText: string): StructuredRes
 /** Experience-only context for LLM prompts — no contact headers, emails, or raw date tokens as employers. */
 export function buildSanitizedTailoringContext(document: StructuredResumeDocument): string {
   if (document.experience.length === 0) {
-    return '[No structured experience blocks detected]'
+    const raw = document.rawText.trim()
+    return raw || '[No structured experience blocks detected]'
   }
 
   return document.experience

@@ -543,7 +543,7 @@ export function buildUserPrompt(
     : ''
 
   const lockedTimelineSource = options.currentResume ?? resumeText
-  const lockedTimelineBlock = buildLockedTimelinePromptBlock(lockedTimelineSource)
+  const lockedTimelineBlock = buildLockedTimelinePromptBlock(lockedTimelineSource, resumeText)
   const lockedTimelineSection = lockedTimelineBlock.trim()
     ? `\n${lockedTimelineBlock.trim()}\n`
     : ''
@@ -593,7 +593,7 @@ export function buildRefinementPrompt(
     ? `\n${candidateNarrativeBlock.trim()}\n`
     : ''
 
-  const lockedTimelineBlock = buildLockedTimelinePromptBlock(sourceResumeText)
+  const lockedTimelineBlock = buildLockedTimelinePromptBlock(sourceResumeText, sourceResumeText)
   const lockedTimelineSection = lockedTimelineBlock.trim()
     ? `\n${lockedTimelineBlock.trim()}\n`
     : ''

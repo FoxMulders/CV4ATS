@@ -209,6 +209,32 @@ export function serializeAiEnrichmentInputForPrompt(input: AiEnrichmentInput): s
   return JSON.stringify(input, null, 2)
 }
 
+/** Prefer structured JSON; fall back to raw resume text so experience is never dropped from prompts. */
+export function buildExperiencePayloadForPrompt(
+  structuredBlocks: unknown[],
+  rawResumeText: string
+): string {
+  return structuredBlocks.length > 0
+    ? JSON.stringify(structuredBlocks, null, 2)
+    : rawResumeText.trim()
+}
+
+const RAW_EXPERIENCE_FALLBACK_DIRECTIVE = `- Do NOT invent employers, credentials, compliance frameworks (SOC 2, ISO), or software deployments absent from the raw text.
+- If a job keyword is missing, emphasize existing leadership and project delivery methodologies only.`
+
+function buildRawExperienceFallbackBlock(rawResumeText: string): string {
+  const raw = rawResumeText.trim()
+  if (!raw) return ''
+
+  return `LOCKED EXPERIENCE TIMELINE (structured pre-parse failed — preserve raw ground truth):
+- The experience pre-parser could not isolate employer blocks from the source format.
+- Use the RAW EXPERIENCE TEXT below as the sole ground truth for employers, titles, dates, bullets, and tools.
+${RAW_EXPERIENCE_FALLBACK_DIRECTIVE}
+
+RAW EXPERIENCE TEXT (unmodified source):
+${raw}`
+}
+
 /** JSON scaffold injected into full-generation prompts so the LLM cannot merge employers. */
 export function serializeLockedTimelineForPrompt(state: StrictResumeState): string {
   return JSON.stringify(
@@ -241,12 +267,19 @@ export function serializeLockedTimelineForPrompt(state: StrictResumeState): stri
   )
 }
 
-export function buildLockedTimelinePromptBlock(source: TailoredResume | string): string {
+export function buildLockedTimelinePromptBlock(
+  source: TailoredResume | string,
+  rawResumeFallback?: string
+): string {
   const state = lockResumeState(source)
   const workCount = state.workExperience.length
   const projectCount = state.projects.length
 
-  if (workCount === 0 && projectCount === 0) return ''
+  if (workCount === 0 && projectCount === 0) {
+    const rawText =
+      typeof source === 'string' ? source : (rawResumeFallback?.trim() ?? '')
+    return buildRawExperienceFallbackBlock(rawText)
+  }
 
   const identity =
     state.contact.name && state.contact.name !== 'Professional Candidate'
