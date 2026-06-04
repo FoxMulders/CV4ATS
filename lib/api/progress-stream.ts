@@ -1,8 +1,10 @@
 import type { DeepPartial } from 'ai'
 
 import type { AiGenerationResult, Contact, GenerationResult, TailoredResume } from '@/lib/ai/schemas'
+import { applyGenerationCompleteResume } from '@/lib/resume/experience-preservation'
 import { applyLockedContactToResume } from '@/lib/resume/identity-lock'
 import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
+import { lockResumeState, strictStateToTailoredResume } from '@/lib/resume/strict-resume-state'
 
 export type ScorePassEvent = {
   type: 'score-pass'
@@ -241,12 +243,20 @@ export function coalesceStreamingResume(
   options?: {
     lockedContact?: Contact | null
     sourceResumeText?: string
+    /** Current edited resume — used to block empty AI experience from wiping state. */
+    existingResume?: TailoredResume | null
   }
 ): TailoredResume | null {
   const resume = partial?.tailoredResume
   if (!resume?.contact?.name?.trim() || !resume.summary?.trim()) {
     return null
   }
+
+  const fallbackResume =
+    options?.existingResume ??
+    (options?.sourceResumeText?.trim()
+      ? strictStateToTailoredResume(lockResumeState(options.sourceResumeText))
+      : null)
 
   const coalesced: TailoredResume = {
     contact: {
@@ -297,8 +307,10 @@ export function coalesceStreamingResume(
         })) ?? [],
   }
 
+  const guarded = applyGenerationCompleteResume(coalesced, fallbackResume)
+
   return applyLockedContactToResume(
-    coalesced,
+    guarded,
     options?.lockedContact,
     options?.sourceResumeText
   )

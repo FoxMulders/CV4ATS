@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import type { TailoredResume } from '@/lib/ai/schemas'
+import { guardTailoredResumeExperience } from '@/lib/resume/experience-preservation'
 
 const MAX_HISTORY = 50
 
@@ -42,18 +43,32 @@ export function useUndoableResume(initial: TailoredResume | null = null): UseUnd
   })
 
   const resetResume = useCallback((resume: TailoredResume | null) => {
-    setState({
-      present: resume ? cloneResume(resume) : null,
-      past: [],
-      future: [],
+    setState((previous) => {
+      const guarded =
+        resume === null
+          ? null
+          : guardTailoredResumeExperience(resume, previous.present)
+
+      return {
+        present: guarded ? cloneResume(guarded) : null,
+        past: [],
+        future: [],
+      }
     })
   }, [])
 
   const replaceResume = useCallback((resume: TailoredResume | null) => {
-    setState((previous) => ({
-      ...previous,
-      present: resume ? cloneResume(resume) : null,
-    }))
+    setState((previous) => {
+      const guarded =
+        resume === null
+          ? null
+          : guardTailoredResumeExperience(resume, previous.present)
+
+      return {
+        ...previous,
+        present: guarded ? cloneResume(guarded) : null,
+      }
+    })
   }, [])
 
   const pushResume = useCallback((resume: TailoredResume) => {

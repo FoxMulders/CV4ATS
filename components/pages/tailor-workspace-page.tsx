@@ -887,6 +887,7 @@ export function TailorWorkspacePage({
           const resumeSnapshot = coalesceStreamingResume(preview, {
             lockedContact,
             sourceResumeText: activeResumeText || undefined,
+            existingResume: editedResume ?? baselineTailoredResume,
           })
           if (resumeSnapshot) {
             setStreamingResume(applyIdentityLock(resumeSnapshot))

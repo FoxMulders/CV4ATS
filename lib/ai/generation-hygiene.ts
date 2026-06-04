@@ -7,6 +7,7 @@ import {
   stripFabricatedMetricClauses,
 } from '@/lib/ai/authentic-resume-optimization'
 import { enforceContextConstrainedTailoring } from '@/lib/ai/context-constrained-tailoring'
+import { guardTailoredResumeExperience } from '@/lib/resume/experience-preservation'
 import {
   isDateLine,
   looksLikeCompanyLine,
@@ -15,6 +16,7 @@ import {
   parseExperienceFromLines,
 } from '@/lib/resume/parse-experience-blocks'
 import { finalizeDisplayText } from '@/lib/resume/prepare-resume-for-display'
+import { lockResumeState, strictStateToTailoredResume } from '@/lib/resume/strict-resume-state'
 
 const INCOMPLETE_TAIL =
   /\s+(?:,|;|:)?(?:and|or|with|including|such as|missing|per|to|for|the|a|an)\s*$/i
@@ -343,6 +345,9 @@ function sanitizeTailoredResume(
     next = enforceAuthenticResumeOptimization(next, sourceResumeText, {
       achievementSupplement: options.achievementSupplement,
     })
+
+    const baseline = strictStateToTailoredResume(lockResumeState(sourceResumeText))
+    next = guardTailoredResumeExperience(next, baseline)
   }
 
   return next

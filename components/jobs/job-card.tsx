@@ -206,7 +206,10 @@ export function JobCard({
           setScorePassLines((current) => [...current, formatScorePassLine(event)])
         },
         onPartial: (preview) => {
-          const resumeSnapshot = coalesceStreamingResume(preview)
+          const resumeSnapshot = coalesceStreamingResume(preview, {
+            existingResume: editedResume ?? tailorResult?.tailoredResume ?? null,
+            sourceResumeText: resumeText.trim() || fileParse.parsedText.trim() || undefined,
+          })
           if (resumeSnapshot) {
             setStreamingResume(resumeSnapshot)
             replaceEditedResume(resumeSnapshot)
