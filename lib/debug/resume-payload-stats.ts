@@ -1,4 +1,5 @@
 import { parseExperienceFromLines } from '@/lib/resume/parse-experience-blocks'
+import { isResumeBulletLine, splitResumeLines } from '@/lib/resume/resume-text-normalize'
 
 /** Summarize raw resume text for debug baseline logs. */
 export function describeResumePayloadStats(resumeText: string): string {
@@ -7,7 +8,7 @@ export function describeResumePayloadStats(resumeText: string): string {
     return 'Parsed 0 Work Experience blocks, 0 initial bullets detected'
   }
 
-  const lines = trimmed.replace(/\r\n/g, '\n').split('\n')
+  const lines = splitResumeLines(trimmed)
   const experience = parseExperienceFromLines(lines)
   const bulletCount = experience.reduce((sum, entry) => sum + (entry.bullets?.length ?? 0), 0)
 
@@ -15,6 +16,6 @@ export function describeResumePayloadStats(resumeText: string): string {
     return `Parsed ${experience.length} Work Experience block${experience.length === 1 ? '' : 's'}, ${bulletCount} initial bullet${bulletCount === 1 ? '' : 's'} detected`
   }
 
-  const bulletLines = lines.filter((line) => /^[\s•\-*–—]\s*\S/.test(line.trim())).length
+  const bulletLines = lines.filter((line) => isResumeBulletLine(line)).length
   return `Parsed 0 structured Work Experience blocks, ${bulletLines} bullet-line${bulletLines === 1 ? '' : 's'} detected in raw text`
 }

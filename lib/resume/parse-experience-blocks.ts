@@ -7,7 +7,11 @@ import {
   isGhostConsolidatedEmployer,
   parseRoleBoundaryLine,
 } from '@/lib/resume/role-boundary-parser'
-import { stripResumeHeadingMarkers } from '@/lib/resume/resume-text-normalize'
+import {
+  isResumeBulletLine,
+  stripResumeBulletPrefix,
+  stripResumeHeadingMarkers,
+} from '@/lib/resume/resume-text-normalize'
 
 const COMPANY_HINT =
   /\b(solutions|association|inc|corp|corporation|ltd|limited|company|group|technologies|labs|bank|university|college|ama|cohere|microserve|motor|popup|hub)\b/i
@@ -17,14 +21,6 @@ const SECTION_STOP =
 
 const PROJECTS_SECTION =
   /^personal ai projects$|^personal ai project experience$|^personal projects$|^side ventures$|^product innovations$|^projects$|^ai experience\s*:?\s*$/i
-
-function isBulletLine(line: string): boolean {
-  return /^[\s•\-*–—]\s*\S/.test(line.trim())
-}
-
-function stripBullet(line: string): string {
-  return line.trim().replace(/^[\s•\-*–—]+\s*/, '').trim()
-}
 
 export function looksLikeJobTitle(line: string): boolean {
   const trimmed = line.trim()
@@ -38,7 +34,7 @@ export function looksLikeJobTitle(line: string): boolean {
 export function looksLikeCompanyLine(line: string): boolean {
   const trimmed = line.trim()
   if (trimmed.length < 3 || trimmed.length > 80) return false
-  if (isBulletLine(trimmed)) return false
+  if (isResumeBulletLine(trimmed)) return false
   if (/@|https?:\/\//.test(trimmed)) return false
   if (/^(professional summary|work experience|professional experience)$/i.test(trimmed)) return false
   // Prose achievement lines ("Led release planning.") are not employer names.
@@ -235,7 +231,7 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
 
     if (!inRelevantSection) continue
 
-    if (/^skilled in\b/i.test(line) && !isBulletLine(line)) {
+    if (/^skilled in\b/i.test(line) && !isResumeBulletLine(line)) {
       continue
     }
 
@@ -264,8 +260,8 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
       continue
     }
 
-    if (isBulletLine(line)) {
-      const bullet = stripBullet(line)
+    if (isResumeBulletLine(line)) {
+      const bullet = stripResumeBulletPrefix(line)
       if (parseRoleBoundaryLine(bullet)) {
         flushCurrent()
         const boundary = parseRoleBoundaryLine(bullet)!
@@ -334,7 +330,7 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
       looksLikeCompanyLine(line) &&
       nextLine &&
       looksLikeJobTitle(nextLine) &&
-      !isBulletLine(nextLine)
+      !isResumeBulletLine(nextLine)
     ) {
       flushCurrent()
       current = {
@@ -361,7 +357,7 @@ export function parseWorkAndProjectsFromLines(lines: string[]): {
       looksLikeJobTitle(line) &&
       nextLine &&
       looksLikeCompanyLine(nextLine) &&
-      !isBulletLine(nextLine)
+      !isResumeBulletLine(nextLine)
     ) {
       flushCurrent()
       current = {

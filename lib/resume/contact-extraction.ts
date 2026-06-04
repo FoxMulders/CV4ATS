@@ -1,3 +1,8 @@
+import {
+  splitResumeLines,
+  stripResumeBulletPrefix,
+} from '@/lib/resume/resume-text-normalize'
+
 /** Infer a display name from an email local part (e.g. bradmulders@ → Brad Mulders). */
 export function inferNameFromEmail(email: string): string | null {
   const local = email.split('@')[0]?.trim().toLowerCase()
@@ -99,10 +104,8 @@ export function isSummaryLikeLine(line: string, summary?: string): boolean {
 }
 
 export function extractBulletsFromSource(text: string): string[] {
-  return text
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) => line.trim().replace(/^[\s•\-*–—]+\s*/, ''))
+  return splitResumeLines(text)
+    .map((line) => stripResumeBulletPrefix(line))
     .filter(isValidExperienceBullet)
     .slice(0, 12)
 }

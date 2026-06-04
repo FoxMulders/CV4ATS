@@ -22,7 +22,9 @@ import {
 } from '@/lib/resume/parse-experience-blocks'
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 import {
+  isResumeBulletLine,
   normalizeResumeDocumentText,
+  splitResumeLines,
   stripResumeHeadingMarkers,
 } from '@/lib/resume/resume-text-normalize'
 
@@ -64,7 +66,7 @@ export type DeterministicEducation = z.infer<typeof deterministicEducationSchema
 export type DeterministicResume = z.infer<typeof deterministicResumeSchema>
 
 function splitLines(text: string): string[] {
-  return text.replace(/\r\n/g, '\n').split('\n')
+  return splitResumeLines(text)
 }
 
 function isSectionHeadingLine(line: string): boolean {
@@ -72,7 +74,7 @@ function isSectionHeadingLine(line: string): boolean {
 }
 
 function isBulletLine(line: string): boolean {
-  return /^[\s•\-*–—]\s*\S/.test(line.trim())
+  return isResumeBulletLine(line)
 }
 
 function extractSection(lines: string[], heading: RegExp): string[] {

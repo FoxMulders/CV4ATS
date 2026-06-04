@@ -3,6 +3,23 @@
  * Never collapses newlines — unlike formatResumeFieldText used on single fields.
  */
 
+/** Standard and platform-specific bullet markers (•, -, *, ⁃, ‣, ◦, en/em dash). */
+export const RESUME_BULLET_PREFIX = /^[\s]*[•\-\*\u2022\u2023\u25E6\u2043–—][\s]*/
+
+/** Split raw resume text on any common line break (CRLF, LF, or lone CR). */
+export function splitResumeLines(rawText: string): string[] {
+  return rawText.split(/\r\n|\r|\n/)
+}
+
+export function isResumeBulletLine(line: string): boolean {
+  const trimmed = line.trim()
+  return RESUME_BULLET_PREFIX.test(trimmed) && trimmed.replace(RESUME_BULLET_PREFIX, '').trim().length > 0
+}
+
+export function stripResumeBulletPrefix(line: string): string {
+  return line.trim().replace(RESUME_BULLET_PREFIX, '').trim()
+}
+
 const MERGED_WORD_FIXES: ReadonlyArray<[RegExp, string]> = [
   [/\bendtoend\b/gi, 'end-to-end'],
   [/\bcrossfunctional\b/gi, 'cross-functional'],
@@ -18,7 +35,7 @@ function normalizeSpecialCharacters(text: string): string {
     .replace(/[\u2018\u2019\u201a\u2032]/g, "'")
     .replace(/[\u201c\u201d\u201e\u2033]/g, '"')
     .replace(/[\u2013\u2014\u2212]/g, '-')
-    .replace(/[•◦▪▫●○◆◇■□]/g, '•')
+    .replace(/[•◦▪▫●○◆◇■□\u2023\u2043⁃‣]/g, '•')
     .replace(/\t/g, ' ')
 }
 
@@ -54,9 +71,7 @@ export function normalizeResumeLine(line: string): string {
 export function normalizeResumeDocumentText(text: string): string {
   if (!text.trim()) return ''
 
-  return text
-    .replace(/\r\n/g, '\n')
-    .split('\n')
+  return splitResumeLines(text)
     .map((line) => normalizeResumeLine(line))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
