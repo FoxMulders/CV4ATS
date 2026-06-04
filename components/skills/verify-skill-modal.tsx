@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2, ShieldCheck } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 
 import type { VerifySkillResult } from '@/lib/ai/verify-skill-schemas'
 import { MAX_SKILL_EXPLANATION_LENGTH } from '@/lib/ai/verify-skill-schemas'
@@ -31,14 +31,15 @@ export function VerifySkillModal({
   const [result, setResult] = useState<VerifySkillResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!open) {
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
       setExplanation('')
       setResult(null)
       setError(null)
       setIsSubmitting(false)
     }
-  }, [open])
+    onOpenChange(nextOpen)
+  }
 
   async function handleSubmit() {
     const trimmed = explanation.trim()
@@ -162,7 +163,7 @@ export function VerifySkillModal({
             type="button"
             variant="outline"
             disabled={isSubmitting}
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
           >
             Close
           </Button>

@@ -12,7 +12,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -34,9 +33,39 @@ function formatLogLine(message: string): string {
   return `[${new Date().toISOString()}] ${message}`
 }
 
+function buildInitialLogs(): string[] {
+  if (typeof window === 'undefined') return []
+
+  const lines = [
+    'LOG: System debug console initialized on page load',
+    `LOG: Timestamp baseline ${new Date().toISOString()}`,
+    `LOG: User agent ${navigator.userAgent}`,
+    `LOG: Viewport ${window.innerWidth}x${window.innerHeight}`,
+  ]
+
+  try {
+    const hasStoredResume = Boolean(window.localStorage.getItem(SAVED_RESUME_STORAGE_KEY)?.trim())
+    lines.push(
+      `LOG: Local storage state ${hasStoredResume ? 'loaded (saved resume present)' : 'loaded (no saved resume)'}`
+    )
+  } catch {
+    lines.push('LOG: Local storage state unavailable')
+  }
+
+  lines.push(`LOG: Server max_output_tokens configured ${AI_GENERATION_MAX_TOKENS}`)
+
+  const savedResume = loadSavedResume()
+  if (savedResume.trim()) {
+    lines.push(`LOG: ${describeResumePayloadStats(savedResume)}`)
+  } else {
+    lines.push('LOG: Parsed 0 Work Experience blocks, 0 initial bullets detected (empty resume field)')
+  }
+
+  return lines.map(formatLogLine)
+}
+
 export function SystemDebugProvider({ children }: { children: ReactNode }) {
-  const [logs, setLogs] = useState<string[]>([])
-  const initializedRef = useRef(false)
+  const [logs, setLogs] = useState<string[]>(buildInitialLogs)
 
   const appendLog = useCallback((message: string) => {
     setLogs((previous) => [...previous, formatLogLine(message)])
@@ -47,32 +76,6 @@ export function SystemDebugProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    if (initializedRef.current) return
-    initializedRef.current = true
-
-    appendLog('LOG: System debug console initialized on page load')
-    appendLog(`LOG: Timestamp baseline ${new Date().toISOString()}`)
-    appendLog(`LOG: User agent ${navigator.userAgent}`)
-    appendLog(`LOG: Viewport ${window.innerWidth}x${window.innerHeight}`)
-
-    try {
-      const hasStoredResume = Boolean(window.localStorage.getItem(SAVED_RESUME_STORAGE_KEY)?.trim())
-      appendLog(
-        `LOG: Local storage state ${hasStoredResume ? 'loaded (saved resume present)' : 'loaded (no saved resume)'}`
-      )
-    } catch {
-      appendLog('LOG: Local storage state unavailable')
-    }
-
-    appendLog(`LOG: Server max_output_tokens configured ${AI_GENERATION_MAX_TOKENS}`)
-
-    const savedResume = loadSavedResume()
-    if (savedResume.trim()) {
-      appendLog(`LOG: ${describeResumePayloadStats(savedResume)}`)
-    } else {
-      appendLog('LOG: Parsed 0 Work Experience blocks, 0 initial bullets detected (empty resume field)')
-    }
-
     void inspectBrowserAi().then((status) => {
       if (status.supported && status.ready) {
         appendLog('LOG: Gemini Nano: Ready')

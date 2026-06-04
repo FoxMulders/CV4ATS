@@ -67,9 +67,11 @@ export function ResumeInputStep({
 
   useEffect(() => {
     if (!resumeFile) {
-      setUploadedPreviewText('')
-      onFileParseChange?.({ status: 'idle', parsedText: '', error: null })
-      return
+      const resetTimer = window.setTimeout(() => {
+        setUploadedPreviewText('')
+        onFileParseChange?.({ status: 'idle', parsedText: '', error: null })
+      }, 0)
+      return () => window.clearTimeout(resetTimer)
     }
 
     let cancelled = false

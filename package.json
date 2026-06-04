@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "smoke:parse-brad": "tsx scripts/smoke-brad-resume.ts",
-    "smoke:schema-validation": "tsx scripts/smoke-schema-validation.ts"
+    "smoke:schema-validation": "tsx scripts/smoke-schema-validation.ts",
+    "qa:promote": "tsx scripts/qa-promote.ts",
+    "qa:verify": "tsx scripts/qa-verify.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.79",

@@ -30,7 +30,11 @@ function mergeEntry(existing: Experience, incoming: Experience): Experience {
 export function mergeExperienceArraysNonDestructive(...arrays: Experience[][]): Experience[] {
   const ranked = arrays
     .filter((entries) => entries.length > 0)
-    .sort((a, b) => scoreExperienceCompleteness(b) - scoreExperienceCompleteness(a))
+    .sort((a, b) => {
+      const countDiff = b.length - a.length
+      if (countDiff !== 0) return countDiff
+      return scoreExperienceCompleteness(b) - scoreExperienceCompleteness(a)
+    })
 
   const baseline = ranked[0] ?? []
   const merged = new Map<string, Experience>()

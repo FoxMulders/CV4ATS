@@ -1,7 +1,7 @@
 'use client'
 
 import { HelpCircle, Loader2 } from 'lucide-react'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -28,9 +28,10 @@ export function PanelExperienceIntakeModal({
   const titleId = useId()
   const [answers, setAnswers] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    if (!open) setAnswers({})
-  }, [open])
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) setAnswers({})
+    onOpenChange(nextOpen)
+  }
 
   const answeredCount = useMemo(
     () => questions.filter((q) => (answers[q.id] ?? '').trim().length >= 10).length,
@@ -117,7 +118,7 @@ export function PanelExperienceIntakeModal({
               `Apply ${answeredCount} verified experience${answeredCount === 1 ? '' : 's'}`
             )}
           </Button>
-          <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => handleOpenChange(false)}>
             Not now
           </Button>
         </div>

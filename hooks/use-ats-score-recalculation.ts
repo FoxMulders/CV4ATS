@@ -36,17 +36,21 @@ export function useAtsScoreRecalculation({
   onReportUpdate,
 }: UseAtsScoreRecalculationOptions): AtsScoreRecalculationState {
   const [isRecalculating, setIsRecalculating] = useState(false)
-  const [isStale, setIsStale] = useState(false)
   const [lastRecalculatedAt, setLastRecalculatedAt] = useState<number | null>(null)
   const [lastScoreDelta, setLastScoreDelta] = useState<number | null>(null)
+  const [lastRecalculatedFingerprint, setLastRecalculatedFingerprint] = useState('')
   const lastReportScoreRef = useRef<number | null>(null)
   const debounceTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (seedScore != null) {
+    if (seedScore == null) return
+
+    const timer = window.setTimeout(() => {
       lastReportScoreRef.current = seedScore
       setLastScoreDelta(null)
-    }
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [seedScore])
 
   const resumeFingerprint = useMemo(
@@ -54,11 +58,14 @@ export function useAtsScoreRecalculation({
     [resume]
   )
 
+  const canRecalculate = Boolean(autoRecalculate && resume && jobDescription.trim())
+  const isStale =
+    canRecalculate && resumeFingerprint !== lastRecalculatedFingerprint
+
   const runRecalculation = useCallback(() => {
     if (!resume || !jobDescription.trim()) return
 
     setIsRecalculating(true)
-    setIsStale(false)
 
     try {
       const nextReport = recalculateAtsScore({
@@ -79,6 +86,7 @@ export function useAtsScoreRecalculation({
       lastReportScoreRef.current = nextReport.matchScore
       onReportUpdate(nextReport)
       setLastRecalculatedAt(Date.now())
+      setLastRecalculatedFingerprint(serializeTailoredResume(resume))
     } finally {
       setIsRecalculating(false)
     }
@@ -93,12 +101,7 @@ export function useAtsScoreRecalculation({
   }, [runRecalculation])
 
   useEffect(() => {
-    if (!autoRecalculate || !resume || !jobDescription.trim()) {
-      setIsStale(false)
-      return
-    }
-
-    setIsStale(true)
+    if (!canRecalculate) return
 
     if (debounceTimerRef.current != null) {
       window.clearTimeout(debounceTimerRef.current)
@@ -115,7 +118,7 @@ export function useAtsScoreRecalculation({
         debounceTimerRef.current = null
       }
     }
-  }, [autoRecalculate, resumeFingerprint, jobDescription, debounceMs, runRecalculation, resume])
+  }, [canRecalculate, resumeFingerprint, jobDescription, debounceMs, runRecalculation])
 
   return {
     recalculateNow,

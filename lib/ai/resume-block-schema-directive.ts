@@ -14,6 +14,7 @@ Return tailoredResume as four isolated, non-overlapping blocks. **Never place se
 
 ### 2. skills (technical competency matrix)
 - Flat string array of tools, methodologies, and domain competencies
+- **Strict factual subset:** include only skills from the source resume plus universal PM/IT methodologies from the JD that the candidate's titles logically support — never JD-only compliance frameworks (SOC 2, ISO 27001, Vanta, etc.) unless "SOC" or "ISO" appears in the source text
 - Do not embed employers, job titles, or narrative sentences
 
 ### 3. experience (reverse-chronological work history array)

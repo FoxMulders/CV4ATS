@@ -59,41 +59,48 @@ export function ProposedSkillAdditions({
     [extrapolated]
   )
 
+  const [syncedTermsKey, setSyncedTermsKey] = useState(extrapolatedTermsKey)
+
   useEffect(() => {
-    if (extrapolated.length === 0) {
-      seededTermsKeyRef.current = ''
-      userTouchedRef.current = false
-      setFieldValue('')
-      return
-    }
+    if (extrapolatedTermsKey === syncedTermsKey) return
 
-    if (extrapolatedTermsKey === seededTermsKeyRef.current) return
+    const timer = window.setTimeout(() => {
+      if (extrapolated.length === 0) {
+        seededTermsKeyRef.current = ''
+        userTouchedRef.current = false
+        setFieldValue('')
+        setSyncedTermsKey(extrapolatedTermsKey)
+        return
+      }
 
-    const previousKey = seededTermsKeyRef.current
-    seededTermsKeyRef.current = extrapolatedTermsKey
+      const previousKey = seededTermsKeyRef.current
+      seededTermsKeyRef.current = extrapolatedTermsKey
 
-    if (!previousKey) {
-      setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
-      return
-    }
+      if (!previousKey) {
+        setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
+        setSyncedTermsKey(extrapolatedTermsKey)
+        return
+      }
 
-    const previousTerms = new Set(previousKey.split('|').filter(Boolean))
-    const nextTerms = extrapolatedTermsKey.split('|').filter(Boolean)
-    const overlap =
-      nextTerms.length === 0
-        ? 0
-        : nextTerms.filter((term) => previousTerms.has(term)).length / nextTerms.length
+      const previousTerms = new Set(previousKey.split('|').filter(Boolean))
+      const nextTerms = extrapolatedTermsKey.split('|').filter(Boolean)
+      const overlap =
+        nextTerms.length === 0
+          ? 0
+          : nextTerms.filter((term) => previousTerms.has(term)).length / nextTerms.length
 
-    if (overlap < 0.5) {
-      userTouchedRef.current = false
-      setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
-      return
-    }
+      if (overlap < 0.5) {
+        userTouchedRef.current = false
+        setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
+      } else if (!userTouchedRef.current) {
+        setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
+      }
 
-    if (!userTouchedRef.current) {
-      setFieldValue(formatProposedSkillsField(extrapolated.map((skill) => skill.term)))
-    }
-  }, [extrapolated, extrapolatedTermsKey])
+      setSyncedTermsKey(extrapolatedTermsKey)
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [extrapolated, extrapolatedTermsKey, syncedTermsKey])
 
   const selectedTerms = useMemo(() => {
     return parseProposedSkillsField(fieldValue).map((term) => term.toLowerCase())

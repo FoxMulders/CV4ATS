@@ -241,10 +241,12 @@ export function TailorWorkspacePage({
   useEffect(() => {
     const jobText = jobDescription.trim()
     if (!jobText || !activeResumeText) {
-      setPreScanPreview(null)
-      setBaselinePreScan(null)
-      setEditedPreScan(null)
-      return
+      const timer = window.setTimeout(() => {
+        setPreScanPreview(null)
+        setBaselinePreScan(null)
+        setEditedPreScan(null)
+      }, 0)
+      return () => window.clearTimeout(timer)
     }
 
     const timer = window.setTimeout(async () => {

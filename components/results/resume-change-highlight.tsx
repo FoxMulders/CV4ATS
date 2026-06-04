@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useTransition, useState, type ReactNode } from 'react'
+import { memo, useCallback, useMemo, useTransition, useState, type ReactNode } from 'react'
 import { RotateCcw, X } from 'lucide-react'
 
 import type { TailoredResume } from '@/lib/ai/schemas'
@@ -90,7 +90,8 @@ export function ResumeChangeHighlight({
   jobDescription,
   embedded = false,
 }: ResumeChangeHighlightProps) {
-  const [summaryReverted, setSummaryReverted] = useState(false)
+  const [revertedSummary, setRevertedSummary] = useState<string | null>(null)
+  const summaryReverted = revertedSummary === resume.summary
   const [isRevertPending, startTransition] = useTransition()
 
   const originalSummary = useMemo(
@@ -132,15 +133,11 @@ export function ResumeChangeHighlight({
     [resume.experience, originalText]
   )
 
-  useEffect(() => {
-    setSummaryReverted(false)
-  }, [resume.summary])
-
   const revertChange = useCallback(
     (target: ResumeChangeTarget) => {
       startTransition(() => {
         if (target.kind === 'summary-revert') {
-          setSummaryReverted(true)
+          setRevertedSummary(resume.summary)
         }
         onResumeChange(applyResumeChangeRevert(resume, target, originalText))
       })

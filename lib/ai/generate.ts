@@ -51,7 +51,7 @@ const STRUCTURED_OUTPUT = Output.object({
 
 function parseStructuredResult(raw: unknown, sourceResumeText = ''): AiGenerationResult {
   return applyGenerationHygiene(
-    aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw)),
+    aiGenerationResultSchema.parse(normalizeAiGenerationOutput(raw, sourceResumeText)),
     sourceResumeText
   )
 }

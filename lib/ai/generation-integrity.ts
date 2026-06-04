@@ -98,7 +98,7 @@ export function enforceLockedExperienceDates(
   const source = sourceResumeText.trim()
   if (!source) return resume
 
-  let next = mergeSourceExperienceDates(resume, source)
+  const next = mergeSourceExperienceDates(resume, source)
   const timeline = extractExperienceTimelineFromSource(source)
   if (timeline.length === 0) return next
 

@@ -16,7 +16,7 @@ const DEFAULT_SUMMARY =
 const FALLBACK_BULLET = 'Delivered measurable outcomes in this role.'
 
 function resolveContactName(resume: TailoredResume, sourceResumeText?: string): string {
-  let name = resume.contact.name?.trim() ?? ''
+  const name = resume.contact.name?.trim() ?? ''
   if (name && name !== 'Professional Candidate') return name
 
   const fromEmail = inferNameFromEmail(resume.contact.email)

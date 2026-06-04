@@ -1,58 +1,27 @@
 import type { AiGenerationResult, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { parseResumeTextToTailoredResume } from '@/lib/resume/text-to-structured'
 import {
-  extractBulletsFromSource,
-} from '@/lib/resume/contact-extraction'
-import {
   resolveCandidateNameFromSource,
   sanitizeCandidateName,
 } from '@/lib/resume/contact-identity'
 import { recoverEducationFromSource } from '@/lib/resume/education-preservation'
-import { mergeExperienceArraysNonDestructive } from '@/lib/resume/experience-preservation'
+import { enforceExperienceArrayBoundaries } from '@/lib/resume/enforce-experience-array-boundaries'
 import {
   explodeFlattenedExperienceEntries,
   isRealExperienceBullet,
-  parseWorkAndProjectsFromLines,
 } from '@/lib/resume/parse-experience-blocks'
 import { mergeSourceExperienceDates, ensureExperienceDatesForApi } from '@/lib/ai/generation-hygiene'
 import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 
 function normalizeExperience(entry: Experience): Experience {
   return {
-    title: entry.title.trim() || 'Consultant',
-    company: entry.company.trim() || 'Independent',
+    title: entry.title.trim() || 'Role',
+    company: entry.company.trim(),
     location: entry.location ?? '',
-    startDate: entry.startDate.trim() || '2010',
+    startDate: entry.startDate.trim(),
     endDate: entry.endDate.trim() || 'Present',
     bullets: entry.bullets.map((bullet) => bullet.trim()).filter(isRealExperienceBullet),
   }
-}
-
-function mergeExperienceDatesFromSources(
-  target: Experience[],
-  ...sources: Experience[][]
-): Experience[] {
-  const flat = sources.flat().filter((entry) => entry.startDate.trim())
-
-  return target.map((entry, index) => {
-    const companyMatch = flat.find((source) => {
-      const targetKey = entry.company.toLowerCase().replace(/[^a-z0-9]+/g, '')
-      const sourceKey = source.company.toLowerCase().replace(/[^a-z0-9]+/g, '')
-      return (
-        targetKey &&
-        sourceKey &&
-        (targetKey === sourceKey || targetKey.includes(sourceKey) || sourceKey.includes(targetKey))
-      )
-    })
-
-    const byIndex = flat[index]
-
-    return normalizeExperience({
-      ...entry,
-      startDate: entry.startDate.trim() || companyMatch?.startDate || byIndex?.startDate || '',
-      endDate: entry.endDate.trim() || companyMatch?.endDate || byIndex?.endDate || 'Present',
-    })
-  })
 }
 
 function hasPlaceholderExperience(experience: Experience[]): boolean {
@@ -68,68 +37,40 @@ function resolveExperienceFromSource(
   projects: Experience[],
   sourceResumeText: string
 ): { experience: Experience[]; projects: Experience[] } {
-  if (!sourceResumeText.trim()) return { experience, projects }
+  const normalizedWork = experience.map(normalizeExperience).filter((entry) => entry.company.trim())
+  const normalizedProjects = (projects ?? [])
+    .map(normalizeExperience)
+    .filter((entry) => entry.company.trim())
 
-  const lines = sourceResumeText.replace(/\r\n/g, '\n').split('\n')
-  const reparsedBlocks = parseWorkAndProjectsFromLines(lines)
-  const reparsedFromParser = parseResumeTextToTailoredResume(sourceResumeText)
-
-  const mergedExperience = mergeExperienceArraysNonDestructive(
-    experience,
-    reparsedBlocks.experience,
-    reparsedFromParser.experience
-  )
-
-  const mergedProjects = mergeExperienceArraysNonDestructive(
-    projects,
-    reparsedBlocks.projects,
-    reparsedFromParser.projects ?? []
-  )
-
-  if (mergedExperience.some((entry) => entry.bullets.length > 0)) {
-    return {
-      experience: explodeFlattenedExperienceEntries(
-        mergedExperience
-          .map(normalizeExperience)
-          .filter((entry) => entry.bullets.length > 0)
-      ),
-      projects: explodeFlattenedExperienceEntries(
-        mergedProjects.map(normalizeExperience).filter((entry) => entry.bullets.length > 0)
-      ),
-    }
-  }
-
-  const bullets = extractBulletsFromSource(sourceResumeText)
-  if (bullets.length === 0) {
-    return {
-      experience: experience.map(normalizeExperience),
-      projects: projects.map(normalizeExperience),
-    }
+  if (sourceResumeText.trim()) {
+    return enforceExperienceArrayBoundaries(normalizedWork, normalizedProjects, sourceResumeText)
   }
 
   return {
-    experience: [
-      normalizeExperience({
-        title: 'Consultant',
-        company: 'Independent',
-        location: '',
-        startDate: 'Recent',
-        endDate: 'Present',
-        bullets,
-      }),
-    ],
-    projects: mergedProjects.map(normalizeExperience).filter((entry) => entry.bullets.length > 0),
+    experience: explodeFlattenedExperienceEntries(normalizedWork).filter(
+      (entry) => entry.bullets.length > 0
+    ),
+    projects: explodeFlattenedExperienceEntries(normalizedProjects).filter(
+      (entry) => entry.bullets.length > 0
+    ),
   }
 }
 
 function fixContactName(resume: TailoredResume, sourceResumeText?: string): TailoredResume['contact'] {
-  const name = sanitizeCandidateName(resume.contact.name, sourceResumeText)
+  const sourceName = sourceResumeText?.trim()
+    ? resolveCandidateNameFromSource(sourceResumeText, resume.contact.email)
+    : null
+  const sanitized = sanitizeCandidateName(resume.contact.name, sourceResumeText)
+  const name =
+    sourceName && sourceName !== 'Professional Candidate'
+      ? sourceName
+      : sanitized !== 'Professional Candidate'
+        ? sanitized
+        : sourceName ?? sanitized
 
   return {
     ...resume.contact,
-    name: name === 'Professional Candidate' && sourceResumeText
-      ? resolveCandidateNameFromSource(sourceResumeText, resume.contact.email)
-      : name,
+    name,
     location: resume.contact.location.replace(/^[A-Z][A-Z\s.'-]+\s+(?=Edmonton|,)/i, '').trim(),
   }
 }

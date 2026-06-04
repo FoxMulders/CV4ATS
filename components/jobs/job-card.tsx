@@ -10,7 +10,7 @@ import {
   MapPin,
   Sparkles,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
@@ -116,13 +116,12 @@ export function JobCard({
     canRedo: canRedoResumeEdit,
   } = useUndoableResume(tailorResult?.tailoredResume ?? null)
 
-  useEffect(() => {
+  const [syncedTailorJobId, setSyncedTailorJobId] = useState(tailorResult?.jobId)
+  if (tailorResult?.jobId !== syncedTailorJobId) {
+    setSyncedTailorJobId(tailorResult?.jobId)
     if (tailorResult?.coverLetter) {
       setCoverLetter(tailorResult.coverLetter)
     }
-  }, [tailorResult?.jobId, tailorResult?.coverLetter])
-
-  useEffect(() => {
     if (tailorResult?.tailoredResume) {
       resetEditedResume(tailorResult.tailoredResume)
     }
@@ -130,7 +129,7 @@ export function JobCard({
       setEditedKeywordReport(tailorResult.keywordReport)
       setBaselineKeywordReport(tailorResult.keywordReport)
     }
-  }, [tailorResult?.jobId, tailorResult?.tailoredResume, tailorResult?.keywordReport, resetEditedResume])
+  }
 
   async function handleTailor(options: {
     selections?: SkillSnippetSelection[]
@@ -255,13 +254,11 @@ export function JobCard({
 
   const jobDescriptionForAi = formatJobDescriptionForAi(job)
 
-  const resumeHasManualEdits = useMemo(() => {
-    if (!editedResume || !tailorResult?.tailoredResume) return false
-    return (
-      serializeTailoredResume(editedResume) !==
-      serializeTailoredResume(tailorResult.tailoredResume)
-    )
-  }, [editedResume, tailorResult?.tailoredResume])
+  const resumeHasManualEdits =
+    editedResume && tailorResult?.tailoredResume
+      ? serializeTailoredResume(editedResume) !==
+        serializeTailoredResume(tailorResult.tailoredResume)
+      : false
 
   const handleKeywordReportUpdate = useCallback((report: KeywordReport) => {
     setEditedKeywordReport(report)

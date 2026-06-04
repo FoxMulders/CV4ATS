@@ -1,7 +1,7 @@
 'use client'
 
 import { BarChart3, Loader2 } from 'lucide-react'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -28,11 +28,12 @@ export function AchievementIntakeModal({
   const titleId = useId()
   const [answers, setAnswers] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    if (!open) {
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
       setAnswers({})
     }
-  }, [open])
+    onOpenChange(nextOpen)
+  }
 
   const answeredCount = useMemo(
     () => questions.filter((q) => (answers[q.id] ?? '').trim().length >= 8).length,
@@ -125,7 +126,7 @@ export function AchievementIntakeModal({
             type="button"
             variant="outline"
             disabled={isSubmitting}
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
           >
             Skip for now
           </Button>

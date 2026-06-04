@@ -23,26 +23,29 @@ export function GenerationProgress({
     scorePassLines ??
     (passHistory?.map((event) => formatScorePassLine(event)) ?? [])
 
+  const lastStepIndex = GENERATION_PROGRESS_LABELS.length - 1
+  const activeStep = Math.min(Math.max(loadingStep, 0), lastStepIndex)
+
   return (
     <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
       {GENERATION_PROGRESS_LABELS.map((step, index) => {
         const label =
-          index === loadingStep && activeLabel?.trim() ? activeLabel : step
+          index === activeStep && activeLabel?.trim() ? activeLabel : step
 
         return (
           <p
             key={step}
             className={
               compact
-                ? index <= loadingStep
+                ? index <= activeStep
                   ? 'text-xs text-foreground'
                   : 'text-xs text-muted-foreground'
-                : index <= loadingStep
+                : index <= activeStep
                   ? 'text-sm text-foreground'
                   : 'text-sm text-muted-foreground'
             }
           >
-            {index < loadingStep ? '✓' : index === loadingStep ? '→' : '○'} {label}
+            {index < activeStep ? '✓' : index === activeStep ? '→' : '○'} {label}
           </p>
         )
       })}

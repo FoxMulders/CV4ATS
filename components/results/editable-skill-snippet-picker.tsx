@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2, Plus, RotateCw, ShieldCheck, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -80,7 +80,10 @@ export function EditableSkillSnippetPicker({
 
   const canTailorWithAi = Boolean(jobDescription.trim() && resumeText.trim())
 
-  useEffect(() => {
+  const itemsKey = useMemo(() => items.map((item) => item.keyword).join('|'), [items])
+  const [syncedItemsKey, setSyncedItemsKey] = useState(itemsKey)
+  if (itemsKey !== syncedItemsKey) {
+    setSyncedItemsKey(itemsKey)
     const validKeywords = new Set(items.map((item) => item.keyword))
     setSelectedKeywords((current) => current.filter((keyword) => validKeywords.has(keyword)))
     setEditedSnippets((current) =>
@@ -92,7 +95,7 @@ export function EditableSkillSnippetPicker({
     setSnippetHistory((current) =>
       Object.fromEntries(Object.entries(current).filter(([keyword]) => validKeywords.has(keyword)))
     )
-  }, [items])
+  }
 
   function removeKeyword(keyword: string) {
     setSelectedKeywords((current) => current.filter((entry) => entry !== keyword))

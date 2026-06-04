@@ -107,9 +107,13 @@ export function JobSearchPanel() {
   }, [automatedScanPaused, location, roleQuery])
 
   useEffect(() => {
-    if (!automatedScanPaused) {
+    if (automatedScanPaused) return
+
+    const timer = window.setTimeout(() => {
       void searchJobs()
-    }
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [searchJobs, automatedScanPaused])
 
   async function ingestJobLink() {

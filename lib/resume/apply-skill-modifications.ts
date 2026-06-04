@@ -3,7 +3,7 @@ import {
   type StructuredSkillModification,
 } from '@/lib/resume/structured-resume-document'
 
-export interface AnchoredSkillModification extends StructuredSkillModification {}
+export type AnchoredSkillModification = StructuredSkillModification
 
 export interface AnchoredSkillSelection extends AnchoredSkillModification {
   keyword: string

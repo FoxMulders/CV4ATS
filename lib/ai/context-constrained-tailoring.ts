@@ -1,5 +1,7 @@
+import { enforceFactualSkills } from '@/lib/ai/factual-anchoring'
 import type { Education, Experience, TailoredResume } from '@/lib/ai/schemas'
 import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
+import { dedupeSkills } from '@/lib/resume/skill-dedupe'
 import { verifyExperienceMatrixIntegrity } from '@/lib/resume/experience-matrix-guard'
 import {
   lockResumeState,
@@ -164,6 +166,17 @@ function enforceLockedCertifications(
   })
 }
 
+function enforceLockedSkills(
+  resumeSkills: string[],
+  lockedSkills: string[],
+  sourceResumeText: string
+): string[] {
+  const merged = dedupeSkills([...lockedSkills, ...resumeSkills])
+  const filtered = enforceFactualSkills(merged, sourceResumeText)
+  if (filtered.length > 0) return filtered
+  return enforceFactualSkills(lockedSkills, sourceResumeText)
+}
+
 /** Programmatic guardrail — restore immutable identity/timeline after LLM output. */
 export function enforceContextConstrainedTailoring(
   resume: TailoredResume,
@@ -197,6 +210,7 @@ export function enforceContextConstrainedTailoring(
   return {
     ...resume,
     contact: enforceLockedContact(resume, locked, source),
+    skills: enforceLockedSkills(resume.skills ?? [], locked.skills, source),
     experience: matrix.experience.length > 0 ? matrix.experience : lockedResume.experience,
     projects: matrix.projects,
     education: enforceEducationFromSource(resume.education ?? [], locked.education, source),

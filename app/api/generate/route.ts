@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       )
     }
 
-    let resumeText = resumeTextInput
+    const resumeText = resumeTextInput
 
     if (file instanceof File && file.size > 0) {
       if (file.size > MAX_FILE_SIZE_BYTES) {

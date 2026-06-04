@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { cloneFormValue, isFieldEdited, valuesEqual } from '@/lib/form/field-diff'
 
@@ -60,20 +60,21 @@ function collectEditedPaths(
 }
 
 export function useEditableFormState<T>(initialValue: T): EditableFormState<T> {
-  const baselineRef = useRef(cloneFormValue(initialValue))
+  const [baseline, setBaseline] = useState<T>(() => cloneFormValue(initialValue))
   const [values, setValuesState] = useState<T>(() => cloneFormValue(initialValue))
-  const [baselineVersion, setBaselineVersion] = useState(0)
+  const [syncedInitialValue, setSyncedInitialValue] = useState(initialValue)
 
-  useEffect(() => {
-    baselineRef.current = cloneFormValue(initialValue)
-    setValuesState(cloneFormValue(initialValue))
-    setBaselineVersion((version) => version + 1)
-  }, [initialValue])
+  if (initialValue !== syncedInitialValue) {
+    setSyncedInitialValue(initialValue)
+    const nextBaseline = cloneFormValue(initialValue)
+    setBaseline(nextBaseline)
+    setValuesState(nextBaseline)
+  }
 
   const syncBaseline = useCallback((nextBaseline: T) => {
-    baselineRef.current = cloneFormValue(nextBaseline)
-    setValuesState(cloneFormValue(nextBaseline))
-    setBaselineVersion((version) => version + 1)
+    const cloned = cloneFormValue(nextBaseline)
+    setBaseline(cloned)
+    setValuesState(cloned)
   }, [])
 
   const setValues = useCallback((next: T | ((current: T) => T)) => {
@@ -87,19 +88,19 @@ export function useEditableFormState<T>(initialValue: T): EditableFormState<T> {
   }, [])
 
   const resetToBaseline = useCallback(() => {
-    setValuesState(cloneFormValue(baselineRef.current))
-  }, [])
+    setValuesState(cloneFormValue(baseline))
+  }, [baseline])
 
   const resetField = useCallback(<K extends keyof T>(key: K) => {
     setValuesState((current) => ({
       ...current,
-      [key]: cloneFormValue(baselineRef.current[key]),
+      [key]: cloneFormValue(baseline[key]),
     }))
-  }, [])
+  }, [baseline])
 
   const editedPaths = useMemo(
-    () => collectEditedPaths(values, baselineRef.current),
-    [values, baselineVersion]
+    () => collectEditedPaths(values, baseline),
+    [values, baseline]
   )
 
   const isEdited = useCallback(
@@ -114,7 +115,7 @@ export function useEditableFormState<T>(initialValue: T): EditableFormState<T> {
 
   return {
     values,
-    baseline: baselineRef.current,
+    baseline,
     setValues,
     syncBaseline,
     resetToBaseline,

@@ -3,6 +3,7 @@ import {
   RESUME_STYLISTIC_BLACKLIST,
 } from '@/lib/ai/prompts'
 import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
+import { FACTUAL_ANCHORING_DIRECTIVE } from '@/lib/ai/factual-anchoring'
 import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
 import { PERSONAL_PROJECT_PRESERVATION_DIRECTIVE } from '@/lib/ai/personal-projects-strategy'
 import { PANEL_DATA_INTEGRITY_DIRECTIVE } from '@/lib/ai/panel-validation-mandates'
@@ -75,10 +76,11 @@ Mandatory revision rules:
 3. Replace ALL detected banned phrases listed in the user prompt. Do not paraphrase them slightly — rewrite the surrounding sentence with fresh, specific language grounded in the source resume.
 4. Do not invent employers, dates, metrics, or credentials absent from the source resume or user supplement.
 5. ${ANTI_FABRICATION_DIRECTIVE}
-6. Cover letter: name the target role/team from the JD in paragraph 1; cite at least 2 JD-specific responsibilities; 3–4 body paragraphs; quantified proof when supported; professional closing with candidate name.
-7. Resume: Action + Scope + Business Impact bullets; preserve contact info and factual employers. When a Down-Tailoring addendum is present, down-level leadership verbs to execution/support framing without deleting factual history. ${PERSONAL_PROJECT_PRESERVATION_DIRECTIVE}
-8. ${PANEL_DATA_INTEGRITY_DIRECTIVE}
-9. When panel validation mandates are present: force 3 cover letter body paragraphs, inject Agile ceremonies and tooling into bullets when source supports them, and shift Pleasant Solutions-style blocks from passive documentation to active deliverable execution.
+6. ${FACTUAL_ANCHORING_DIRECTIVE}
+7. Cover letter: name the target role/team from the JD in paragraph 1; cite at least 2 JD-specific responsibilities; 3–4 body paragraphs; quantified proof when supported; professional closing with candidate name.
+8. Resume: Action + Scope + Business Impact bullets; preserve contact info and factual employers. When a Down-Tailoring addendum is present, down-level leadership verbs to execution/support framing without deleting factual history. ${PERSONAL_PROJECT_PRESERVATION_DIRECTIVE}
+9. ${PANEL_DATA_INTEGRITY_DIRECTIVE}
+10. When panel validation mandates are present: force 3 cover letter body paragraphs, inject Agile ceremonies and tooling into bullets when source supports them, and shift Pleasant Solutions-style blocks from passive documentation to active deliverable execution.
 
 Never use these banned cover letter patterns:
 ${[...COVER_LETTER_BANNED_PHRASES, ...HIRING_PANEL_COVER_LETTER_BANNED].map((p) => `- "${p}"`).join('\n')}

@@ -20,13 +20,13 @@ function readBrowserAiPreference(): boolean {
 }
 
 export function useBrowserAiPreference() {
-  const [useBrowserAi, setUseBrowserAiState] = useState(true)
+  const [useBrowserAi, setUseBrowserAiState] = useState(() =>
+    typeof window !== 'undefined' ? readBrowserAiPreference() : true
+  )
   const [status, setStatus] = useState<BrowserAiStatus | null>(null)
-  const [hydrated, setHydrated] = useState(false)
+  const hydrated = typeof window !== 'undefined'
 
   useEffect(() => {
-    setUseBrowserAiState(readBrowserAiPreference())
-    setHydrated(true)
     void inspectBrowserAi().then(setStatus)
   }, [])
 

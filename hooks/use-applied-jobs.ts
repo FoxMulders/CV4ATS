@@ -19,15 +19,15 @@ function loadHideAppliedPreference(): boolean {
 }
 
 export function useAppliedJobs() {
-  const [appliedJobs, setAppliedJobs] = useState<AppliedJobRecord[]>([])
-  const [hideApplied, setHideAppliedState] = useState(false)
-  const [ready, setReady] = useState(false)
+  const [appliedJobs, setAppliedJobs] = useState<AppliedJobRecord[]>(() =>
+    typeof window !== 'undefined' ? loadAppliedJobs() : []
+  )
+  const [hideApplied, setHideAppliedState] = useState(() =>
+    typeof window !== 'undefined' ? loadHideAppliedPreference() : false
+  )
+  const ready = typeof window !== 'undefined'
 
   useEffect(() => {
-    setAppliedJobs(loadAppliedJobs())
-    setHideAppliedState(loadHideAppliedPreference())
-    setReady(true)
-
     function syncFromStorage(event: StorageEvent) {
       if (event.key === null || event.key === 'ats4cv-applied-jobs') {
         setAppliedJobs(loadAppliedJobs())

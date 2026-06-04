@@ -1,6 +1,8 @@
-import type { TailoredResume } from '@/lib/ai/schemas'
-import { sanitizeCandidateName } from '@/lib/resume/contact-identity'
+import type { TailoredResume, Experience } from '@/lib/ai/schemas'
+import { sanitizeCandidateName, resolveCandidateNameFromSource } from '@/lib/resume/contact-identity'
 import { formatTailoredResume } from '@/lib/resume/ats-resume-formatter'
+import { enforceExperienceArrayBoundaries } from '@/lib/resume/enforce-experience-array-boundaries'
+import { explodeFlattenedExperienceEntries } from '@/lib/resume/parse-experience-blocks'
 import {
   parseJsonFromSanitizedText,
   stripMarkdownJsonFences,
@@ -21,7 +23,7 @@ export function parseJsonFromModelText(text: string): unknown {
 export { stripMarkdownJsonFences, parseJsonFromSanitizedText }
 
 /** Map Gemini JSON aliases to the strict ATS4CV schema before Zod validation. */
-export function normalizeAiGenerationOutput(raw: unknown): unknown {
+export function normalizeAiGenerationOutput(raw: unknown, sourceResumeText = ''): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return raw
   }
@@ -29,11 +31,11 @@ export function normalizeAiGenerationOutput(raw: unknown): unknown {
   const root = raw as Record<string, unknown>
 
   if (isEnrichmentShape(root)) {
-    return normalizeEnrichmentToGenerationShape(root)
+    return normalizeEnrichmentToGenerationShape(root, sourceResumeText)
   }
 
   const coverLetter = normalizeCoverLetter(root.coverLetter)
-  const tailoredResume = normalizeTailoredResume(root.tailoredResume)
+  const tailoredResume = normalizeTailoredResume(root.tailoredResume, sourceResumeText)
 
   return {
     ...root,
@@ -50,16 +52,22 @@ function isEnrichmentShape(root: Record<string, unknown>): boolean {
   )
 }
 
-function normalizeEnrichmentToGenerationShape(root: Record<string, unknown>): unknown {
+function normalizeEnrichmentToGenerationShape(
+  root: Record<string, unknown>,
+  sourceResumeText = ''
+): unknown {
   const workExperience = (root.workExperience as unknown[]).map(normalizeEnrichmentExperienceEntry)
-  const tailoredResume = normalizeTailoredResume({
-    contact: root.contact,
-    summary: root.professionalSummary,
-    skills: root.skills,
-    experience: workExperience,
-    education: root.education ?? [],
-    certifications: root.certifications ?? [],
-  })
+  const tailoredResume = normalizeTailoredResume(
+    {
+      contact: root.contact,
+      summary: root.professionalSummary,
+      skills: root.skills,
+      experience: workExperience,
+      education: root.education ?? [],
+      certifications: root.certifications ?? [],
+    },
+    sourceResumeText
+  )
 
   return {
     keywordReport: root.keywordReport,
@@ -105,7 +113,7 @@ function normalizeCoverLetter(value: unknown): unknown {
   return value
 }
 
-function normalizeTailoredResume(value: unknown): unknown {
+function normalizeTailoredResume(value: unknown, sourceResumeText = ''): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return value
   }
@@ -116,9 +124,24 @@ function normalizeTailoredResume(value: unknown): unknown {
     resume.summary = resume.professionalSummary
   }
 
-  if (Array.isArray(resume.experience)) {
-    resume.experience = resume.experience.map(normalizeExperienceEntry)
+  let experience = Array.isArray(resume.experience)
+    ? (resume.experience.map(normalizeExperienceEntry) as Experience[])
+    : []
+  let projects = Array.isArray(resume.projects)
+    ? (resume.projects.map(normalizeExperienceEntry) as Experience[])
+    : []
+
+  if (sourceResumeText.trim()) {
+    const restored = enforceExperienceArrayBoundaries(experience, projects, sourceResumeText)
+    experience = restored.experience
+    projects = restored.projects
+  } else {
+    experience = explodeFlattenedExperienceEntries(experience)
+    projects = explodeFlattenedExperienceEntries(projects)
   }
+
+  resume.experience = experience
+  resume.projects = projects
 
   if (Array.isArray(resume.education)) {
     resume.education = resume.education.map(normalizeEducationEntry)
@@ -130,7 +153,13 @@ function normalizeTailoredResume(value: unknown): unknown {
       contact.name = contact.fullName
     }
     if (typeof contact.name === 'string') {
-      contact.name = sanitizeCandidateName(contact.name)
+      const sourceName = sourceResumeText.trim()
+        ? resolveCandidateNameFromSource(sourceResumeText, String(contact.email ?? ''))
+        : null
+      contact.name =
+        sourceName && sourceName !== 'Professional Candidate'
+          ? sourceName
+          : sanitizeCandidateName(contact.name, sourceResumeText)
     }
     resume.contact = contact
   }

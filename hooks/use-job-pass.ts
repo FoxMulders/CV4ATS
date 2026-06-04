@@ -21,8 +21,9 @@ interface JobPassCheckoutResult {
 
 export function useJobPass(jobDescription: string) {
   const [jobDescriptionHash, setJobDescriptionHash] = useState('')
-  const [storedPass, setStoredPass] = useState<StoredJobPass | null>(null)
+  const [passOverride, setPassOverride] = useState<StoredJobPass | null>(null)
   const [checkoutEnabled, setCheckoutEnabled] = useState<boolean | null>(null)
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
     let cancelled = false
@@ -30,6 +31,7 @@ export function useJobPass(jobDescription: string) {
     void hashJobDescription(jobDescription).then((hash) => {
       if (!cancelled) {
         setJobDescriptionHash(hash)
+        setPassOverride(null)
       }
     })
 
@@ -38,14 +40,20 @@ export function useJobPass(jobDescription: string) {
     }
   }, [jobDescription])
 
-  useEffect(() => {
-    if (!jobDescriptionHash) {
-      setStoredPass(null)
-      return
-    }
+  const storedPass = useMemo(
+    () => passOverride ?? (jobDescriptionHash ? getJobPass(jobDescriptionHash) : null),
+    [passOverride, jobDescriptionHash]
+  )
 
-    setStoredPass(getJobPass(jobDescriptionHash))
-  }, [jobDescriptionHash])
+  useEffect(() => {
+    if (!storedPass?.expiresAt) return
+
+    const msUntilExpiry = storedPass.expiresAt - Date.now()
+    if (msUntilExpiry <= 0) return
+
+    const timeout = window.setTimeout(() => setNow(Date.now()), msUntilExpiry)
+    return () => window.clearTimeout(timeout)
+  }, [storedPass?.expiresAt])
 
   useEffect(() => {
     void fetch('/api/checkout/square')
@@ -66,7 +74,7 @@ export function useJobPass(jobDescription: string) {
       unlockedAt: result.unlockedAt,
     }
     saveJobPass(pass)
-    setStoredPass(pass)
+    setPassOverride(pass)
   }, [])
 
   const tokenMatchesRole = useMemo(() => {
@@ -82,7 +90,7 @@ export function useJobPass(jobDescription: string) {
     Boolean(
       storedPass &&
         tokenMatchesRole &&
-        storedPass.expiresAt > Date.now() &&
+        storedPass.expiresAt > now &&
         jobDescriptionHash === storedPass.jobDescriptionHash
     )
 
@@ -97,7 +105,8 @@ export function useJobPass(jobDescription: string) {
     passExpiresAt,
     passExpiryLabel,
     unlock,
-    refreshPasses: () => setStoredPass(jobDescriptionHash ? getJobPass(jobDescriptionHash) : null),
+    refreshPasses: () =>
+      setPassOverride(jobDescriptionHash ? getJobPass(jobDescriptionHash) : null),
     allPasses: loadJobPasses(),
   }
 }

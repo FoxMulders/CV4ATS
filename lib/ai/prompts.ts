@@ -9,6 +9,7 @@ import {
   HUMAN_RECRUITER_REVIEW_DIRECTIVE,
 } from '@/lib/ai/ats-human-rules'
 import { ANTI_FABRICATION_DIRECTIVE } from '@/lib/ai/anti-fabrication'
+import { FACTUAL_ANCHORING_DIRECTIVE } from '@/lib/ai/factual-anchoring'
 import { CONTEXT_CONSTRAINED_TAILORING_DIRECTIVE } from '@/lib/ai/context-constrained-tailoring'
 import { AUTHENTIC_RESUME_OPTIMIZATION_DIRECTIVE } from '@/lib/ai/authentic-resume-optimization-directive'
 import {
@@ -342,6 +343,8 @@ ${AUTHENTIC_RESUME_OPTIMIZATION_DIRECTIVE}
 
 ${ANTI_FABRICATION_DIRECTIVE}
 
+${FACTUAL_ANCHORING_DIRECTIVE}
+
 ${ANTI_COPY_CONSTRAINT}
 
 ${SEMANTIC_MATCHING_DIRECTIVE}
@@ -429,7 +432,7 @@ Weave extracted high-value keywords into the resume using **hard token matching 
 
 Priority placement (in order):
 1. **Professional summary** — Executive Value Proposition + Core Expertise pipe line with **exact JD competency tokens** (when truthful) plus methodologies and domain terms.
-2. **Skills section** — group tools, methodologies, and domains; include verbatim multi-word JD tokens the candidate possesses.
+2. **Skills section** — strict factual subset of source skills plus universal PM/IT methodologies the candidate's titles support; never add compliance frameworks (SOC 2, ISO 27001, Vanta) unless present in the source resume.
 3. **Work experience bullets** — embed **exact competency token patterns** inside Action + Scope + Business Impact statements — never naked keyword tags or copied posting clauses.
 
 Integration rules:
@@ -456,7 +459,7 @@ Rebuild every resume for ATS parsing and human hiring managers:
 
 6. **Early-career summary** — When the source resume summarizes pre-2006 or decades-prior roles in one block (e.g., "Prior to 2006 — held multiple IT support and technical roles dating back to 1995…"), keep it as a concise early-career entry that supports 30+ years of experience without cluttering recent roles.
 
-7. **Skills cleanup** — No dangling bullets, no merged tool names (Confluence • Jira not Confluence•Jira), no empty skill entries.
+7. **Skills cleanup** — No dangling bullets, no merged tool names (Confluence • Jira not Confluence•Jira), no empty skill entries, no JD-invented compliance or audit platforms absent from the source.
 
 ## Keyword report
 - **matchScore**: 0-100 weighted estimate of alignment with JD hard skills, methodologies, and tools. Work experience matches count most; skills-list-only matches count less; keyword stuffing and copied job-description phrasing reduce the score. Well-tailored resumes typically land between 75% and 88%; 95%+ is reserved for near-identical profile matches.

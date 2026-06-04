@@ -418,14 +418,17 @@ export function splitNestedEmployersInSingleEntry(entry: Experience): Experience
   }
 
   const chunks: Experience[] = []
-  let current: Experience = {
-    title: entry.title,
-    company: entry.company,
-    location: entry.location,
-    startDate: entry.startDate,
-    endDate: entry.endDate,
-    bullets: [],
-  }
+  const parentIsGhost = isGhostConsolidatedEmployer(entry.company, entry.title)
+  let current: Experience = parentIsGhost
+    ? emptyEntry()
+    : {
+        title: entry.title,
+        company: entry.company,
+        location: entry.location,
+        startDate: entry.startDate,
+        endDate: entry.endDate,
+        bullets: [],
+      }
 
   const pushCurrent = () => {
     const hasIdentity = current.company.trim() || current.title.trim()
@@ -512,11 +515,14 @@ export function splitNestedEmployersInSingleEntry(entry: Experience): Experience
   const normalized = chunks.filter(
     (chunk) => (chunk.company.trim() || chunk.title.trim()) && chunk.bullets.length > 0
   )
+  const withoutGhost = normalized.filter(
+    (chunk) => !isGhostConsolidatedEmployer(chunk.company, chunk.title)
+  )
 
+  if (withoutGhost.length > 1) return withoutGhost
+  if (withoutGhost.length === 1) return withoutGhost
   if (normalized.length > 1) return normalized
-  if (normalized.length === 1 && !isGhostConsolidatedEmployer(entry.company, entry.title)) {
-    return normalized
-  }
+  if (normalized.length === 1 && !parentIsGhost) return normalized
   return entry.bullets.length > 0 ? normalized : [entry]
 }
 

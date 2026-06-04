@@ -19,10 +19,7 @@ export function useRateLimitCooldown(): RateLimitCooldownState {
   const [secondsLeft, setSecondsLeft] = useState(0)
 
   useEffect(() => {
-    if (!cooldownUntil) {
-      setSecondsLeft(0)
-      return
-    }
+    if (!cooldownUntil) return
 
     const tick = () => {
       const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
