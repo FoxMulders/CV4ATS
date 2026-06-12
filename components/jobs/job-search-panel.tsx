@@ -200,8 +200,8 @@ export function JobSearchPanel() {
   const visibleJobs = hideApplied ? openJobs : [...openJobs, ...appliedJobsInList]
 
   return (
-    <div className="space-y-8">
-      <Card className="border-border/80 shadow-sm">
+    <div className="flex flex-col gap-[var(--space-section)]">
+      <Card className="border-border/80">
         <CardHeader>
           <CardTitle className="font-heading text-xl">Your resume</CardTitle>
           <CardDescription>
@@ -227,7 +227,7 @@ export function JobSearchPanel() {
         onUnmarkApplied={handleUnmarkApplied}
       />
 
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-sm">
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-heading text-xl">
             <Search className="size-4" />
@@ -270,7 +270,7 @@ export function JobSearchPanel() {
         </CardContent>
       </Card>
 
-      <Card className="border-brand-gold/40 bg-gradient-to-br from-brand-gold/10 to-background shadow-sm">
+      <Card className="border-brand-gold/40 bg-gradient-to-br from-brand-gold/10 to-background">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-heading text-xl">
             <Link2 className="size-4" />

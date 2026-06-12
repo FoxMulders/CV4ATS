@@ -1,28 +1,37 @@
 import type { Metadata } from 'next'
 
 import { TailorWorkspacePage } from '@/components/pages/tailor-workspace-page'
-
-const HOME_TITLE = 'ATS Resume Builder & Cover Letter Tailoring Tool | ATS4CV'
-const HOME_DESCRIPTION =
-  'Tailor your resume and generate cover letters to beat automated tracking systems. Scan your resume against job descriptions using context-aware AI. Start for free.'
+import { HomePageJsonLd } from '@/components/seo/site-json-ld'
+import { buildFaqJsonLd } from '@/lib/seo/faq-schema'
+import {
+  HOME_HERO,
+  SITE_DESCRIPTION,
+  SITE_TITLE,
+  SITE_URL,
+  siteOpenGraph,
+} from '@/lib/seo/site-metadata'
 
 export const metadata: Metadata = {
-  title: HOME_TITLE,
-  description: HOME_DESCRIPTION,
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: HOME_TITLE,
-    description: HOME_DESCRIPTION,
-    url: '/',
+    ...siteOpenGraph,
+    url: SITE_URL,
   },
   twitter: {
-    title: HOME_TITLE,
-    description: HOME_DESCRIPTION,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
   },
 }
 
 export default function HomePage() {
-  return <TailorWorkspacePage showFaq />
+  return (
+    <>
+      <HomePageJsonLd faqJsonLd={buildFaqJsonLd()} />
+      <TailorWorkspacePage hero={HOME_HERO} showFaq />
+    </>
+  )
 }

@@ -89,6 +89,10 @@ export function buildEnrichmentUserPrompt(input: EnrichmentPromptInput): string 
     ? `\nUSER ACHIEVEMENT SUPPLEMENT:\n${options.achievementSupplement.trim()}\n`
     : ''
 
+  const coverLetterContextBlock = options.coverLetterContext?.trim()
+    ? `\nUSER COVER LETTER CONTEXT:\n${options.coverLetterContext.trim()}\n`
+    : ''
+
   const candidateNarrativeBlock = buildCandidateNarrativeAddendum(
     input.sourceResumeText,
     input.jobDescription
@@ -118,7 +122,7 @@ ${locked.summary}
 
 JOB DESCRIPTION:
 ${input.jobDescription}
-${checklistBlock}${missingBlock}${skillsBlock}${achievementBlock}${candidateNarrativeSection}
+${checklistBlock}${missingBlock}${skillsBlock}${achievementBlock}${coverLetterContextBlock}${candidateNarrativeSection}
 TASK: Enrich skills and experienceBullets only. Preserve every blockKey. When candidate narrative is present, rewrite coverLetter using its mandatory architecture and role-specific tailoring. Return JSON matching the schema.`
 }
 

@@ -1,59 +1,57 @@
 import type { KeywordReport, TailoredResume } from '@/lib/ai/schemas'
-import { scoreAtsCompliance, serializeTailoredResume } from '@/lib/resume/ats-score'
+import {
+  computeIntersectionMatchScore,
+  targetSkillsFromPreScan,
+} from '@/lib/resume/intersection-ats-score'
+import type { TargetSkill } from '@/lib/resume/skill-extrapolation'
 
 export interface RecalculateAtsScoreInput {
   resume: TailoredResume
   jobDescription: string
+  targetSkills?: string[] | TargetSkill[]
+  /** @deprecated Baseline floor is not applied during intersection recalculation. */
   sourceResumeText?: string
+  /** @deprecated Baseline floor is not applied during intersection recalculation. */
   baselineScore?: number
+  /** @deprecated Phase is not used by intersection recalculation. */
   phase?: 'baseline' | 'tailored'
 }
 
 /**
- * Re-run the weighted ATS matching pass against the static job description.
- * Uses section weights, density caps, and phrasing penalties from weighted-ats-scoring.
+ * Re-run strict target-skill intersection scoring against the static job description.
+ * Score = (matched target skills / total target skills) * 100
  */
 export function recalculateAtsScore(input: RecalculateAtsScoreInput): KeywordReport {
-  const resumeText = serializeTailoredResume(input.resume)
   const jobDescription = input.jobDescription.trim()
+  const targetSkills =
+    input.targetSkills && input.targetSkills.length > 0
+      ? input.targetSkills
+      : targetSkillsFromPreScan(null, jobDescription)
 
-  if (!resumeText.trim() || !jobDescription) {
+  if (!jobDescription || targetSkills.length === 0) {
     return {
       matchScore: 0,
       matchedKeywords: [],
       missingKeywords: [],
-      suggestions: ['Add resume content and a job description to calculate ATS alignment.'],
+      suggestions: ['Add a job description with detectable target skills to calculate ATS alignment.'],
     }
   }
 
-  return scoreAtsCompliance(resumeText, jobDescription, {
-    phase: input.phase ?? 'tailored',
-    sourceResumeText: input.sourceResumeText?.trim() || undefined,
-    baselineScore: input.baselineScore,
-    structuredResume: input.resume,
+  return computeIntersectionMatchScore({
+    resume: input.resume,
+    jobDescription,
+    targetSkills,
   })
 }
 
 export function recalculateAtsScoreFromText(
-  resumeText: string,
+  resume: TailoredResume,
   jobDescription: string,
   options: Omit<RecalculateAtsScoreInput, 'resume' | 'jobDescription'> = {}
 ): KeywordReport {
-  const trimmedResume = resumeText.trim()
-  const trimmedJob = jobDescription.trim()
-
-  if (!trimmedResume || !trimmedJob) {
-    return {
-      matchScore: 0,
-      matchedKeywords: [],
-      missingKeywords: [],
-      suggestions: ['Add resume content and a job description to calculate ATS alignment.'],
-    }
-  }
-
-  return scoreAtsCompliance(trimmedResume, trimmedJob, {
-    phase: options.phase ?? 'tailored',
-    sourceResumeText: options.sourceResumeText?.trim() || undefined,
-    baselineScore: options.baselineScore,
+  return recalculateAtsScore({
+    resume,
+    jobDescription,
+    ...options,
   })
 }

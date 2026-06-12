@@ -220,9 +220,9 @@ Facts, employers, titles, dates, metrics, tools, and credentials must stay groun
 ### Regeneration variance
 Re-submitting the same source resume must produce materially different summary hooks and bullet structures while retaining factual accuracy — vary narrative emphasis, verb choices, and rhythm, not invented achievements.`
 
-/** ATS4CV Cover Letter Generation Engine — strategic pitch + structural uniqueness rules. */
+/** cv2ats Cover Letter Generation Engine — strategic pitch + structural uniqueness rules. */
 export const COVER_LETTER_ENGINE_DIRECTIVE = `## Cover Letter Generation Engine (mandatory)
-You are the Cover Letter Generation Engine for ATS4CV. Generate a highly tailored, compelling cover letter by analyzing the candidate resume and target job description.
+You are the Cover Letter Generation Engine for cv2ats. Generate a highly tailored, compelling cover letter by analyzing the candidate resume and target job description.
 
 Apply the same standard of **Adaptive Phrase Diversification** used for resume bullets: every cover letter must be structurally unique, read naturally, and avoid generic, repetitive AI sentence mechanics.
 
@@ -497,6 +497,8 @@ export interface UserPromptOptions {
   missingKeywords?: string[]
   /** User-supplied metrics/outcomes for bullets that lacked quantified results. */
   achievementSupplement?: string
+  /** Optional motivations, referrals, or emphasis for cover letter generation. */
+  coverLetterContext?: string
   /** Frozen structured resume from the frontend — strict state preservation source of truth. */
   currentResume?: import('@/lib/ai/schemas').TailoredResume
   /** Hiring panel closed-loop constraints (sanitized — no fabrication suggestions). */
@@ -508,7 +510,14 @@ export function buildUserPrompt(
   resumeText: string,
   options: UserPromptOptions = {}
 ): string {
-  const { targetSkills = [], coreCompetencyChecklist = '', missingKeywords = [], achievementSupplement = '', panelFeedbackAddendum = '' } = options
+  const {
+    targetSkills = [],
+    coreCompetencyChecklist = '',
+    missingKeywords = [],
+    achievementSupplement = '',
+    coverLetterContext = '',
+    panelFeedbackAddendum = '',
+  } = options
 
   const checklistBlock = coreCompetencyChecklist
     ? `\n${coreCompetencyChecklist}\n`
@@ -526,6 +535,10 @@ export function buildUserPrompt(
 
   const achievementBlock = achievementSupplement.trim()
     ? `\nUSER-PROVIDED ACHIEVEMENT DETAILS (ground truth — use for quantified cover letter proof points and resume bullets; do not invent beyond this supplement and the source resume):\n${achievementSupplement.trim()}\n`
+    : ''
+
+  const coverLetterContextBlock = coverLetterContext.trim()
+    ? `\nUSER COVER LETTER CONTEXT (ground truth for tone and emphasis — weave naturally into the cover letter; motivations, relocation, referrals, or highlights not obvious from the resume; do not invent facts beyond this and the source resume):\n${coverLetterContext.trim()}\n`
     : ''
 
   const panelFeedbackBlock = panelFeedbackAddendum.trim()
@@ -550,7 +563,7 @@ export function buildUserPrompt(
 
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}${panelFeedbackBlock}${personalProjectsSection}${candidateNarrativeSection}${lockedTimelineSection}
+${checklistBlock}${missingBlock}${skillBlock}${achievementBlock}${coverLetterContextBlock}${panelFeedbackBlock}${personalProjectsSection}${candidateNarrativeSection}${lockedTimelineSection}
 SOURCE RESUME (ground truth — do not invent beyond this):
 ${resumeText}
 
@@ -578,7 +591,8 @@ export function buildRefinementPrompt(
   currentScore: number,
   missingKeywords: string[],
   coreCompetencyChecklist?: string,
-  achievementSupplement?: string
+  achievementSupplement?: string,
+  coverLetterContext?: string
 ): string {
   const checklistBlock = coreCompetencyChecklist
     ? `\n${coreCompetencyChecklist}\n`
@@ -586,6 +600,10 @@ export function buildRefinementPrompt(
 
   const achievementBlock = achievementSupplement?.trim()
     ? `\nUSER-PROVIDED ACHIEVEMENT DETAILS (ground truth):\n${achievementSupplement.trim()}\n`
+    : ''
+
+  const coverLetterContextBlock = coverLetterContext?.trim()
+    ? `\nUSER COVER LETTER CONTEXT (ground truth for cover letter tone and emphasis):\n${coverLetterContext.trim()}\n`
     : ''
 
   const candidateNarrativeBlock = buildCandidateNarrativeAddendum(sourceResumeText, jobDescription)
@@ -600,7 +618,7 @@ export function buildRefinementPrompt(
 
   return `JOB DESCRIPTION:
 ${jobDescription}
-${checklistBlock}${achievementBlock}${candidateNarrativeSection}${lockedTimelineSection}
+${checklistBlock}${achievementBlock}${coverLetterContextBlock}${candidateNarrativeSection}${lockedTimelineSection}
 ORIGINAL SOURCE RESUME (ground truth — do not invent beyond this):
 ${sourceResumeText}
 

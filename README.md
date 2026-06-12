@@ -1,4 +1,4 @@
-# ATS4CV
+# cv2ats
 
 Tailor your resume to any job description. Paste a job description and your resume (text or file upload), then get:
 

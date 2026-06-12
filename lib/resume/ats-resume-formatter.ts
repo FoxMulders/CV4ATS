@@ -1,4 +1,5 @@
 import type { Experience, TailoredResume } from '@/lib/ai/schemas'
+import { normalizeSkillArray } from '@/lib/resume/skill-array-normalize'
 import { normalizeResumeDocumentText } from '@/lib/resume/resume-text-normalize'
 
 /** Common PDF/DOCX paste artifacts where compound adjectives lose hyphens or spaces. */
@@ -163,27 +164,7 @@ function standardizeBulletTense(bullet: string, presentRole: boolean): string {
 }
 
 function formatSkills(skills: string[]): string[] {
-  const expanded = skills.flatMap((skill) => {
-    const cleaned = formatResumeText(skill)
-    if (!cleaned || /^[•\-*–—]+$/.test(cleaned)) return []
-
-    return cleaned
-      .split(/\s*[•|;,]\s*/)
-      .map((part) => formatResumeText(part))
-      .filter((part) => part.length > 1)
-  })
-
-  const seen = new Set<string>()
-  const result: string[] = []
-
-  for (const skill of expanded) {
-    const key = skill.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    result.push(skill)
-  }
-
-  return result
+  return normalizeSkillArray(skills).map((skill) => formatResumeText(skill))
 }
 
 function formatExperienceEntry(entry: Experience): Experience {

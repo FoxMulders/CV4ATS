@@ -8,7 +8,7 @@ export const WORKSPACE_PREVIEW_HEIGHT_CLASS = 'min-h-[10rem]'
 
 /** Outer shell — border and padding; scrolling is handled by the workspace pane only. */
 export const WORKSPACE_VIEWPORT_SHELL_CLASS =
-  'rounded-lg border border-border/80 bg-muted/20 shadow-inner'
+  'rounded-[var(--radius-surface)] border border-border/80 bg-muted/20 shadow-[var(--shadow-ambient)]'
 
 /** Inner content region — grows with content, no nested scroll. */
 export const WORKSPACE_VIEWPORT_BODY_CLASS = 'min-h-[12rem]'

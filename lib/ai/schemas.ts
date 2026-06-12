@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const MAX_JOB_DESCRIPTION_LENGTH = 8000
 export const MAX_RESUME_TEXT_LENGTH = 20000
+export const MAX_COVER_LETTER_CONTEXT_LENGTH = 2000
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
 // OpenAI strict structured outputs require every key in `properties` to appear in

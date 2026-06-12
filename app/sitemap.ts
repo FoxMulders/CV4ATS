@@ -1,8 +1,9 @@
 import type { MetadataRoute } from 'next'
 
 import { PROFESSION_LANDING_PAGES } from '@/lib/seo/profession-landing-pages'
+import { SITE_URL } from '@/lib/seo/site-metadata'
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ats-resume-builder-flax.vercel.app'
+const siteUrl = SITE_URL
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const professionEntries: MetadataRoute.Sitemap = PROFESSION_LANDING_PAGES.map((page) => ({

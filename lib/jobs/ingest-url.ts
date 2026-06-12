@@ -2,7 +2,7 @@ import { safeFetchHtml } from '@/lib/security/safe-fetch'
 import type { JobListing } from '@/lib/jobs/types'
 
 const USER_AGENT =
-  'Mozilla/5.0 (compatible; ATS4CV/1.0; +https://ats4cv.vercel.app)'
+  'Mozilla/5.0 (compatible; cv2ats/1.0; +https://cv2ats.ca)'
 
 const DEADLINE_PATTERNS = [
   /\bcloses?\s+(?:on\s+)?([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,

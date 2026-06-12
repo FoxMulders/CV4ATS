@@ -25,6 +25,9 @@ export const AI_REFINEMENT_TEMPERATURE = 0.3
 /** Never retry through Vercel AI Gateway — fail fast and fall back to Groq or local rules. */
 export const AI_STREAM_MAX_RETRIES = 0
 
+/** Direct Gemini hiring-panel calls may retry transient 429s (not routed through AI Gateway). */
+export const HIRING_PANEL_MAX_RETRIES = 2
+
 /** @deprecated Use geminiProviderOptions */
 export const googleProviderOptions = geminiProviderOptions
 

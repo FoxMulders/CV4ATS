@@ -11,6 +11,7 @@ type PipelineOptions = {
   selectedKeywords?: string[]
   customSnippets?: string[]
   achievementSupplement?: string
+  coverLetterContext?: string
   anchoredModifications?: Array<{
     snippet: string
     positionId?: string

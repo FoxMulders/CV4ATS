@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useMemo, useTransition, useState, type ReactNode } from 'react'
+import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
 import { RotateCcw, X } from 'lucide-react'
 
 import type { TailoredResume } from '@/lib/ai/schemas'
@@ -92,7 +92,6 @@ export function ResumeChangeHighlight({
 }: ResumeChangeHighlightProps) {
   const [revertedSummary, setRevertedSummary] = useState<string | null>(null)
   const summaryReverted = revertedSummary === resume.summary
-  const [isRevertPending, startTransition] = useTransition()
 
   const originalSummary = useMemo(
     () => extractOriginalSummary(originalText),
@@ -135,12 +134,13 @@ export function ResumeChangeHighlight({
 
   const revertChange = useCallback(
     (target: ResumeChangeTarget) => {
-      startTransition(() => {
-        if (target.kind === 'summary-revert') {
-          setRevertedSummary(resume.summary)
-        }
-        onResumeChange(applyResumeChangeRevert(resume, target, originalText))
-      })
+      const revertedResume = applyResumeChangeRevert(resume, target, originalText)
+
+      if (target.kind === 'summary-revert') {
+        setRevertedSummary(resume.summary)
+      }
+
+      onResumeChange(revertedResume)
     },
     [onResumeChange, originalText, resume]
   )
@@ -197,12 +197,11 @@ export function ResumeChangeHighlight({
             {summaryChanged && !summaryReverted ? (
               <button
                 type="button"
-                disabled={isRevertPending}
                 className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => revertChange({ kind: 'summary-revert' })}
               >
                 <RotateCcw className="size-3" />
-                {isRevertPending ? 'Reverting…' : 'Revert summary'}
+                Revert summary
               </button>
             ) : null}
           </div>
@@ -257,7 +256,6 @@ export function ResumeChangeHighlight({
                 >
                   <button
                     type="button"
-                    disabled={isRevertPending}
                     className="inline-flex items-center gap-1 rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs text-amber-950 ring-1 ring-amber-400/60 transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
                     title="Click to revert this skill"
                     onClick={() => revertChange({ kind: 'skill', index })}
@@ -311,7 +309,6 @@ export function ResumeChangeHighlight({
                             <ChangeComparison original={baseline}>{changedContent}</ChangeComparison>
                             <button
                               type="button"
-                              disabled={isRevertPending}
                               className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-950 ring-1 ring-amber-300/70 transition hover:bg-red-100 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
                               onClick={() =>
                                 revertChange({
@@ -380,7 +377,6 @@ export function ResumeChangeHighlight({
                     <ChangeComparison original="" changedLabel="Added certification">
                       <button
                         type="button"
-                        disabled={isRevertPending}
                         className="inline-flex items-center gap-1 rounded-sm bg-amber-200/90 px-1.5 py-0.5 text-left transition hover:bg-red-200 hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-60"
                         title="Click to revert this certification"
                         onClick={() => revertChange({ kind: 'certification', index })}

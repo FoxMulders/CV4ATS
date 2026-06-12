@@ -1,6 +1,8 @@
+import { normalizeSkillArray } from '@/lib/resume/skill-array-normalize'
+
 /** Collapse redundant skills like "Scope" when "Scope management" is present. */
 export function dedupeSkills(skills: string[]): string[] {
-  const normalized = skills.map((skill) => skill.trim()).filter(Boolean)
+  const normalized = normalizeSkillArray(skills)
   const result: string[] = []
 
   for (const skill of normalized) {

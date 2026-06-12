@@ -57,6 +57,7 @@ describe('identity lock', () => {
         summary: 'Leader text',
         skills: [],
         experience: [],
+        projects: [],
         education: [],
         certifications: [],
       },

@@ -1,6 +1,7 @@
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
 import { isInjectableCompetency } from '@/lib/resume/posting-artifact-filter'
 import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
+import { normalizeSkillArray } from '@/lib/resume/skill-array-normalize'
 
 export interface SkillInjectionResult {
   text: string
@@ -263,7 +264,7 @@ export function injectMissingSkills(
 
   return {
     text: joinLines(lines),
-    injectedSkills: [...new Set(injectedSkills)],
+    injectedSkills: normalizeSkillArray(injectedSkills),
     modifiedBulletCount,
   }
 }

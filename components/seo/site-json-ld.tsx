@@ -1,23 +1,26 @@
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ats-resume-builder-flax.vercel.app'
+import { BRAND_NAME } from '@/lib/brand'
+import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from '@/lib/seo/site-metadata'
 
 const organizationJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  name: 'ATS4CV',
-  url: siteUrl,
-  description:
-    'AI-powered ATS resume builder and cover letter tailoring tool with anti-plagiarism guardrails.',
+  name: BRAND_NAME,
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
 }
 
 const webApplicationJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebApplication',
-  name: 'ATS4CV',
-  url: siteUrl,
-  operatingSystem: 'All',
+  name: BRAND_NAME,
+  alternateName: 'cv2ats.ca ATS Resume Builder',
+  url: SITE_URL,
+  operatingSystem: 'Any',
+  browserRequirements: 'Requires JavaScript',
   applicationCategory: 'BusinessApplication',
-  description:
-    'Tailor your resume and generate cover letters to beat automated tracking systems. Scan your resume against job descriptions using context-aware AI.',
+  inLanguage: 'en-CA',
+  isAccessibleForFree: true,
+  description: SITE_DESCRIPTION,
   offers: {
     '@type': 'Offer',
     price: '4.99',
@@ -26,43 +29,28 @@ const webApplicationJsonLd = {
   },
   featureList: [
     'AI-powered ATS resume tailoring',
-    'AI resume scanner with anti-plagiarism guardrails',
+    'ATS resume scanner with anti-plagiarism guardrails',
     'Cover letter generation',
     'Keyword match and ATS compliance scoring',
     'Exact Phrasing Auditor',
+    'Edmonton-area job search integration',
   ],
-}
-
-const softwareJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'ATS4CV',
-  applicationCategory: 'BusinessApplication',
-  operatingSystem: 'Web',
-  url: siteUrl,
-  offers: {
-    '@type': 'Offer',
-    price: '4.99',
-    priceCurrency: 'CAD',
-    description: '24-Hour Job Pass with unlimited edits and re-downloads for one target role',
+  creator: {
+    '@type': 'Organization',
+    name: BRAND_NAME,
+    url: SITE_URL,
   },
-  featureList: [
-    'AI-powered ATS resume tailoring',
-    'AI resume scanner with anti-plagiarism guardrails',
-    'Adaptive phrase diversification',
-    '24-Hour Job Pass per role',
-    'Square secure checkout',
-  ],
 }
 
 const websiteJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
-  name: 'ATS4CV',
-  url: siteUrl,
+  name: BRAND_NAME,
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
   potentialAction: {
     '@type': 'SearchAction',
-    target: `${siteUrl}/jobs?q={search_term_string}`,
+    target: `${SITE_URL}/jobs?q={search_term_string}`,
     'query-input': 'required name=search_term_string',
   },
 }
@@ -80,11 +68,41 @@ export function SiteJsonLd() {
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+      />
+    </>
+  )
+}
+
+/** Home-page FAQ rich results — rendered only on `/`. */
+export function HomePageJsonLd({ faqJsonLd }: { faqJsonLd: Record<string, unknown> }) {
+  const webPageJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: SITE_TITLE,
+    url: SITE_URL,
+    description: SITE_DESCRIPTION,
+    isPartOf: {
+      '@type': 'WebSite',
+      name: BRAND_NAME,
+      url: SITE_URL,
+    },
+    about: {
+      '@type': 'WebApplication',
+      name: BRAND_NAME,
+      url: SITE_URL,
+    },
+  }
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
     </>
   )

@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 
 export const PREMIUM_DOWNLOAD_PRICE_CENTS = 499
 export const PREMIUM_DOWNLOAD_CURRENCY = 'CAD'
-export const PREMIUM_DOWNLOAD_NOTE = 'ATS4CV 24-Hour Job Pass'
+export const PREMIUM_DOWNLOAD_NOTE = 'cv2ats 24-Hour Job Pass'
 export const PREMIUM_ACCESS_TTL_MS = 24 * 60 * 60 * 1000
 
 export interface PremiumAccessPayload {

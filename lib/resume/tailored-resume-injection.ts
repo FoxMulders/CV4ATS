@@ -2,6 +2,7 @@ import type { TailoredResume } from '@/lib/ai/schemas'
 import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
 import { isInjectableCompetency } from '@/lib/resume/posting-artifact-filter'
 import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
+import { normalizeSkillArray } from '@/lib/resume/skill-array-normalize'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
 
 export interface TailoredResumeInjectionResult {
@@ -239,19 +240,22 @@ function addDedicatedKeywordBullet(
 
 function ensureSkillsPresent(resume: TailoredResume, terms: string[]): string[] {
   const added: string[] = []
+  resume.skills = normalizeSkillArray(resume.skills)
   const skillsLower = resume.skills.map((skill) => skill.toLowerCase())
 
-  for (const term of terms) {
+  for (const term of normalizeSkillArray(terms)) {
     const serialized = serializeTailoredResume(resume)
     if (keywordMatchesResume(serialized, term)) continue
 
     const label = titleCase(term)
     if (!skillsLower.includes(label.toLowerCase()) && !skillsLower.includes(term.toLowerCase())) {
       resume.skills.push(label)
+      skillsLower.push(label.toLowerCase())
       added.push(term)
     }
   }
 
+  resume.skills = normalizeSkillArray(resume.skills)
   return added
 }
 
@@ -317,9 +321,11 @@ export function injectIntoTailoredResume(
       cloned,
       stillMissing.map((skill) => skill.term)
     )
+    cloned.skills = normalizeSkillArray(cloned.skills)
+
     return {
       resume: cloned,
-      injectedSkills: [...new Set(injectedSkills)],
+      injectedSkills: normalizeSkillArray(injectedSkills),
       modifiedBulletCount: 0,
     }
   }
@@ -356,9 +362,11 @@ export function injectIntoTailoredResume(
   )
   injectedSkills.push(...skillAdded)
 
+  cloned.skills = normalizeSkillArray(cloned.skills)
+
   return {
     resume: cloned,
-    injectedSkills: [...new Set(injectedSkills)],
+    injectedSkills: normalizeSkillArray(injectedSkills),
     modifiedBulletCount,
   }
 }

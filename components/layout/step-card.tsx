@@ -27,7 +27,7 @@ export function StepCard({
     <Card
       id={id}
       className={cn(
-        'border-border/80 shadow-sm transition-shadow hover:shadow-md',
+        'border-border/80 shadow-[var(--shadow-ambient)] transition-shadow hover:shadow-[var(--shadow-elevated)]',
         fillHeight && 'flex h-full flex-col',
         className
       )}

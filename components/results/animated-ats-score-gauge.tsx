@@ -57,7 +57,12 @@ export function AnimatedAtsScoreGauge({
               {label}
             </p>
           ) : null}
-          <div className="flex flex-wrap items-baseline gap-2">
+          <div
+            className={cn(
+              'flex flex-wrap items-baseline gap-2 transition-[opacity,filter] duration-300',
+              isUpdating && 'opacity-50 blur-[2px]'
+            )}
+          >
             <p
               className={cn(
                 'font-bold tabular-nums transition-colors duration-500',
@@ -68,7 +73,7 @@ export function AnimatedAtsScoreGauge({
               {animatedScore}%
             </p>
             {isUpdating ? (
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              <Loader2 className="size-4 animate-spin text-muted-foreground blur-0" />
             ) : null}
           </div>
         </div>
@@ -85,10 +90,14 @@ export function AnimatedAtsScoreGauge({
       <div className="relative h-2.5 overflow-hidden rounded-full bg-muted">
         <div
           className={cn(
-            'h-full rounded-full transition-[width,background-color] duration-700 ease-out',
+            'score-gauge-fill h-full rounded-full transition-[width,background-color] duration-700 ease-out',
             barTone(animatedScore)
           )}
-          style={{ width: `${Math.min(100, Math.max(0, animatedScore))}%` }}
+          style={
+            {
+              '--score-fill': `${Math.min(100, Math.max(0, animatedScore))}%`,
+            } as React.CSSProperties
+          }
         />
       </div>
 

@@ -130,7 +130,13 @@ export function shouldFallbackToNextGeminiModel(error: unknown): boolean {
 }
 
 export function isHiringPanelRateLimitReason(reason: string): boolean {
-  return RATE_LIMIT_PATTERN.test(reason)
+  return RATE_LIMIT_PATTERN.test(reason) || /retry in \d+\s*s/i.test(reason)
+}
+
+/** User-facing copy when Gemini quota blocks the cloud hiring panel. */
+export function buildHiringPanelRateLimitMessage(retryAfterSeconds: number): string {
+  const seconds = Math.max(1, Math.ceil(retryAfterSeconds))
+  return `Gemini API quota temporarily exceeded. Your tailored resume is still ready — retry the hiring panel in about ${seconds} second${seconds === 1 ? '' : 's'}.`
 }
 
 /** Short, user-facing hiring panel failure text (avoid raw API quota dumps). */
@@ -138,16 +144,25 @@ export function formatHiringPanelFailureReason(reason: string): string {
   const trimmed = reason.trim()
   if (!trimmed) return 'Hiring panel review could not be completed.'
 
+  const clientRetryMatch = trimmed.match(/retry in (\d+)\s*s/i)
+  if (/gemini rate limit/i.test(trimmed) && clientRetryMatch?.[1]) {
+    return buildHiringPanelRateLimitMessage(Number(clientRetryMatch[1]))
+  }
+
   if (/free_tier_.*limit:\s*0/i.test(trimmed) && /gemini-2\.5-pro/i.test(trimmed)) {
-    return 'Gemini free tier does not include gemini-2.5-pro on this API key. ATS4CV uses Flash models for the hiring panel instead — regenerate to retry.'
+    return 'Gemini free tier does not include gemini-2.5-pro on this API key. cv2ats uses Flash models for the hiring panel instead — regenerate to retry.'
   }
 
   if (/quota exceeded|resource exhausted|free_tier|you exceeded your current quota/i.test(trimmed)) {
     const retrySeconds = parseGeminiRetrySeconds(trimmed)
     if (retrySeconds != null) {
-      return `Gemini API quota temporarily exceeded. Retry the hiring panel in about ${retrySeconds} second${retrySeconds === 1 ? '' : 's'}. Your tailored resume is still ready.`
+      return buildHiringPanelRateLimitMessage(retrySeconds)
     }
-    return 'Gemini API quota exceeded for cloud hiring panel review. Your tailored resume is still available — retry in about a minute.'
+    return buildHiringPanelRateLimitMessage(60)
+  }
+
+  if (isHiringPanelRateLimitReason(trimmed)) {
+    return buildHiringPanelRateLimitMessage(60)
   }
 
   return trimmed.length > 320 ? `${trimmed.slice(0, 317)}…` : trimmed
@@ -193,6 +208,6 @@ export function shouldUseLocalFallback(error: unknown): boolean {
 
 export function formatDirectProviderSetupError(): string {
   return (
-    'Use a free direct API key — not Vercel AI Gateway. In Vercel → ATS4CV → Environment Variables: remove AI_GATEWAY_API_KEY, add GEMINI_API_KEY from https://aistudio.google.com/apikey, then redeploy.'
+    'Use a free direct API key — not Vercel AI Gateway. In Vercel → cv2ats → Environment Variables: remove AI_GATEWAY_API_KEY, add GEMINI_API_KEY from https://aistudio.google.com/apikey, then redeploy.'
   )
 }

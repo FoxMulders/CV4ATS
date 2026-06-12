@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import type { TailoredResume } from '@/lib/ai/schemas'
 import { isFieldEdited } from '@/lib/form/field-diff'
 
-import { Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 
 import { EditableFieldShell } from '@/components/form/editable-field-shell'
 import { EditableTagList } from '@/components/form/editable-tag-list'
@@ -56,6 +56,26 @@ function updateBullet(
     bullets: (resume.experience ?? [])[jobIndex]!.bullets.map((bullet, index) =>
       index === bulletIndex ? text : bullet
     ),
+  })
+}
+
+function addBullet(resume: TailoredResume, jobIndex: number): TailoredResume {
+  const job = (resume.experience ?? [])[jobIndex]
+  if (!job) return resume
+  return updateExperience(resume, jobIndex, {
+    bullets: [...job.bullets, ''],
+  })
+}
+
+function removeBullet(
+  resume: TailoredResume,
+  jobIndex: number,
+  bulletIndex: number
+): TailoredResume {
+  const job = (resume.experience ?? [])[jobIndex]
+  if (!job || job.bullets.length <= 1) return resume
+  return updateExperience(resume, jobIndex, {
+    bullets: job.bullets.filter((_, index) => index !== bulletIndex),
   })
 }
 
@@ -309,24 +329,50 @@ export function EditableParsedResumeForm({
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Experience bullets & metrics
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Experience statements
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => emitChange(addBullet(resume, jobIndex))}
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  Add statement
+                </Button>
+              </div>
               {job.bullets.map((bullet, bulletIndex) => (
                 <EditableFieldShell
                   key={`${jobKey}-bullet-${bulletIndex}`}
-                  label={`Bullet ${bulletIndex + 1}`}
+                  label={`Statement ${bulletIndex + 1}`}
                   htmlFor={`job-${jobIndex}-bullet-${bulletIndex}`}
                   edited={isFieldEdited(bullet, baselineJob?.bullets[bulletIndex])}
                 >
-                  <Textarea
-                    id={`job-${jobIndex}-bullet-${bulletIndex}`}
-                    value={bullet}
-                    rows={3}
-                    onChange={(event) =>
-                      emitChange(updateBullet(resume, jobIndex, bulletIndex, event.target.value))
-                    }
-                  />
+                  <div className="space-y-2">
+                    <Textarea
+                      id={`job-${jobIndex}-bullet-${bulletIndex}`}
+                      value={bullet}
+                      rows={3}
+                      placeholder="Led cross-functional delivery for a $2M initiative…"
+                      onChange={(event) =>
+                        emitChange(updateBullet(resume, jobIndex, bulletIndex, event.target.value))
+                      }
+                    />
+                    {job.bullets.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => emitChange(removeBullet(resume, jobIndex, bulletIndex))}
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                        Remove statement
+                      </Button>
+                    ) : null}
+                  </div>
                   {jobDescription?.trim() ? (
                     <PhrasingSimilarityPreview
                       text={bullet}

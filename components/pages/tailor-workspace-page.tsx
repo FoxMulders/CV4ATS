@@ -15,7 +15,8 @@ import { HiringPanelReviewPanel } from '@/components/results/hiring-panel-review
 import { KeywordReportPanel } from '@/components/results/keyword-report'
 import { RecalculateScoreToolbar } from '@/components/results/recalculate-score-toolbar'
 import type { SkillSnippetSelection } from '@/components/results/editable-skill-snippet-picker'
-import { applyAnchoredSkillModifications, selectionsToAnchoredModifications } from '@/lib/resume/apply-skill-modifications'
+import { selectionsToAnchoredModifications } from '@/lib/resume/apply-skill-modifications'
+import { targetSkillTerms } from '@/lib/resume/skill-extrapolation'
 import { EditableResumePreview } from '@/components/results/editable-resume-preview'
 import { ResumeDiffView } from '@/components/results/resume-diff-view'
 import { ResumePreview } from '@/components/results/resume-preview'
@@ -30,6 +31,7 @@ import { WorkspaceAccordion } from '@/components/workspace/workspace-accordion'
 import { GenerateStep } from '@/components/wizard/generate-step'
 import { AchievementIntakeModal } from '@/components/wizard/achievement-intake-modal'
 import { PanelExperienceIntakeModal } from '@/components/wizard/panel-experience-intake-modal'
+import { CoverLetterContextField } from '@/components/wizard/cover-letter-context-field'
 import { JobDescriptionStep } from '@/components/wizard/job-description-step'
 import {
   ResumeInputStep,
@@ -43,6 +45,7 @@ import { useBrowserAiPreference } from '@/hooks/use-browser-ai-preference'
 import { useAtsScoreRecalculation } from '@/hooks/use-ats-score-recalculation'
 import { useSavedResume } from '@/hooks/use-saved-resume'
 import { guideWorkspaceFocusWhenInputsReady, RESUME_STEP_ANCHOR_ID } from '@/lib/wizard/workspace-focus-guide'
+import { useResumeBuilderState } from '@/hooks/use-resume-builder-state'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { coalesceStreamingResume, consumeGenerationStream } from '@/lib/api/progress-stream'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
@@ -55,7 +58,10 @@ import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { GenerationResult, KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import { applyLockedContactToResume, resolveLockedContactFromSource } from '@/lib/resume/identity-lock'
+import { countModifiedResumeBullets } from '@/lib/resume/count-modified-bullets'
+import { lockResumeState, strictStateToTailoredResume } from '@/lib/resume/strict-resume-state'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
+import { stateSliceToResumeText, stateSliceToTailoredResume } from '@/lib/resume/resume-state-slice'
 import {
   detectAchievementGaps,
   formatAchievementSupplement,
@@ -71,6 +77,10 @@ import { requestPanelRetailor } from '@/lib/api/panel-retailor-client'
 import { shouldOfferPanelFeedbackRetailor } from '@/lib/ai/panel-feedback-retailor'
 import { PANEL_PASS_2_LOADING_LABEL } from '@/lib/ai/generation-integrity'
 import { requestHiringPanelReview, type HiringPanelReviewResponse } from '@/lib/api/hiring-panel-client'
+import {
+  buildHiringPanelRateLimitMessage,
+  isHiringPanelRateLimitReason,
+} from '@/lib/ai/errors'
 import { isApiRateLimitError } from '@/qa/lib/GeminiQuotaInterceptor'
 import { useRateLimitCooldown } from '@/qa/hooks/useRateLimitCooldown'
 
@@ -90,6 +100,7 @@ type GenerateOptions = {
   anchoredModifications?: ReturnType<typeof selectionsToAnchoredModifications>
   resumeOverride?: string
   achievementSupplement?: string
+  coverLetterContext?: string
   skipAchievementIntake?: boolean
 }
 
@@ -130,6 +141,7 @@ export function TailorWorkspacePage({
     canRedo: canRedoResumeEdit,
   } = useUndoableResume(null)
   const [coverLetter, setCoverLetter] = useState('')
+  const [coverLetterContext, setCoverLetterContext] = useState('')
   const [fileParse, setFileParse] = useState<ResumeFileParseState>({
     status: 'idle',
     parsedText: '',
@@ -140,6 +152,7 @@ export function TailorWorkspacePage({
   const [editedPreScan, setEditedPreScan] = useState<PreScanResult | null>(null)
   const [preScanLoading, setPreScanLoading] = useState(false)
   const [originalResumeText, setOriginalResumeText] = useState<string | null>(null)
+  const [originalResume, setOriginalResume] = useState<TailoredResume | null>(null)
   const [baselineTailoredResume, setBaselineTailoredResume] = useState<TailoredResume | null>(null)
   const [editedKeywordReport, setEditedKeywordReport] = useState<KeywordReport | null>(null)
   const [baselineKeywordReport, setBaselineKeywordReport] = useState<KeywordReport | null>(null)
@@ -152,8 +165,22 @@ export function TailorWorkspacePage({
   const [panelReviseLoading, setPanelReviseLoading] = useState(false)
   const [panelRetailorLoading, setPanelRetailorLoading] = useState(false)
   const [panelReviewLoading, setPanelReviewLoading] = useState(false)
-  const panelRateLimitCooldown = useRateLimitCooldown()
+  const handleRetryHiringPanelReviewRef = useRef<() => Promise<void>>(async () => {})
+  const pendingPanelAutoRetryRef = useRef(false)
+  const [pendingPanelAutoRetry, setPendingPanelAutoRetryState] = useState(false)
+
+  function setPendingPanelAutoRetry(value: boolean) {
+    pendingPanelAutoRetryRef.current = value
+    setPendingPanelAutoRetryState(value)
+  }
   const { appendLog, clearLogs } = useSystemDebugLog()
+  const panelRateLimitCooldown = useRateLimitCooldown(() => {
+    if (!pendingPanelAutoRetryRef.current) return
+    setPendingPanelAutoRetry(false)
+    appendLog('LOG: [Hiring Panel] Cooldown complete — auto-retrying cloud panel review…')
+    toast.message('Retrying hiring panel review…')
+    void handleRetryHiringPanelReviewRef.current()
+  })
   const lastLoggedJobRef = useRef('')
   const lastLoggedResumeRef = useRef('')
   const streamLoggedRef = useRef(false)
@@ -174,6 +201,11 @@ export function TailorWorkspacePage({
   const activeResumeText =
     resumeText.trim() ||
     (fileParse.status === 'ready' ? fileParse.parsedText.trim() : '')
+
+  const resumeBuilder = useResumeBuilderState({
+    jobDescription,
+    sourceText: originalResumeText ?? activeResumeText,
+  })
 
   const lockedContact = useMemo(
     () => resolveLockedContactFromSource(activeResumeText),
@@ -226,8 +258,9 @@ export function TailorWorkspacePage({
       const locked = applyIdentityLock(nextResume)
       appendLog(describeTailoredResumeEdit(editedResume, locked))
       pushEditedResume(locked)
+      resumeBuilder.patchTailoredResume(locked)
     },
-    [appendLog, applyIdentityLock, editedResume, pushEditedResume]
+    [appendLog, applyIdentityLock, editedResume, pushEditedResume, resumeBuilder]
   )
 
   const handleFileParseChange = useCallback((state: ResumeFileParseState) => {
@@ -279,12 +312,28 @@ export function TailorWorkspacePage({
     return () => window.clearTimeout(timer)
   }, [jobDescription, activeResumeText])
 
+  const syncResumeBuilderFromText = resumeBuilder.setFromResumeText
+
+  useEffect(() => {
+    if (result || !activeResumeText.trim()) return
+    syncResumeBuilderFromText(activeResumeText)
+  }, [activeResumeText, result, syncResumeBuilderFromText])
+
   function handleInsertSkillSelections(selections: SkillSnippetSelection[]) {
+    const nextSlice = resumeBuilder.onApplyRevisions(selections)
+    const nextTailored = stateSliceToTailoredResume(nextSlice)
+    const nextText = stateSliceToResumeText(nextSlice)
+
+    if (editedResume) {
+      pushEditedResumeWithLog(nextTailored)
+      toast.success(
+        `Applied ${selections.length} revision${selections.length === 1 ? '' : 's'} to your tailored resume`
+      )
+      return
+    }
+
     setResumeFile(null)
-    setResumeText((current) => {
-      const base = current.trim() || activeResumeText
-      return applyAnchoredSkillModifications(base, selectionsToAnchoredModifications(selections))
-    })
+    setResumeText(nextText)
     toast.success(
       `Updated ${selections.length} resume line${selections.length === 1 ? '' : 's'} with selected skills`
     )
@@ -321,7 +370,8 @@ export function TailorWorkspacePage({
     const isReTailor =
       Boolean(options.selectedKeywords?.length) ||
       Boolean(options.customSnippets?.length) ||
-      Boolean(options.anchoredModifications?.length)
+      Boolean(options.anchoredModifications?.length) ||
+      Boolean(resumeBuilder.anchoredModifications.length)
 
     if (
       !useBrowserAi &&
@@ -339,7 +389,14 @@ export function TailorWorkspacePage({
       }
     }
 
-    void handleGenerate(options)
+    void handleGenerate({
+      ...options,
+      anchoredModifications:
+        options.anchoredModifications ?? resumeBuilder.anchoredModifications,
+      resumeOverride:
+        options.resumeOverride ??
+        (resumeBuilder.resumeText.trim() ? resumeBuilder.resumeText : undefined),
+    })
   }
 
   function openAchievementIntakeFromPanel() {
@@ -397,33 +454,34 @@ export function TailorWorkspacePage({
     }
   }
 
-  function handleHiringPanelRateLimit(error: unknown): boolean {
-    if (!isApiRateLimitError(error)) return false
-    panelRateLimitCooldown.startCooldown(error.retryAfterSeconds)
+  function scheduleHiringPanelAutoRetry(retryAfterSeconds: number) {
+    setPendingPanelAutoRetry(true)
+    panelRateLimitCooldown.startCooldown(retryAfterSeconds)
     appendLog(
-      `LOG: [Hiring Panel] Rate limit — retry available in ${error.retryAfterSeconds}s`
+      `LOG: [Hiring Panel] Rate limit — auto-retry scheduled in ${retryAfterSeconds}s`
     )
     toast.message(
-      `Gemini rate limit reached. Retry available in ${error.retryAfterSeconds} second${error.retryAfterSeconds === 1 ? '' : 's'}.`
+      `Gemini quota exceeded. Retrying hiring panel automatically in ${retryAfterSeconds} second${retryAfterSeconds === 1 ? '' : 's'}. Your tailored resume is still ready.`
     )
+  }
+
+  function handleHiringPanelRateLimit(error: unknown): boolean {
+    if (!isApiRateLimitError(error)) return false
+    scheduleHiringPanelAutoRetry(error.retryAfterSeconds)
     return true
   }
 
   function handleHiringPanelQuotaCooldown(panelResponse: HiringPanelReviewResponse) {
     if (!panelResponse.retryAfterSeconds || panelResponse.retryAfterSeconds <= 0) return
-    panelRateLimitCooldown.startCooldown(panelResponse.retryAfterSeconds)
-    appendLog(
-      `LOG: [Hiring Panel] Rate limit — retry available in ${panelResponse.retryAfterSeconds}s`
-    )
-    toast.message(
-      `Gemini rate limit reached. Retry available in ${panelResponse.retryAfterSeconds} second${panelResponse.retryAfterSeconds === 1 ? '' : 's'}.`
-    )
+    scheduleHiringPanelAutoRetry(panelResponse.retryAfterSeconds)
   }
 
   function hiringPanelRetryButtonLabel(defaultLabel: string): string {
     if (panelReviewLoading) return 'Running cloud panel review…'
     if (panelRateLimitCooldown.isCoolingDown) {
-      return `⏳ Rate Limit cooling down... Retry available in ${panelRateLimitCooldown.secondsLeft}s`
+      return pendingPanelAutoRetry
+        ? `Auto-retry in ${panelRateLimitCooldown.secondsLeft}s…`
+        : `Retry available in ${panelRateLimitCooldown.secondsLeft}s`
     }
     return defaultLabel
   }
@@ -489,20 +547,33 @@ export function TailorWorkspacePage({
           panelResponse.failureReason ?? panelResponse.error,
           panelResponse.partialCritiques ?? []
         )
-        handleHiringPanelQuotaCooldown(panelResponse)
-        if (!panelResponse.retryAfterSeconds) {
+        if (
+          panelResponse.retryAfterSeconds &&
+          (isHiringPanelRateLimitReason(panelResponse.failureReason ?? '') ||
+            isHiringPanelRateLimitReason(panelResponse.hiringPanel.failureReason ?? ''))
+        ) {
+          handleHiringPanelQuotaCooldown(panelResponse)
+        } else if (!panelResponse.retryAfterSeconds) {
+          setPendingPanelAutoRetry(false)
           toast.message('Hiring panel could not complete. Use Retry hiring panel when ready.')
         }
       } else {
+        setPendingPanelAutoRetry(false)
+        panelRateLimitCooldown.clearCooldown()
         toast.success(`Hiring panel complete — ${panelResponse.hiringPanel.aggregateScore}% readiness`)
       }
     } catch (error) {
       if (handleHiringPanelRateLimit(error)) return
+      setPendingPanelAutoRetry(false)
       toast.error(error instanceof Error ? error.message : 'Hiring panel review failed.')
     } finally {
       setPanelReviewLoading(false)
     }
   }
+
+  useEffect(() => {
+    handleRetryHiringPanelReviewRef.current = handleRetryHiringPanelReview
+  })
 
   async function handlePanelExperienceSubmit(answers: Record<string, string>) {
     if (!result?.hiringPanel || !originalResumeText?.trim()) {
@@ -669,12 +740,22 @@ export function TailorWorkspacePage({
       getResumeTextForSubmit(resumeText, resumeFile, fileParse).resumeText ??
       activeResumeText
     if (capturedResumeText.trim()) {
-      setOriginalResumeText(capturedResumeText.trim())
+      const trimmed = capturedResumeText.trim()
+      setOriginalResumeText(trimmed)
+      setOriginalResume(strictStateToTailoredResume(lockResumeState(trimmed)))
     }
 
-    if (!options.selectedKeywords?.length && !options.customSnippets?.length && !options.anchoredModifications?.length) {
+    const effectiveAnchoredModifications =
+      options.anchoredModifications ?? resumeBuilder.anchoredModifications
+
+    if (
+      !options.selectedKeywords?.length &&
+      !options.customSnippets?.length &&
+      !effectiveAnchoredModifications.length
+    ) {
       setResult(null)
       resetEditedResume(null)
+      resumeBuilder.reset()
     }
 
     try {
@@ -702,6 +783,7 @@ export function TailorWorkspacePage({
         const data = await runBrowserGeneration({
           jobDescription: jobDescription.trim(),
           resumeText: resumeForGeneration.trim(),
+          coverLetterContext: coverLetterContext.trim() || undefined,
           useChromeNano: browserAiStatus?.supported === true && browserAiStatus.ready,
           onProgress: (label) => {
             setLoadingLabel(label)
@@ -738,8 +820,14 @@ export function TailorWorkspacePage({
                 panelResponse.failureReason ?? panelResponse.error,
                 panelResponse.partialCritiques ?? []
               )
-              handleHiringPanelQuotaCooldown(panelResponse)
-              if (!panelResponse.retryAfterSeconds) {
+              if (
+                panelResponse.retryAfterSeconds &&
+                (isHiringPanelRateLimitReason(panelResponse.failureReason ?? '') ||
+                  isHiringPanelRateLimitReason(panelResponse.hiringPanel.failureReason ?? ''))
+              ) {
+                handleHiringPanelQuotaCooldown(panelResponse)
+              } else if (!panelResponse.retryAfterSeconds) {
+                setPendingPanelAutoRetry(false)
                 toast.message('Browser tailoring finished, but the hiring panel could not complete.')
               }
             }
@@ -759,7 +847,9 @@ export function TailorWorkspacePage({
             }
           }
         } catch (panelError) {
-          if (handleHiringPanelRateLimit(panelError)) {
+          if (isApiRateLimitError(panelError)) {
+            handleHiringPanelRateLimit(panelError)
+            const rateLimitMessage = buildHiringPanelRateLimitMessage(panelError.retryAfterSeconds)
             nextResult = {
               ...nextResult,
               hiringPanel: {
@@ -767,12 +857,10 @@ export function TailorWorkspacePage({
                 aggregateScore: 0,
                 revisionRounds: 0,
                 managers: [],
-                finalVerdict: 'Hiring panel rate limited — retry when cooldown completes.',
+                finalVerdict: rateLimitMessage,
                 revisionRecommendations: [],
                 reviewFailed: true,
-                failureReason: isApiRateLimitError(panelError)
-                  ? `Gemini rate limit — retry in ${panelError.retryAfterSeconds}s`
-                  : 'Cloud hiring panel rate limited.',
+                failureReason: rateLimitMessage,
               },
             }
           } else {
@@ -804,8 +892,16 @@ export function TailorWorkspacePage({
           }
         }
 
+        const browserMergedSlice = resumeBuilder.mergeGenerationResult(
+          nextResult.tailoredResume,
+          capturedResumeText.trim()
+        )
+        const browserMergedTailored = applyIdentityLock(
+          stateSliceToTailoredResume(browserMergedSlice)
+        )
+
         setResult(nextResult)
-        resetEditedResume(applyIdentityLock(nextResult.tailoredResume))
+        resetEditedResume(browserMergedTailored)
         setBaselineTailoredResume(applyIdentityLock(nextResult.tailoredResume))
         setEditedKeywordReport(nextResult.keywordReport)
         setBaselineKeywordReport(nextResult.baselineKeywordReport)
@@ -855,11 +951,18 @@ export function TailorWorkspacePage({
       if (options.customSnippets?.length) {
         formData.append('customSnippets', JSON.stringify(options.customSnippets))
       }
-      if (options.anchoredModifications?.length) {
-        formData.append('anchoredModifications', JSON.stringify(options.anchoredModifications))
+      const anchoredForGeneration =
+        options.anchoredModifications ?? resumeBuilder.anchoredModifications
+      if (anchoredForGeneration.length) {
+        formData.append('anchoredModifications', JSON.stringify(anchoredForGeneration))
       }
       if (options.achievementSupplement?.trim()) {
         formData.append('achievementSupplement', options.achievementSupplement.trim())
+      }
+      const contextForGeneration =
+        options.coverLetterContext?.trim() || coverLetterContext.trim()
+      if (contextForGeneration) {
+        formData.append('coverLetterContext', contextForGeneration)
       }
 
       appendLog(
@@ -898,8 +1001,14 @@ export function TailorWorkspacePage({
         },
       })
 
+      const mergedSlice = resumeBuilder.mergeGenerationResult(
+        data.tailoredResume,
+        capturedResumeText.trim()
+      )
+      const mergedTailored = applyIdentityLock(stateSliceToTailoredResume(mergedSlice))
+
       setResult({ ...data, generationSource: 'server' })
-      resetEditedResume(applyIdentityLock(data.tailoredResume))
+      resetEditedResume(mergedTailored)
       setBaselineTailoredResume(applyIdentityLock(data.tailoredResume))
       setEditedKeywordReport(data.keywordReport)
       setBaselineKeywordReport(data.baselineKeywordReport)
@@ -976,28 +1085,38 @@ export function TailorWorkspacePage({
 
   const premiumLocked = Boolean(result && checkoutEnabled && !isUnlocked)
 
-  const resumeHasManualEdits = useMemo(() => {
-    if (!editedResume || !baselineTailoredResume) return false
-    return (
-      serializeTailoredResume(editedResume) !== serializeTailoredResume(baselineTailoredResume)
-    )
-  }, [editedResume, baselineTailoredResume])
-
   const handleKeywordReportUpdate = useCallback((report: KeywordReport) => {
     setEditedKeywordReport(report)
   }, [])
 
+  const activeTargetSkills = useMemo(
+    () =>
+      targetSkillTerms(
+        (editedPreScan ?? result?.preScan ?? preScanPreview)?.targetSkills ?? []
+      ),
+    [editedPreScan, preScanPreview, result?.preScan]
+  )
+
+  const documentResume =
+    resumeBuilder.tailoredResume ?? editedResume ?? result?.tailoredResume ?? streamingResume
+  const displayResume = documentResume
+
   const scoreRecalculation = useAtsScoreRecalculation({
-    autoRecalculate: Boolean(result && resumeHasManualEdits),
-    resume: editedResume,
+    autoRecalculate: Boolean(result && documentResume),
+    resume: documentResume,
     jobDescription,
-    sourceResumeText: originalResumeText,
-    baselineScore: baselineKeywordReport?.matchScore,
+    targetSkills: activeTargetSkills,
     seedScore: result?.keywordReport.matchScore ?? null,
     onReportUpdate: handleKeywordReportUpdate,
   })
 
-  const displayResume = editedResume ?? streamingResume
+  const tailoredCompareResume =
+    editedResume ?? baselineTailoredResume ?? streamingResume ?? result?.tailoredResume ?? null
+
+  const modifiedBulletCount = useMemo(() => {
+    if (!originalResume || !tailoredCompareResume) return 0
+    return countModifiedResumeBullets(originalResume, tailoredCompareResume)
+  }, [originalResume, tailoredCompareResume])
   const hasPreviewDocument = Boolean(displayResume)
   /** Split workspace is always active on desktop — empty preview until generation. */
   const showPreviewPane = true
@@ -1006,15 +1125,23 @@ export function TailorWorkspacePage({
   const leftPane = (
     <>
       {hero?.title ? (
-        <div className="rounded-lg border border-border/60 bg-card/80 px-4 py-3">
+        <section
+          aria-labelledby="workspace-hero-heading"
+          className="rounded-lg border border-border/60 bg-card/80 px-4 py-3"
+        >
           {hero.eyebrow ? (
             <p className="text-xs font-medium uppercase tracking-wide text-brand-gold">{hero.eyebrow}</p>
           ) : null}
-          <h1 className="font-heading text-lg font-semibold leading-tight">{hero.title}</h1>
+          <h1
+            id="workspace-hero-heading"
+            className="font-heading text-xl font-semibold leading-tight sm:text-2xl"
+          >
+            {hero.title}
+          </h1>
           {hero.description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{hero.description}</p>
+            <p className="mt-1 text-base text-muted-foreground">{hero.description}</p>
           ) : null}
-        </div>
+        </section>
       ) : null}
 
       <TrustBanner message="Your resume stays in this browser. It is sent to AI providers during generation and is not stored on our servers." />
@@ -1070,6 +1197,13 @@ export function TailorWorkspacePage({
         description="Create an ATS-formatted resume, keyword report, and cover letter"
         defaultOpen={!result}
       >
+        <div className="mb-4">
+          <CoverLetterContextField
+            value={coverLetterContext}
+            onChange={setCoverLetterContext}
+            fieldId="generate-cover-letter-context"
+          />
+        </div>
         <GenerateStep
           onGenerate={() => requestGenerate()}
           isLoading={isLoading}
@@ -1084,6 +1218,7 @@ export function TailorWorkspacePage({
           onUseBrowserAiChange={setUseBrowserAi}
           browserAiStatus={browserAiStatus}
           onRefreshBrowserAiStatus={refreshBrowserAiStatus}
+          modifiedBulletCount={modifiedBulletCount}
         />
         {(preScanPreview || preScanLoading) && canGenerate ? (
           <div className="mt-4">
@@ -1094,7 +1229,8 @@ export function TailorWorkspacePage({
               isLoading={preScanLoading}
               onInsertSelections={handleInsertSkillSelections}
               jobDescription={jobDescription}
-              resumeText={activeResumeText}
+              resumeText={resumeBuilder.resumeText.trim() || activeResumeText}
+              derivedModifiedBulletCount={originalResume ? modifiedBulletCount : undefined}
             />
           </div>
         ) : null}
@@ -1112,11 +1248,14 @@ export function TailorWorkspacePage({
                 preScan={editedPreScan ?? result.preScan}
                 baselinePreScan={baselinePreScan ?? result.preScan}
                 onPreScanChange={setEditedPreScan}
+                onInsertSelections={handleInsertSkillSelections}
                 jobDescription={jobDescription}
                 resumeText={
-                  originalResumeText ??
+                  resumeBuilder.resumeText.trim() ||
+                  originalResumeText ||
                   (editedResume ? serializeTailoredResume(editedResume) : activeResumeText)
                 }
+                derivedModifiedBulletCount={originalResume ? modifiedBulletCount : undefined}
               />
             </WorkspaceAccordion>
           ) : null}
@@ -1161,11 +1300,18 @@ export function TailorWorkspacePage({
             title="Cover letter"
             description="Role-specific letter ready to export"
           >
-            <CoverLetterPreview
-              fieldId={coverLetterFieldId}
-              value={coverLetter}
-              onChange={setCoverLetter}
-            />
+            <div className="space-y-4">
+              <CoverLetterContextField
+                value={coverLetterContext}
+                onChange={setCoverLetterContext}
+                fieldId={`${coverLetterFieldId}-context`}
+              />
+              <CoverLetterPreview
+                fieldId={coverLetterFieldId}
+                value={coverLetter}
+                onChange={setCoverLetter}
+              />
+            </div>
           </WorkspaceAccordion>
 
           {result ? (
@@ -1174,7 +1320,9 @@ export function TailorWorkspacePage({
               title="Hiring panel review"
               description={
                 result.hiringPanel?.reviewFailed
-                  ? 'Review unavailable — regenerate to retry'
+                  ? panelRateLimitCooldown.isCoolingDown
+                    ? 'Review paused — auto-retry when quota clears'
+                    : 'Review unavailable — retry when ready'
                   : result.hiringPanel
                     ? `${result.hiringPanel.aggregateScore}% interview readiness · ${result.hiringPanel.managers.filter((m) => m.approved).length}/10 approved`
                     : result.generationSource === 'browser' && !result.hiringPanel
@@ -1242,7 +1390,12 @@ export function TailorWorkspacePage({
       ) : null}
 
       {showFaq ? (
-        <WorkspaceAccordion id="faq-section" title="FAQ" description="How ATS4CV works">
+        <WorkspaceAccordion
+          id="faq-section"
+          title="FAQ"
+          description="How cv2ats works"
+          headingLevel={2}
+        >
           <SeoFaqSection embedded />
         </WorkspaceAccordion>
       ) : null}
@@ -1258,7 +1411,8 @@ export function TailorWorkspacePage({
         hiringPanel={result?.hiringPanel}
         rawKeywordScore={result?.rawKeywordScore ?? null}
         isAfterUpdating={scoreRecalculation.isRecalculating}
-        resume={editedResume ?? result?.tailoredResume ?? streamingResume ?? null}
+        resume={documentResume}
+        baselineResume={baselineTailoredResume}
         coverLetter={coverLetter}
         premiumAccessToken={accessToken}
         jobDescriptionHash={jobDescriptionHash}
@@ -1269,7 +1423,7 @@ export function TailorWorkspacePage({
 
       {hasPreviewDocument ? (
         <>
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/80 bg-background/95 px-4 py-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-[var(--space-inline)] border-b border-border/80 bg-background/95 px-[var(--space-page-x)] py-2">
             <Tabs
               value={previewTab}
               onValueChange={(value) => setPreviewTab(value as 'tailored' | 'audit')}

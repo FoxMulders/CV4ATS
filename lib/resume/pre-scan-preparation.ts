@@ -11,6 +11,7 @@ import {
   type TargetSkill,
 } from '@/lib/resume/skill-extrapolation'
 import { injectMissingSkills } from '@/lib/resume/skill-injection'
+import { normalizeSkillArray } from '@/lib/resume/skill-array-normalize'
 
 export type { SuggestedAddition } from '@/lib/resume/skill-snippets'
 
@@ -74,7 +75,7 @@ export function runSkillExtrapolationAndInjection(
   if (autoInject && missingSkills.length > 0) {
     const injection = injectMissingSkills(resumeText, missingSkills)
     preparedResumeText = injection.text
-    autoInjectedSkills = injection.injectedSkills
+    autoInjectedSkills = normalizeSkillArray(injection.injectedSkills)
     modifiedBulletCount = injection.modifiedBulletCount
   }
 

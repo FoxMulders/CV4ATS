@@ -1,6 +1,12 @@
 import { generateText } from 'ai'
 
 import {
+  enforceTailorSnippetOutput,
+  parseTailorSnippetModelOutput,
+  tailorSnippetOutputFromPlainText,
+  type TailorSnippetOutput,
+} from '@/lib/ai/ats-keyword-injection-directive'
+import {
   buildQaFeedbackPromptSection,
   polishBulletLocally,
   runBulletQaPipeline,
@@ -19,10 +25,11 @@ import {
   type SnippetGenerationContext,
 } from '@/lib/resume/skill-snippets'
 import { REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION } from '@/lib/resume/exact-phrasing-auditor'
+import { resumeSemanticallyMatchesSkill } from '@/lib/resume/semantic-keyword-match'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
 import { buildSkillAnchor, integrateSkillIntoBulletLocal } from '@/lib/resume/thematic-skill-anchor'
 import {
-  buildSanitizedTailoringContext,
+  buildActiveSectionTailoringContext,
   parseStructuredResumeDocument,
 } from '@/lib/resume/structured-resume-document'
 
@@ -45,48 +52,95 @@ export interface TailorSnippetInput {
   siblingBullets?: string[]
 }
 
-const TAILOR_SNIPPET_SYSTEM = `You are an executive resume writer specializing in ATS-optimized resume edits.
+export interface TailorSnippetOptions {
+  systemPrompt: string
+}
 
-Rewrite exactly ONE existing resume line by gracefully integrating a target skill into the candidate's real history.
+export type TailorSnippetResult = TailorSnippetOutput
 
-STRICT RULES:
-1. IN-LINE MODIFICATION — Do not create a brand-new bullet. Modify the provided original bullet/summary so the target skill is woven into the existing achievement naturally.
-2. CONTEXTUAL AWARENESS — Preserve the employer, role, metrics, tools, and facts from the original line. Never invent employers, dates, or outcomes that are not supported by the resume.
-3. EMPLOYER SANITIZATION — Use only the company name provided in THEMATIC PLACEMENT. Never use contact headers, email addresses, phone numbers, or raw date strings (e.g. "07/2024") as an employer.
-4. TENSE & FLOW — Keep past tense for experience bullets with human-written action verbs (Led, Built, Delivered, Improved, Automated). The result must read like a polished revision, not an appended fragment.
-5. JOB ALIGNMENT — Match the job's competency level semantically. Never copy multi-word fragments from the job description (more than 3 consecutive identical words fails compliance).
-6. CONCISION — One sentence, max ~45 words, impact-driven.
-7. OUTPUT — Return ONLY the rewritten line (no bullet symbol, quotes, markdown, labels, or commentary).
-
-When a VARIATION instruction is present, produce wording clearly different from every listed previous version while keeping the same factual anchor.`
+const CONVERSATIONAL_RESPONSE_PREFIX =
+  /^(?:sure,?\s*)?(?:here(?:'s| is)|absolutely|certainly|of course)[!,.\s]*(?:(?:the|your|a|an)\s+)?(?:(?:rewritten|revised|updated|tailored|optimized)\s+)?(?:bullet(?:\s+point)?|line|summary|snippet|text|version)?\s*(?:is\s*)?[:\s]+/i
 
 function truncateForPrompt(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
   return `${text.slice(0, maxLength)}\n\n[truncated for length]`
 }
 
-function openingPatterns(texts: string[]): string {
-  return texts
-    .map((text) =>
-      text
-        .trim()
-        .split(/\s+/)
-        .slice(0, 5)
-        .join(' ')
-    )
-    .filter(Boolean)
-    .map((line) => `- ${line}`)
-    .join('\n')
+/** @deprecated Use buildAtsKeywordInjectionSystemPrompt from ats-keyword-injection-directive instead. */
+export function buildAtsTailoringSystemPrompt(options: {
+  keywords: string
+  template: string
+  locationRule?: string
+  candidateLocation?: string
+  modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+}): string {
+  const base = options.template.replace('{keywords}', options.keywords)
+
+  if (
+    options.modificationType === 'summary' &&
+    options.candidateLocation?.trim() &&
+    options.locationRule
+  ) {
+    return `${base}\n${options.locationRule.replace('{location}', options.candidateLocation.trim())}`
+  }
+
+  return base
+}
+
+function normalizeSnippetOutput(text: string): string {
+  return text
+    .trim()
+    .replace(/^[\s•\-*–—]+/, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/^```[\s\S]*?\n|```$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Strip whitespace and conversational LLM wrappers before returning to the UI. */
+export function stripTailoringResponse(text: string): string {
+  let result = normalizeSnippetOutput(text)
+
+  for (let pass = 0; pass < 3; pass += 1) {
+    const stripped = result.replace(CONVERSATIONAL_RESPONSE_PREFIX, '').trim()
+    if (stripped === result) break
+    result = normalizeSnippetOutput(stripped)
+  }
+
+  return result
+}
+
+function buildResumeSectionObject(
+  input: TailorSnippetInput,
+  sectionContext: string
+): Record<string, unknown> {
+  const sectionType = input.modificationType ?? 'inline-bullet'
+  const originalText = input.originalBullet?.trim() || input.currentSnippet.trim()
+
+  return {
+    sectionType,
+    roleTitle: input.targetRoleTitle ?? null,
+    company: input.targetCompany ?? null,
+    placementLabel: input.placementLabel ?? null,
+    domainLabel: input.domainLabel ?? null,
+    originalText,
+    structuralContext: sectionContext,
+  }
 }
 
 function buildTailorSnippetPrompt(input: TailorSnippetInput, qaFeedback?: string): string {
-  const pending = (input.otherSnippets ?? []).filter(Boolean).slice(0, 12)
-  const previous = (input.previousVariations ?? []).filter(Boolean).slice(-6)
+  const pending = (input.otherSnippets ?? []).filter(Boolean).slice(0, 6)
+  const previous = (input.previousVariations ?? []).filter(Boolean).slice(-4)
   const variationIndex = input.variationIndex ?? 0
-  const matchedPhrases = (input.matchedJobDescriptionPhrases ?? []).filter(Boolean).slice(0, 6)
-  const originalLine = input.originalBullet?.trim() || input.currentSnippet.trim()
+  const matchedPhrases = (input.matchedJobDescriptionPhrases ?? []).filter(Boolean).slice(0, 4)
   const structured = parseStructuredResumeDocument(input.resumeText)
-  const sanitizedExperience = buildSanitizedTailoringContext(structured)
+  const { sectionContext } = buildActiveSectionTailoringContext(structured, {
+    modificationType: input.modificationType,
+    targetRoleTitle: input.targetRoleTitle,
+    targetCompany: input.targetCompany,
+    currentSnippet: input.currentSnippet,
+  })
+
   const roleSiblingBullets =
     input.siblingBullets ??
     structured.experience
@@ -98,52 +152,30 @@ function buildTailorSnippetPrompt(input: TailorSnippetInput, qaFeedback?: string
       ?.bullets.map((bullet) => bullet.text) ??
     []
 
-  const bannedOpeners = openingPatterns([
-    ...pending,
-    ...previous,
-    input.currentSnippet,
-    originalLine,
-  ])
+  const resumeSectionObject = buildResumeSectionObject(input, sectionContext)
 
-  return `JOB DESCRIPTION (match tone and vocabulary):
-${truncateForPrompt(input.jobDescription.trim(), 6000)}
+  return `JOB DESCRIPTION:
+${truncateForPrompt(input.jobDescription.trim(), 4000)}
 
-SANITIZED EXPERIENCE CONTEXT (use these employers and bullets only — contact headers and date tokens excluded):
-${truncateForPrompt(sanitizedExperience, 9000)}
-
-CANDIDATE NAME (reference only — do not inject into bullet text):
-${structured.contact.name}
-
-TARGET KEYWORD / SKILL TO INTEGRATE:
+MISSING SKILL (must be indexable in modifiedText):
 ${input.keyword.trim()}
 
-THEMATIC PLACEMENT:
-${input.placementLabel?.trim() || 'Most relevant historical role'}
-${input.targetRoleTitle ? `- Role: ${input.targetRoleTitle}` : ''}
-${input.targetCompany ? `- Company: ${input.targetCompany}` : ''}
-${input.domainLabel ? `- Professional domain: ${input.domainLabel}` : ''}
-${input.modificationType ? `- Edit type: ${input.modificationType}` : 'inline-bullet'}
+RESUME SECTION OBJECT:
+${JSON.stringify(resumeSectionObject, null, 2)}
 
-OTHER BULLETS IN THIS ROLE (do not duplicate their opening verbs or rhythm):
-${roleSiblingBullets.length ? roleSiblingBullets.map((line) => `- ${line}`).join('\n') : '(none)'}
-
-ORIGINAL LINE TO REVISE (preserve facts, tense, and impact):
-${originalLine}
-
-CURRENT DRAFT REVISION (rewrite — do not copy its structure if variation is requested):
+CURRENT DRAFT:
 ${input.currentSnippet.trim()}
 
-OTHER PENDING REVISIONS FOR OTHER SKILLS (must use different structures and openers):
+OTHER BULLETS IN THIS ROLE (avoid duplicating openers):
+${roleSiblingBullets.length ? roleSiblingBullets.map((line) => `- ${line}`).join('\n') : '(none)'}
+
+OTHER PENDING REVISIONS (use different structures):
 ${pending.length > 0 ? pending.map((line) => `- ${line}`).join('\n') : '(none)'}
 
-PREVIOUS VERSIONS OF THIS SAME CARD (do NOT repeat phrasing or structure):
+PREVIOUS VERSIONS OF THIS CARD (do not repeat):
 ${previous.length > 0 ? previous.map((line) => `- ${line}`).join('\n') : '(none)'}
 
-OPENING PATTERNS TO AVOID (already used above):
-${bannedOpeners || '(none)'}
-
 VARIATION INDEX: ${variationIndex}
-${variationIndex > 0 ? 'VARIATION MODE: Rephrase completely differently from the current draft and every previous version. Change the opening verb, clause order, and framing.' : 'INITIAL MODE: Produce the first distinct in-line revision for this card.'}
 ${
   input.rephraseJobDescriptionMatch
     ? `
@@ -157,18 +189,7 @@ ${
 }
 ${qaFeedback ? `\n${qaFeedback}` : ''}
 
-TASK:
-Revise the ORIGINAL LINE so "${input.keyword.trim()}" is integrated naturally into the existing achievement for ${input.targetRoleTitle ? `${input.targetRoleTitle} at ${input.targetCompany ?? 'the listed employer'}` : 'the best-matched historical role'}. Return only the revised line.`
-}
-
-function normalizeSnippetOutput(text: string): string {
-  return text
-    .trim()
-    .replace(/^[\s•\-*–—]+/, '')
-    .replace(/^["'`]+|["'`]+$/g, '')
-    .replace(/^```[\s\S]*?\n|```$/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+Return ONLY the JSON object with modifiedText and injectedKeywords.`
 }
 
 function temperatureForVariation(variationIndex: number): number {
@@ -176,7 +197,46 @@ function temperatureForVariation(variationIndex: number): number {
   return Math.min(AI_GENERATION_TEMPERATURE + bump, 0.85)
 }
 
-function tailorSnippetLocally(input: TailorSnippetInput): string {
+function parseModelTailorResponse(raw: string, missingSkill: string): TailorSnippetOutput {
+  const structured = parseTailorSnippetModelOutput(raw)
+  if (structured) {
+    return enforceTailorSnippetOutput(structured, missingSkill)
+  }
+
+  const plainText = stripTailoringResponse(raw)
+  return tailorSnippetOutputFromPlainText(plainText, missingSkill)
+}
+
+function ensureKeywordIndexed(
+  output: TailorSnippetOutput,
+  input: TailorSnippetInput
+): TailorSnippetOutput {
+  if (resumeSemanticallyMatchesSkill(output.modifiedText, input.keyword)) {
+    return output
+  }
+
+  const skill =
+    keywordsToTargetSkills([input.keyword])[0] ?? {
+      term: input.keyword,
+      category: 'domainTech' as const,
+    }
+
+  const sourceLine = input.originalBullet?.trim() || output.modifiedText
+  for (let variant = 0; variant < 4; variant += 1) {
+    const candidate = integrateSkillIntoBulletLocal(sourceLine, skill, variant)
+    const enforced = enforceTailorSnippetOutput(
+      tailorSnippetOutputFromPlainText(candidate, input.keyword),
+      input.keyword
+    )
+    if (resumeSemanticallyMatchesSkill(enforced.modifiedText, input.keyword)) {
+      return enforced
+    }
+  }
+
+  return output
+}
+
+function tailorSnippetLocally(input: TailorSnippetInput): TailorSnippetOutput {
   const skill =
     keywordsToTargetSkills([input.keyword])[0] ?? {
       term: input.keyword,
@@ -209,13 +269,13 @@ function tailorSnippetLocally(input: TailorSnippetInput): string {
   })
 
   if (!qa.passed && input.originalBullet?.trim()) {
-    const skill =
+    const fallbackSkill =
       keywordsToTargetSkills([input.keyword])[0] ?? {
         term: input.keyword,
         category: 'domainTech' as const,
       }
     for (let variant = 1; variant < 4; variant += 1) {
-      const alternate = integrateSkillIntoBulletLocal(input.originalBullet, skill, variant)
+      const alternate = integrateSkillIntoBulletLocal(input.originalBullet, fallbackSkill, variant)
       const alternateQa = runLocalBulletQa({
         candidateBullet: alternate,
         originalBullet: input.originalBullet,
@@ -227,44 +287,51 @@ function tailorSnippetLocally(input: TailorSnippetInput): string {
         modificationType: input.modificationType,
       })
       if (alternateQa.passed) {
-        return polishBulletLocally(alternate)
+        return enforceTailorSnippetOutput(
+          tailorSnippetOutputFromPlainText(polishBulletLocally(alternate), input.keyword),
+          input.keyword
+        )
       }
     }
   }
 
-  return polishBulletLocally(snippet)
+  return enforceTailorSnippetOutput(
+    tailorSnippetOutputFromPlainText(polishBulletLocally(snippet), input.keyword),
+    input.keyword
+  )
 }
 
 async function generateTailorSnippetDraft(
   input: TailorSnippetInput,
+  systemPrompt: string,
   qaFeedback: string | undefined,
   variationBump: number
-): Promise<string> {
+): Promise<TailorSnippetOutput> {
   const chain = buildFreeProviderChain()
   const prompt = buildTailorSnippetPrompt(input, qaFeedback)
   const variationIndex = (input.variationIndex ?? 0) + variationBump
   let lastError: unknown
 
+  const resolvedSystemPrompt = input.rephraseJobDescriptionMatch
+    ? `${systemPrompt}\n\n${REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION}`
+    : systemPrompt
+
   for (let index = 0; index < chain.length; index += 1) {
     const entry = chain[index]!
     try {
-      const systemPrompt = input.rephraseJobDescriptionMatch
-        ? `${TAILOR_SNIPPET_SYSTEM}\n\n${REPHRASE_JOB_DESCRIPTION_MATCH_INSTRUCTION}`
-        : TAILOR_SNIPPET_SYSTEM
-
       const result = await generateText({
         model: entry.model,
-        system: systemPrompt,
+        system: resolvedSystemPrompt,
         prompt,
         temperature: temperatureForVariation(variationIndex),
-        maxOutputTokens: 256,
+        maxOutputTokens: 384,
         maxRetries: AI_STREAM_MAX_RETRIES,
         providerOptions: entry.providerOptions,
       })
 
-      const snippet = normalizeSnippetOutput(result.text)
-      if (snippet.length >= 12) {
-        return snippet
+      const parsed = parseModelTailorResponse(result.text, input.keyword.trim())
+      if (parsed.modifiedText.length >= 12) {
+        return ensureKeywordIndexed(parsed, input)
       }
 
       throw new Error('AI returned an empty snippet.')
@@ -285,22 +352,29 @@ async function generateTailorSnippetDraft(
   throw lastError instanceof Error ? lastError : new Error('Failed to tailor snippet.')
 }
 
-export async function tailorSnippetWithAi(input: TailorSnippetInput): Promise<string> {
+export async function tailorSnippetWithAi(
+  input: TailorSnippetInput,
+  options: TailorSnippetOptions
+): Promise<TailorSnippetResult> {
   assertDirectAiProviderConfigured()
 
   if (input.modificationType === 'skills-section') {
-    return polishBulletLocally(normalizeSnippetOutput(input.currentSnippet))
+    const modifiedText = polishBulletLocally(stripTailoringResponse(input.currentSnippet))
+    return enforceTailorSnippetOutput(
+      tailorSnippetOutputFromPlainText(modifiedText, input.keyword),
+      input.keyword
+    )
   }
 
-  let initialDraft: string
+  let initialDraft: TailorSnippetResult
   try {
-    initialDraft = await generateTailorSnippetDraft(input, undefined, 0)
+    initialDraft = await generateTailorSnippetDraft(input, options.systemPrompt, undefined, 0)
   } catch {
     initialDraft = tailorSnippetLocally(input)
   }
 
   const qaContext = {
-    candidateBullet: initialDraft,
+    candidateBullet: initialDraft.modifiedText,
     originalBullet: input.originalBullet,
     siblingBullets: input.siblingBullets,
     targetRoleTitle: input.targetRoleTitle,
@@ -315,12 +389,25 @@ export async function tailorSnippetWithAi(input: TailorSnippetInput): Promise<st
     async (feedback: BulletQaEvaluation | null, attempt) => {
       const qaSection = feedback ? buildQaFeedbackPromptSection(feedback) : undefined
       try {
-        return await generateTailorSnippetDraft(input, qaSection, attempt)
+        const draft = await generateTailorSnippetDraft(
+          input,
+          options.systemPrompt,
+          qaSection,
+          attempt
+        )
+        return draft.modifiedText
       } catch {
-        return polishBulletLocally(tailorSnippetLocally(input))
+        return polishBulletLocally(tailorSnippetLocally(input).modifiedText)
       }
     }
   )
 
-  return bullet
+  const polished = stripTailoringResponse(bullet)
+  return ensureKeywordIndexed(
+    enforceTailorSnippetOutput(
+      tailorSnippetOutputFromPlainText(polished, input.keyword),
+      input.keyword
+    ),
+    input
+  )
 }

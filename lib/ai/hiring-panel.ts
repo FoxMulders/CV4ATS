@@ -2,16 +2,13 @@ import { generateText, NoObjectGeneratedError, Output } from 'ai'
 
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
 import {
-  isGeminiModelNotFoundError,
   isRateLimitOrQuotaError,
-  shouldFallbackToNextGeminiModel,
   unwrapAiError,
 } from '@/lib/ai/errors'
+import { generateTextWithGeminiFallback } from '@/lib/ai/gemini-retry'
 import {
-  createGeminiModel,
   geminiProviderOptions,
   HIRING_PANEL_GEMINI_MODEL_ID,
-  hiringPanelModelCandidates,
 } from '@/lib/ai/gemini'
 import {
   buildHiringPanelReviewPrompt,
@@ -28,7 +25,7 @@ import {
 } from '@/lib/ai/hiring-panel-schemas'
 import { parseJsonFromModelText } from '@/lib/ai/normalize-output'
 import { parseJsonFromSanitizedText, stripMarkdownJsonFences } from '@/lib/ai/sanitize-json-response'
-import { AI_GENERATION_MAX_TOKENS, AI_STREAM_MAX_RETRIES } from '@/lib/ai/provider'
+import { AI_GENERATION_MAX_TOKENS, HIRING_PANEL_MAX_RETRIES } from '@/lib/ai/provider'
 import {
   aiGenerationResultSchema,
   tailoredResumeSchema,
@@ -47,34 +44,12 @@ export const HIRING_PANEL_MODEL_ID = HIRING_PANEL_CLOUD_MODEL_ID
 type HiringPanelGenerateParams = Omit<Parameters<typeof generateText>[0], 'model'>
 
 async function generateHiringPanelText(params: HiringPanelGenerateParams) {
-  const candidates = hiringPanelModelCandidates()
-  let lastError: unknown
-
-  for (const modelId of candidates) {
-    try {
-      return await generateText({
-        ...params,
-        model: createGeminiModel(modelId),
-      } as Parameters<typeof generateText>[0])
-    } catch (error) {
-      lastError = error
-      if (shouldFallbackToNextGeminiModel(error)) {
-        const reason = isGeminiModelNotFoundError(error)
-          ? 'unavailable'
-          : 'rate limited or quota blocked on free tier'
-        console.warn(`[Hiring Panel] Model "${modelId}" ${reason} — trying next fallback.`)
-        continue
-      }
-      throw error
-    }
-  }
-
-  const message =
-    lastError instanceof Error
-      ? lastError.message
-      : 'No supported Gemini model available for hiring panel review.'
-  throw new Error(
-    `${message} Set HIRING_PANEL_MODEL_ID=gemini-2.5-flash (or gemini-flash-latest) in Vercel and redeploy.`
+  return generateTextWithGeminiFallback(
+    {
+      ...params,
+      maxRetries: HIRING_PANEL_MAX_RETRIES,
+    },
+    { label: 'Hiring Panel' }
   )
 }
 
@@ -206,7 +181,7 @@ export async function runHiringPanelReview(
         prompt,
         temperature: attempt === 0 ? 0.3 : 0.2,
         maxOutputTokens: AI_GENERATION_MAX_TOKENS,
-        maxRetries: AI_STREAM_MAX_RETRIES,
+        maxRetries: HIRING_PANEL_MAX_RETRIES,
         output: REVIEW_OUTPUT,
         providerOptions: geminiProviderOptions(),
       })
@@ -261,7 +236,7 @@ export async function runHiringPanelRevision(
         prompt,
         temperature: attempt === 0 ? 0.35 : 0.25,
         maxOutputTokens: AI_GENERATION_MAX_TOKENS,
-        maxRetries: AI_STREAM_MAX_RETRIES,
+        maxRetries: HIRING_PANEL_MAX_RETRIES,
         output: REVISION_OUTPUT,
         providerOptions: geminiProviderOptions(),
       })
@@ -280,7 +255,7 @@ export async function runHiringPanelRevision(
           prompt: `${prompt}\n\nRespond with valid JSON only.`,
           temperature: 0.25,
           maxOutputTokens: AI_GENERATION_MAX_TOKENS,
-          maxRetries: AI_STREAM_MAX_RETRIES,
+          maxRetries: HIRING_PANEL_MAX_RETRIES,
           providerOptions: geminiProviderOptions(),
         })
         const parsed = parseJsonFromSanitizedText(stripMarkdownJsonFences(response.text)) as Record<

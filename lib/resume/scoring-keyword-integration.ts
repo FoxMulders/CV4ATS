@@ -11,6 +11,7 @@ import {
   mergeTargetSkills,
   type TailoredResumeInjectionResult,
 } from '@/lib/resume/tailored-resume-injection'
+import { normalizeSkillArray } from '@/lib/resume/skill-array-normalize'
 
 export interface ScoringIntegrationResult {
   resume: TailoredResume
@@ -76,12 +77,16 @@ function finalize(
   modifiedBulletCount: number,
   jobDescription: string
 ): ScoringIntegrationResult {
-  const serialized = serializeTailoredResume(resume)
+  const normalizedResume: TailoredResume = {
+    ...resume,
+    skills: normalizeSkillArray(resume.skills),
+  }
+  const serialized = serializeTailoredResume(normalizedResume)
   const missingKeywords = getMissingScoringKeywords(serialized, jobDescription)
 
   return {
-    resume,
-    injectedSkills: [...new Set(injectedSkills)],
+    resume: normalizedResume,
+    injectedSkills: normalizeSkillArray(injectedSkills),
     modifiedBulletCount,
     matchScore: computeMatchScore(serialized, jobDescription),
     missingKeywords,

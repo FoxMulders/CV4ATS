@@ -10,7 +10,7 @@ import {
   MapPin,
   Sparkles,
 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
@@ -45,6 +45,7 @@ import {
 import { GenerationProgress } from '@/components/wizard/generation-progress'
 import { StreamingResumePreview } from '@/components/wizard/streaming-resume-preview'
 import { serializeTailoredResume } from '@/lib/resume/ats-score'
+import { targetSkillTerms } from '@/lib/resume/skill-extrapolation'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
 import { useUndoableResume } from '@/hooks/use-undoable-resume'
 import { useAtsScoreRecalculation } from '@/hooks/use-ats-score-recalculation'
@@ -257,21 +258,15 @@ export function JobCard({
 
   const jobDescriptionForAi = formatJobDescriptionForAi(job)
 
-  const resumeHasManualEdits =
-    editedResume && tailorResult?.tailoredResume
-      ? serializeTailoredResume(editedResume) !==
-        serializeTailoredResume(tailorResult.tailoredResume)
-      : false
-
   const handleKeywordReportUpdate = useCallback((report: KeywordReport) => {
     setEditedKeywordReport(report)
   }, [])
 
   const scoreRecalculation = useAtsScoreRecalculation({
-    autoRecalculate: Boolean(tailorResult && resumeHasManualEdits),
+    autoRecalculate: Boolean(tailorResult && editedResume),
     resume: editedResume,
     jobDescription: jobDescriptionForAi,
-    baselineScore: baselineKeywordReport?.matchScore,
+    targetSkills: targetSkillTerms(tailorResult?.preScan?.targetSkills ?? []),
     seedScore: tailorResult?.keywordReport.matchScore ?? null,
     onReportUpdate: handleKeywordReportUpdate,
   })
@@ -537,6 +532,7 @@ export function JobCard({
 
                 <DownloadActions
                   resume={editedResume ?? tailorResult.tailoredResume}
+                  baselineResume={tailorResult.tailoredResume}
                   coverLetter={coverLetter}
                 />
 

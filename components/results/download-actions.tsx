@@ -7,10 +7,13 @@ import { toast } from 'sonner'
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 import { Button } from '@/components/ui/button'
 import type { TailoredResume } from '@/lib/ai/schemas'
-import { serializeTailoredResume } from '@/lib/resume/ats-score'
+import { serializeFormattedResume } from '@/lib/resume/ats-resume-formatter'
+import { getHydratedDocumentPayload } from '@/lib/resume/hydrated-document-payload'
 
 interface DownloadActionsProps {
   resume: TailoredResume
+  /** Generation baseline — used to resolve active modified text blocks at export time. */
+  baselineResume?: TailoredResume | null
   coverLetter: string
   premiumAccessToken?: string | null
   jobDescriptionHash?: string
@@ -67,6 +70,7 @@ function safeName(name: string): string {
 
 export function DownloadActions({
   resume,
+  baselineResume = null,
   coverLetter,
   premiumAccessToken,
   jobDescriptionHash,
@@ -76,7 +80,8 @@ export function DownloadActions({
   variant = 'default',
 }: DownloadActionsProps) {
   const [downloading, setDownloading] = useState<string | null>(null)
-  const baseName = safeName(resume.contact.name)
+  const exportResume = getHydratedDocumentPayload({ current: resume, baseline: baselineResume })
+  const baseName = safeName(exportResume.contact.name)
 
   async function handleDownload(
     key: string,
@@ -125,7 +130,7 @@ export function DownloadActions({
           variant={isPremiumUnlocked ? 'default' : 'outline'}
           disabled={!!downloading}
           onClick={() =>
-            handleDownload('pdf', '/api/export/pdf', resume, `${baseName}-resume.pdf`)
+            handleDownload('pdf', '/api/export/pdf', exportResume, `${baseName}-resume.pdf`)
           }
         >
           {downloading === 'pdf' ? <Loader2 className="animate-spin" /> : isPremiumUnlocked ? <Download /> : <Lock />}
@@ -136,7 +141,7 @@ export function DownloadActions({
           variant="outline"
           disabled={!!downloading}
           onClick={() =>
-            handleDownload('docx', '/api/export/docx', resume, `${baseName}-resume.docx`)
+            handleDownload('docx', '/api/export/docx', exportResume, `${baseName}-resume.docx`)
           }
         >
           {downloading === 'docx' ? <Loader2 className="animate-spin" /> : <FileText />}
@@ -147,7 +152,11 @@ export function DownloadActions({
           variant="outline"
           disabled={!!downloading}
           onClick={() =>
-            handleTextDownload('txt', `${baseName}-resume.txt`, serializeTailoredResume(resume))
+            handleTextDownload(
+              'txt',
+              `${baseName}-resume.txt`,
+              serializeFormattedResume(exportResume)
+            )
           }
         >
           {downloading === 'txt' ? <Loader2 className="animate-spin" /> : <FileText />}
@@ -176,7 +185,7 @@ export function DownloadActions({
           variant={isPremiumUnlocked ? 'outline' : 'default'}
           disabled={!!downloading}
           onClick={() =>
-            handleDownload('pdf', '/api/export/pdf', resume, `${baseName}-resume.pdf`)
+            handleDownload('pdf', '/api/export/pdf', exportResume, `${baseName}-resume.pdf`)
           }
         >
           {downloading === 'pdf' ? (
@@ -193,7 +202,7 @@ export function DownloadActions({
           variant="outline"
           disabled={!!downloading}
           onClick={() =>
-            handleDownload('docx', '/api/export/docx', resume, `${baseName}-resume.docx`)
+            handleDownload('docx', '/api/export/docx', exportResume, `${baseName}-resume.docx`)
           }
         >
           {downloading === 'docx' ? <Loader2 className="animate-spin" /> : <FileText />}
@@ -204,7 +213,11 @@ export function DownloadActions({
           variant="outline"
           disabled={!!downloading}
           onClick={() =>
-            handleTextDownload('txt', `${baseName}-resume.txt`, serializeTailoredResume(resume))
+            handleTextDownload(
+              'txt',
+              `${baseName}-resume.txt`,
+              serializeFormattedResume(exportResume)
+            )
           }
         >
           {downloading === 'txt' ? <Loader2 className="animate-spin" /> : <FileText />}
@@ -255,10 +268,18 @@ export async function triggerPremiumDownloads(
   resume: TailoredResume,
   coverLetter: string,
   premiumAccessToken?: string | null,
-  jobDescriptionHash?: string
+  jobDescriptionHash?: string,
+  baselineResume?: TailoredResume | null
 ) {
-  const baseName = safeName(resume.contact.name)
-  await downloadFile('/api/export/pdf', resume, `${baseName}-resume.pdf`, premiumAccessToken, jobDescriptionHash)
+  const exportResume = getHydratedDocumentPayload({ current: resume, baseline: baselineResume })
+  const baseName = safeName(exportResume.contact.name)
+  await downloadFile(
+    '/api/export/pdf',
+    exportResume,
+    `${baseName}-resume.pdf`,
+    premiumAccessToken,
+    jobDescriptionHash
+  )
   await downloadFile(
     '/api/export/cover-letter/pdf',
     { coverLetter },

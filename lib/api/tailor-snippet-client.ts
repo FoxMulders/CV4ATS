@@ -19,7 +19,12 @@ export interface TailorSnippetRequest {
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
 }
 
-export async function requestTailorSnippet(input: TailorSnippetRequest): Promise<string> {
+export interface TailorSnippetResponse {
+  snippet: string
+  injectedKeywords: string[]
+}
+
+export async function requestTailorSnippet(input: TailorSnippetRequest): Promise<TailorSnippetResponse> {
   const response = await fetch('/api/tailor-snippet', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -30,10 +35,13 @@ export async function requestTailorSnippet(input: TailorSnippetRequest): Promise
     throw new Error(await parseApiErrorResponse(response, 'Failed to tailor snippet with AI.'))
   }
 
-  const data = (await response.json()) as { snippet?: string }
+  const data = (await response.json()) as { snippet?: string; injectedKeywords?: string[] }
   if (!data.snippet?.trim()) {
     throw new Error('AI returned an empty snippet.')
   }
 
-  return data.snippet.trim()
+  return {
+    snippet: data.snippet.trim(),
+    injectedKeywords: data.injectedKeywords ?? [],
+  }
 }

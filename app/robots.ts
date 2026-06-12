@@ -1,11 +1,13 @@
 import type { MetadataRoute } from 'next'
 
+import { SITE_URL } from '@/lib/seo/site-metadata'
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
       allow: '/',
     },
-    sitemap: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ats-resume-builder-flax.vercel.app'}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   }
 }

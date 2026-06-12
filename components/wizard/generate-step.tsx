@@ -25,6 +25,8 @@ interface GenerateStepProps {
   onUseBrowserAiChange?: (enabled: boolean) => void
   browserAiStatus?: BrowserAiStatus | null
   onRefreshBrowserAiStatus?: () => void
+  /** Derived from structural diff between original and tailored resume bullets. */
+  modifiedBulletCount?: number
 }
 
 export function GenerateStep({
@@ -41,7 +43,10 @@ export function GenerateStep({
   onUseBrowserAiChange,
   browserAiStatus = null,
   onRefreshBrowserAiStatus,
+  modifiedBulletCount = 0,
 }: GenerateStepProps) {
+  const showModifiedBulletCount =
+    modifiedBulletCount > 0 || (isLoading && loadingStep >= 2)
   return (
     <div className="space-y-4">
       {onUseBrowserAiChange ? (
@@ -81,6 +86,12 @@ export function GenerateStep({
             activeLabel={loadingLabel}
             scorePassLines={scorePassLines}
           />
+          {showModifiedBulletCount ? (
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Modified bullet count:{' '}
+              <span className="tabular-nums text-foreground">{modifiedBulletCount}</span>
+            </p>
+          ) : null}
           {streamingResume && !hideStreamingPreview ? (
             <StreamingResumePreview resume={streamingResume} />
           ) : null}

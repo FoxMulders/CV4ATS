@@ -93,7 +93,7 @@ function formatAiError(error: unknown, provider: ResolvedAiModel): string {
   if (APICallError.isInstance(root)) {
     if (root.statusCode === 401 || root.statusCode === 403) {
       return provider.provider === 'google'
-        ? 'Gemini rejected the API key. Verify GEMINI_API_KEY in Vercel matches your ATS4CV Google AI Studio key, then redeploy.'
+        ? 'Gemini rejected the API key. Verify GEMINI_API_KEY in Vercel matches your cv2ats Google AI Studio key, then redeploy.'
         : 'Groq rejected the API key. Verify GROQ_API_KEY in Vercel, then redeploy.'
     }
     if (root.statusCode === 429) {
@@ -239,6 +239,7 @@ export async function refineTailoredResume(
   missingKeywords: string[],
   coreCompetencyChecklist?: string,
   achievementSupplement?: string,
+  coverLetterContext?: string,
   callbacks: AiStreamCallbacks = {}
 ): Promise<AiGenerationResult> {
   const prompt = buildRefinementPrompt(
@@ -247,7 +248,8 @@ export async function refineTailoredResume(
     currentScore,
     missingKeywords,
     coreCompetencyChecklist,
-    achievementSupplement
+    achievementSupplement,
+    coverLetterContext
   )
 
   try {

@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useDeferredValue, useMemo } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import {
   auditExactPhrasingMatch,
   buildPhrasingHighlightSpans,
+  type PhrasingAuditResult,
 } from '@/lib/resume/exact-phrasing-auditor'
 import { cn } from '@/lib/utils'
 
@@ -17,11 +18,21 @@ interface PhrasingSimilarityPreviewProps {
   previewClassName?: string
 }
 
-export function usePhrasingSimilarityAudit(text: string, jobDescription: string) {
-  return useMemo(
-    () => auditExactPhrasingMatch(text, jobDescription),
-    [text, jobDescription]
+export function usePhrasingSimilarityAudit(
+  text: string,
+  jobDescription: string
+): PhrasingAuditResult & { isAuditPending: boolean } {
+  const deferredText = useDeferredValue(text)
+  const deferredJobDescription = useDeferredValue(jobDescription)
+  const isAuditPending =
+    deferredText !== text || deferredJobDescription !== jobDescription
+
+  const audit = useMemo(
+    () => auditExactPhrasingMatch(deferredText, deferredJobDescription),
+    [deferredText, deferredJobDescription]
   )
+
+  return { ...audit, isAuditPending }
 }
 
 export function PhrasingSimilarityBadge({ className }: { className?: string }) {
@@ -45,13 +56,14 @@ export function PhrasingSimilarityPreview({
   badgeClassName,
   previewClassName,
 }: PhrasingSimilarityPreviewProps) {
-  const audit = usePhrasingSimilarityAudit(text, jobDescription)
+  const { isAuditPending, ...audit } = usePhrasingSimilarityAudit(text, jobDescription)
+  const deferredText = useDeferredValue(text)
   const spans = useMemo(
-    () => buildPhrasingHighlightSpans(text, audit.matches),
-    [text, audit.matches]
+    () => buildPhrasingHighlightSpans(deferredText, audit.matches),
+    [deferredText, audit.matches]
   )
 
-  if (!audit.hasHighSimilarity) {
+  if (isAuditPending || !audit.hasHighSimilarity) {
     return null
   }
 

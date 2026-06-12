@@ -1,9 +1,13 @@
-import { FileCheck2 } from 'lucide-react'
 import Link from 'next/link'
 
+import { Cv2atsLogo } from '@/components/brand/cv2ats-logo'
 import { AppNav } from '@/components/nav/app-nav'
 import { WORKSPACE_HEADER_CLASS } from '@/components/workspace/split-workspace-layout'
-import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand'
+import { BRAND_TAGLINE } from '@/lib/brand'
+import {
+  PAGE_CONTAINER_CLASS,
+  PAGE_CONTAINER_FLUID_CLASS,
+} from '@/lib/layout/container-classes'
 import { cn } from '@/lib/utils'
 
 interface SiteHeaderProps {
@@ -16,34 +20,23 @@ export function SiteHeader({ current, variant = 'default' }: SiteHeaderProps) {
   const compact = variant === 'compact'
 
   return (
-    <header className={cn('workspace-header z-50 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80', compact && WORKSPACE_HEADER_CLASS)}>
+    <header className={cn('workspace-header z-50 border-b border-border/80 bg-background/95 shadow-[var(--shadow-ambient)] backdrop-blur supports-[backdrop-filter]:bg-background/80', compact && WORKSPACE_HEADER_CLASS)}>
       <div
-        className={
+        className={cn(
+          'flex items-center justify-between gap-[var(--space-inline)]',
           compact
-            ? 'mx-auto flex h-full max-w-none items-center justify-between gap-4 px-4 sm:px-5'
-            : 'mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6'
-        }
+            ? cn(PAGE_CONTAINER_FLUID_CLASS, 'h-full')
+            : cn(PAGE_CONTAINER_CLASS, 'py-[var(--space-inline)]')
+        )}
       >
-        <Link href="/" className="group flex min-w-0 items-center gap-3">
-          <div
-            className={
-              compact
-                ? 'flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm'
-                : 'flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm'
-            }
-          >
-            <FileCheck2 className={compact ? 'size-4' : 'size-5'} />
-          </div>
+        <Link
+          href="/"
+          className="group flex min-h-12 min-w-12 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          aria-label="cv2ats home — ATS resume builder"
+        >
+          <Cv2atsLogo variant="mark" size={compact ? 'sm' : 'md'} />
           <div className="min-w-0">
-            <p
-              className={
-                compact
-                  ? 'font-heading truncate text-base font-semibold leading-tight tracking-tight text-foreground'
-                  : 'font-heading truncate text-lg font-semibold leading-tight tracking-tight text-foreground'
-              }
-            >
-              {BRAND_NAME}
-            </p>
+            <Cv2atsLogo variant="wordmark" size={compact ? 'sm' : 'md'} />
             {compact ? null : (
               <p className="truncate text-xs text-muted-foreground">{BRAND_TAGLINE}</p>
             )}

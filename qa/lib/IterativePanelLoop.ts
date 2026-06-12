@@ -4,6 +4,7 @@
  */
 
 import type { HiringPanelReview, HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
+import { HIRING_PANEL_INTER_CALL_DELAY_MS, sleep } from '@/lib/ai/gemini-retry'
 import {
   buildFailedPanelSession,
   buildSessionResult,
@@ -190,5 +191,6 @@ export async function runHiringPanelWithRevisions(
     )
 
     revisionRounds += 1
+    await sleep(HIRING_PANEL_INTER_CALL_DELAY_MS)
   }
 }

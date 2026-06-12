@@ -39,6 +39,8 @@ test('classifyBradMuldersRoleFocus adapts to posting type', () => {
 test('buildBradMuldersCoverLetterAddendum includes role-specific tailoring', () => {
   const tpmJd = `Technical Program Manager\nAcme Corp\nOwn release trains and hotfix workflows.`
   const addendum = buildBradMuldersCoverLetterAddendum(tpmJd)
+  assert.match(addendum, /Kolbe/)
+  assert.match(addendum, /broken delivery roadmaps/)
   assert.match(addendum, /Sheetast, Turbo Diagrams, Paranoid Photos/)
   assert.match(addendum, /Business Analyst/)
   assert.match(addendum, /Role focus: \*\*delivery_leadership\*\*/)

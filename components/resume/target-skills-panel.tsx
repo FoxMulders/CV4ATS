@@ -31,6 +31,8 @@ interface TargetSkillsPanelProps {
   onInsertSelections?: (selections: SkillSnippetSelection[]) => void
   jobDescription?: string
   resumeText?: string
+  /** Structural diff count between original and tailored resume bullets. */
+  derivedModifiedBulletCount?: number
 }
 
 function SkillBadge({
@@ -59,6 +61,7 @@ export function TargetSkillsPanel({
   onInsertSelections,
   jobDescription,
   resumeText,
+  derivedModifiedBulletCount,
 }: TargetSkillsPanelProps) {
   if (isLoading) {
     return (
@@ -77,6 +80,7 @@ export function TargetSkillsPanel({
 
   const baseline = baselinePreScan ?? preScan
   const editable = Boolean(onPreScanChange)
+  const modifiedBulletCount = derivedModifiedBulletCount ?? preScan.modifiedBulletCount
   const targetSkillTerms = preScan.targetSkills.map((skill) => skill.term)
   const baselineTargetSkillTerms = baseline.targetSkills.map((skill) => skill.term)
 
@@ -149,7 +153,7 @@ export function TargetSkillsPanel({
         {preScan.autoInjectedSkills.length ? (
           editable ? (
             <EditableTagList
-              label={`Auto-injected before scoring${preScan.modifiedBulletCount ? ` · ${preScan.modifiedBulletCount} bullet${preScan.modifiedBulletCount === 1 ? '' : 's'} updated` : ''}`}
+              label={`Auto-injected before scoring${modifiedBulletCount ? ` · ${modifiedBulletCount} bullet${modifiedBulletCount === 1 ? '' : 's'} updated` : ''}`}
               values={preScan.autoInjectedSkills}
               baselineValues={baseline.autoInjectedSkills}
               onChange={(autoInjectedSkills) =>
@@ -162,8 +166,8 @@ export function TargetSkillsPanel({
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Auto-injected before scoring
-                {preScan.modifiedBulletCount
-                  ? ` · ${preScan.modifiedBulletCount} bullet${preScan.modifiedBulletCount === 1 ? '' : 's'} updated`
+                {modifiedBulletCount
+                  ? ` · ${modifiedBulletCount} bullet${modifiedBulletCount === 1 ? '' : 's'} updated`
                   : ''}
               </p>
               <div className="flex flex-wrap gap-2">
@@ -188,7 +192,12 @@ export function TargetSkillsPanel({
           )
         ) : null}
 
-        {editable ? (
+        {derivedModifiedBulletCount != null ? (
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Modified bullet count:{' '}
+            <span className="tabular-nums text-foreground">{modifiedBulletCount}</span>
+          </p>
+        ) : editable ? (
           <EditableFieldShell
             label="Modified bullet count"
             edited={isFieldEdited(preScan.modifiedBulletCount, baseline.modifiedBulletCount)}

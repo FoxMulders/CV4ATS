@@ -2,7 +2,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import type { LanguageModel } from 'ai'
 
 /**
- * Free-tier Gemini model for ATS4CV.
+ * Free-tier Gemini model for cv2ats.
  * `gemini-1.5-flash` is no longer served on v1beta for many AI Studio keys;
  * `gemini-flash-latest` is the current fast default. Override via GEMINI_MODEL_ID.
  */
@@ -49,7 +49,7 @@ export function getGeminiApiKey(): string | undefined {
 export function assertGeminiConfigured(): void {
   if (!getGeminiApiKey()) {
     throw new Error(
-      'GEMINI_API_KEY is not configured. In Vercel → ATS4CV project → Settings → Environment Variables, add GEMINI_API_KEY from Google AI Studio, then redeploy.'
+      'GEMINI_API_KEY is not configured. In Vercel → cv2ats project → Settings → Environment Variables, add GEMINI_API_KEY from Google AI Studio, then redeploy.'
     )
   }
 }

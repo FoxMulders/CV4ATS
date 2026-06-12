@@ -39,7 +39,7 @@ export function CompetitiveAdvantagesSection() {
   return (
     <section
       aria-labelledby="competitive-advantages-heading"
-      className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-card to-brand-gold/[0.08] p-6 shadow-sm sm:p-8"
+      className="relative overflow-hidden rounded-[var(--radius-surface-lg)] border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-card to-brand-gold/[0.08] p-[var(--space-section)] shadow-[var(--shadow-ambient)]"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,oklch(0.72_0.12_75_/_0.12),transparent_42%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,oklch(0.32_0.08_260_/_0.08),transparent_40%)]" />
@@ -47,7 +47,7 @@ export function CompetitiveAdvantagesSection() {
       <div className="relative space-y-6">
         <div className="max-w-4xl space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-gold">
-            Why ATS4CV beats traditional resume builders
+            Why cv2ats beats traditional resume builders
           </p>
           <h2
             id="competitive-advantages-heading"
@@ -57,16 +57,16 @@ export function CompetitiveAdvantagesSection() {
           </h2>
           <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
             Traditional resume builders trap you into copy-pasting generic keywords that human
-            recruiters flag instantly. ATS4CV uses AI-powered resume tailoring to write natural,
+            recruiters flag instantly. cv2ats uses AI-powered resume tailoring to write natural,
             distinct achievements aligned to your specific target role.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-[var(--space-inline)] md:grid-cols-2 xl:grid-cols-4">
           {FEATURES.map((feature) => (
             <article
               key={feature.title}
-              className="group rounded-xl border border-border/70 bg-card/90 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-brand-gold/40 hover:shadow-md"
+              className="group rounded-[var(--radius-surface)] border border-border/70 bg-card/90 p-[var(--space-inline)] shadow-[var(--shadow-ambient)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-gold/40 hover:shadow-[var(--shadow-elevated)]"
             >
               <div className="mb-3 flex items-center gap-2">
                 <span aria-hidden="true" className="text-xl" role="img">

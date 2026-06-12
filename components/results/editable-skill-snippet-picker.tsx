@@ -196,7 +196,7 @@ export function EditableSkillSnippetPicker({
     setTailoringKeyword(keyword)
     try {
       const similarityAudit = auditExactPhrasingMatch(currentSnippet.trim(), jobDescription.trim())
-      const snippet = await requestTailorSnippet({
+      const { snippet } = await requestTailorSnippet({
         jobDescription: jobDescription.trim(),
         resumeText: resumeText.trim(),
         keyword,

@@ -17,6 +17,7 @@ interface PreviewScoreBannerProps {
   hiringPanel?: HiringPanelSessionResult | null
   rawKeywordScore?: number | null
   resume?: TailoredResume | null
+  baselineResume?: TailoredResume | null
   coverLetter?: string
   premiumAccessToken?: string | null
   jobDescriptionHash?: string
@@ -34,6 +35,7 @@ export function PreviewScoreBanner({
   hiringPanel,
   rawKeywordScore,
   resume,
+  baselineResume = null,
   coverLetter = '',
   premiumAccessToken,
   jobDescriptionHash,
@@ -57,7 +59,7 @@ export function PreviewScoreBanner({
   return (
     <div
       className={cn(
-        'shrink-0 border-b border-border/80 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/90',
+        'shrink-0 border-b border-border/80 bg-background/95 px-[var(--space-page-x)] py-3 backdrop-blur supports-[backdrop-filter]:bg-background/90',
         className
       )}
     >
@@ -120,6 +122,7 @@ export function PreviewScoreBanner({
           <DownloadActions
             variant="banner"
             resume={resume}
+            baselineResume={baselineResume}
             coverLetter={coverLetter}
             premiumAccessToken={premiumAccessToken}
             jobDescriptionHash={jobDescriptionHash}

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import {
   MAX_FILE_SIZE_BYTES,
+  MAX_COVER_LETTER_CONTEXT_LENGTH,
   MAX_JOB_DESCRIPTION_LENGTH,
   MAX_RESUME_TEXT_LENGTH,
 } from '@/lib/ai/schemas'
@@ -76,6 +77,16 @@ export async function POST(request: Request) {
     const customSnippets = parseCustomSnippets(formData.get('customSnippets'))
     const anchoredModifications = parseAnchoredModifications(formData.get('anchoredModifications'))
     const achievementSupplement = String(formData.get('achievementSupplement') ?? '').trim()
+    const coverLetterContext = String(formData.get('coverLetterContext') ?? '').trim()
+
+    if (coverLetterContext.length > MAX_COVER_LETTER_CONTEXT_LENGTH) {
+      return NextResponse.json(
+        {
+          error: `Cover letter context must be under ${MAX_COVER_LETTER_CONTEXT_LENGTH} characters.`,
+        },
+        { status: 400 }
+      )
+    }
 
     const stream = createNdjsonStream((emit) =>
       runStreamedGeneration(emit, jobDescription, resumeText, {
@@ -83,6 +94,7 @@ export async function POST(request: Request) {
         customSnippets,
         anchoredModifications,
         achievementSupplement: achievementSupplement || undefined,
+        coverLetterContext: coverLetterContext || undefined,
       })
     )
 

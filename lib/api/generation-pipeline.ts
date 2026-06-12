@@ -57,6 +57,8 @@ export type GenerationPipelineOptions = {
   customSnippets?: string[]
   /** User-supplied metrics for bullets that lacked quantified outcomes. */
   achievementSupplement?: string
+  /** Optional motivations or emphasis for cover letter generation. */
+  coverLetterContext?: string
   /** Inline bullet/summary revisions with placement metadata. */
   anchoredModifications?: Array<{
     snippet: string
@@ -184,6 +186,7 @@ export async function runGenerationPipeline(
   const customSnippets = options.customSnippets ?? []
   const anchoredModifications = options.anchoredModifications ?? []
   const achievementSupplement = options.achievementSupplement?.trim() ?? ''
+  const coverLetterContext = options.coverLetterContext?.trim() ?? ''
   let workingResumeText = resumeText
   let incorporatedKeywords: string[] = []
 
@@ -255,6 +258,7 @@ export async function runGenerationPipeline(
         coreCompetencyChecklist: checklistPrompt,
         missingKeywords: competencyChecklist.missingTerms,
         achievementSupplement,
+        coverLetterContext,
       },
       {
         onPartial: emitPartial,
@@ -314,6 +318,7 @@ export async function runGenerationPipeline(
         missingKeywords.slice(0, 8),
         checklistPrompt,
         achievementSupplement,
+        coverLetterContext,
         { onPartial: emitPartial }
       ),
       resumeText,

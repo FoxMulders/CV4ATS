@@ -209,6 +209,17 @@ function extractContactBlock(lines: string[]): StructuredResumeContact {
     const linkedin = line.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+/i)?.[0]
     if (linkedin && !contact.linkedin) contact.linkedin = linkedin
 
+    if (!contact.location && line.includes('|')) {
+      for (const segment of line.split('|').map((part) => part.trim())) {
+        if (!segment || EMAIL_PATTERN.test(segment) || PHONE_PATTERN.test(segment)) continue
+        if (URL_PATTERN.test(segment)) continue
+        if (/^[A-Za-z][A-Za-z\s.'-]+,\s*[A-Z]{2}(?:\b|$)/.test(segment) || /\bEdmonton\b/i.test(segment)) {
+          contact.location = segment
+          break
+        }
+      }
+    }
+
     if (
       !contact.name &&
       !EMAIL_PATTERN.test(line) &&
@@ -365,6 +376,80 @@ export function parseStructuredResumeDocument(resumeText: string): StructuredRes
     skillsLineIndices,
     experience,
     rawText: resumeText,
+  }
+}
+
+/** Section-scoped context for snippet tailoring — sends only the active resume section, not the full document. */
+export function buildActiveSectionTailoringContext(
+  document: StructuredResumeDocument,
+  options: {
+    modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+    targetRoleTitle?: string
+    targetCompany?: string
+    currentSnippet?: string
+  }
+): { sectionContext: string; candidateLocation?: string } {
+  const candidateLocation = document.contact.location?.trim() || undefined
+
+  if (options.modificationType === 'summary') {
+    const summaryText = document.summary.trim() || options.currentSnippet?.trim() || ''
+    return {
+      sectionContext: [
+        'PROFESSIONAL SUMMARY (this section only — do not reference other resume sections):',
+        summaryText,
+      ].join('\n'),
+      candidateLocation,
+    }
+  }
+
+  if (options.modificationType === 'skills-section') {
+    const skillsStart = document.skillsLineIndices[0]
+    if (skillsStart !== undefined) {
+      const parts: string[] = []
+      for (let index = skillsStart; index < document.sourceLines.length; index += 1) {
+        const line = document.sourceLines[index]?.trim() ?? ''
+        if (!line) continue
+        if (index > skillsStart && SECTION_HEADING.test(line)) break
+        parts.push(line)
+      }
+      return {
+        sectionContext: `SKILLS SECTION (this section only):\n${parts.join('\n')}`,
+        candidateLocation,
+      }
+    }
+
+    return {
+      sectionContext: `SKILLS SECTION:\n${options.currentSnippet?.trim() ?? ''}`,
+      candidateLocation,
+    }
+  }
+
+  const position =
+    document.experience.find(
+      (entry) =>
+        (options.targetCompany && entry.company === options.targetCompany) ||
+        (options.targetRoleTitle && entry.title === options.targetRoleTitle)
+    ) ?? null
+
+  if (position) {
+    const bullets = position.bullets.map((bullet) => `  • ${bullet.text}`).join('\n')
+    return {
+      sectionContext: [
+        'EXPERIENCE SECTION (this role only — do not reference other employers):',
+        `Role: ${position.title}`,
+        `Company: ${position.company}`,
+        position.location ? `Location: ${position.location}` : null,
+        bullets || '  • [No bullets]',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      candidateLocation,
+    }
+  }
+
+  return {
+    sectionContext: `LINE TO REVISE:\n${options.currentSnippet?.trim() ?? ''}`,
+    candidateLocation,
   }
 }
 

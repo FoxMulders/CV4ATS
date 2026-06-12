@@ -5,20 +5,13 @@ import {
   EDITOR_AGENT_SYSTEM_PROMPT,
   buildEditorAgentRevisionPrompt,
 } from '@/lib/ai/editor-agent-prompts'
-import {
-  isGeminiModelNotFoundError,
-  shouldFallbackToNextGeminiModel,
-  unwrapAiError,
-} from '@/lib/ai/errors'
-import {
-  createGeminiModel,
-  geminiProviderOptions,
-  hiringPanelModelCandidates,
-} from '@/lib/ai/gemini'
+import { unwrapAiError } from '@/lib/ai/errors'
+import { generateTextWithGeminiFallback } from '@/lib/ai/gemini-retry'
+import { geminiProviderOptions } from '@/lib/ai/gemini'
 import type { HiringPanelReview } from '@/lib/ai/hiring-panel-schemas'
 import { parseJsonFromModelText } from '@/lib/ai/normalize-output'
 import { parseJsonFromSanitizedText, stripMarkdownJsonFences } from '@/lib/ai/sanitize-json-response'
-import { AI_GENERATION_MAX_TOKENS, AI_STREAM_MAX_RETRIES } from '@/lib/ai/provider'
+import { AI_GENERATION_MAX_TOKENS, HIRING_PANEL_MAX_RETRIES } from '@/lib/ai/provider'
 import {
   aiGenerationResultSchema,
   tailoredResumeSchema,
@@ -39,27 +32,13 @@ const EDITOR_OUTPUT = Output.object({
 })
 
 async function generateEditorAgentText(params: Omit<Parameters<typeof generateText>[0], 'model'>) {
-  const candidates = hiringPanelModelCandidates()
-  let lastError: unknown
-
-  for (const modelId of candidates) {
-    try {
-      return await generateText({
-        ...params,
-        model: createGeminiModel(modelId),
-      } as Parameters<typeof generateText>[0])
-    } catch (error) {
-      lastError = error
-      if (shouldFallbackToNextGeminiModel(error)) {
-        const reason = isGeminiModelNotFoundError(error) ? 'unavailable' : 'rate limited'
-        console.warn(`[Editor Agent] Model "${modelId}" ${reason} — trying next fallback.`)
-        continue
-      }
-      throw error
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error('Editor Agent: no Gemini model available.')
+  return generateTextWithGeminiFallback(
+    {
+      ...params,
+      maxRetries: HIRING_PANEL_MAX_RETRIES,
+    },
+    { label: 'Editor Agent' }
+  )
 }
 
 function tryRecoverRevision(
@@ -137,7 +116,7 @@ export async function runEditorAgentCorrection(
         prompt,
         temperature: attempt === 0 ? 0.25 : 0.2,
         maxOutputTokens: AI_GENERATION_MAX_TOKENS,
-        maxRetries: AI_STREAM_MAX_RETRIES,
+        maxRetries: HIRING_PANEL_MAX_RETRIES,
         output: EDITOR_OUTPUT,
         providerOptions: geminiProviderOptions(),
       })
@@ -157,7 +136,7 @@ export async function runEditorAgentCorrection(
           prompt: `${prompt}\n\nRespond with valid JSON only.`,
           temperature: 0.2,
           maxOutputTokens: AI_GENERATION_MAX_TOKENS,
-          maxRetries: AI_STREAM_MAX_RETRIES,
+          maxRetries: HIRING_PANEL_MAX_RETRIES,
           providerOptions: geminiProviderOptions(),
         })
         const parsed = parseJsonFromSanitizedText(stripMarkdownJsonFences(response.text)) as Record<

@@ -41,20 +41,20 @@ export interface PhrasingHighlightSpan {
   highlighted: boolean
 }
 
-interface WordToken {
+export interface ContentWordToken {
   raw: string
   normalized: string
   start: number
   end: number
-  isStop: boolean
 }
 
 function normalizeToken(raw: string): string {
   return raw.toLowerCase().replace(/['']/g, '').replace(/[.,;:!?]+$/g, '')
 }
 
-function tokenizeWithPositions(text: string): WordToken[] {
-  const tokens: WordToken[] = []
+/** Tokenize prose while retaining character offsets for highlight rendering. */
+export function tokenizeWithPositions(text: string): ContentWordToken[] {
+  const tokens: ContentWordToken[] = []
   const pattern = /[a-z0-9+#][a-z0-9+#./-]*/gi
   let match: RegExpExecArray | null
 
@@ -66,58 +66,56 @@ function tokenizeWithPositions(text: string): WordToken[] {
       normalized,
       start: match.index,
       end: match.index + raw.length,
-      isStop: isStopWord(normalized),
     })
   }
 
   return tokens
 }
 
-function contentTokenIndices(tokens: WordToken[]): number[] {
-  const indices: number[] = []
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index]!
-    if (!token.isStop && token.normalized.length >= 2) {
-      indices.push(index)
-    }
-  }
-  return indices
+/** Drop stop words and very short tokens before n-gram construction. */
+export function tokenizeContentWords(text: string): ContentWordToken[] {
+  return tokenizeWithPositions(text).filter(
+    (token) => !isStopWord(token.normalized) && token.normalized.length >= 2
+  )
 }
 
-const jobDescriptionNgramCache = new Map<string, Set<string>>()
+function buildFourGramKey(tokens: ContentWordToken[], start: number): string | null {
+  if (start + MIN_EXACT_PHRASING_MATCH_WORDS > tokens.length) {
+    return null
+  }
 
-function buildJobDescriptionNgramSet(jobDescription: string): Set<string> {
-  const tokens = tokenizeWithPositions(jobDescription)
-  const contentIndices = contentTokenIndices(tokens)
+  const parts: string[] = []
+  for (let index = 0; index < MIN_EXACT_PHRASING_MATCH_WORDS; index += 1) {
+    parts.push(tokens[start + index]!.normalized)
+  }
+  return parts.join(' ')
+}
+
+/**
+ * Build a hash set of continuous 4-word sequences from a job description,
+ * excluding standard stop words from each sequence.
+ */
+export function buildJobDescriptionFourGramSet(jobDescription: string): Set<string> {
+  const tokens = tokenizeContentWords(jobDescription)
   const ngrams = new Set<string>()
 
-  for (let start = 0; start <= contentIndices.length - MIN_EXACT_PHRASING_MATCH_WORDS; start += 1) {
-    const maxLength = Math.min(
-      MAX_EXACT_PHRASING_MATCH_WORDS,
-      contentIndices.length - start
-    )
-
-    for (
-      let length = MIN_EXACT_PHRASING_MATCH_WORDS;
-      length <= maxLength;
-      length += 1
-    ) {
-      const phrase = contentIndices
-        .slice(start, start + length)
-        .map((tokenIndex) => tokens[tokenIndex]!.normalized)
-        .join(' ')
-      ngrams.add(phrase)
+  for (let start = 0; start <= tokens.length - MIN_EXACT_PHRASING_MATCH_WORDS; start += 1) {
+    const key = buildFourGramKey(tokens, start)
+    if (key) {
+      ngrams.add(key)
     }
   }
 
   return ngrams
 }
 
-function getJobDescriptionNgramSet(jobDescription: string): Set<string> {
+const jobDescriptionNgramCache = new Map<string, Set<string>>()
+
+function getJobDescriptionFourGramSet(jobDescription: string): Set<string> {
   const cached = jobDescriptionNgramCache.get(jobDescription)
   if (cached) return cached
 
-  const ngrams = buildJobDescriptionNgramSet(jobDescription)
+  const ngrams = buildJobDescriptionFourGramSet(jobDescription)
   if (jobDescriptionNgramCache.size >= 24) {
     jobDescriptionNgramCache.clear()
   }
@@ -125,12 +123,65 @@ function getJobDescriptionNgramSet(jobDescription: string): Set<string> {
   return ngrams
 }
 
-function rangeIsCovered(
+function extendMatchEnd(
+  tokens: ContentWordToken[],
+  jobNgrams: Set<string>,
   start: number,
-  end: number,
-  coveredRanges: Array<[number, number]>
-): boolean {
-  return coveredRanges.some(([rangeStart, rangeEnd]) => start <= rangeEnd && end >= rangeStart)
+  end: number
+): number {
+  let extendedEnd = end
+
+  while (extendedEnd + 1 < tokens.length) {
+    const trailingFourGramStart = extendedEnd - (MIN_EXACT_PHRASING_MATCH_WORDS - 2)
+    const key = buildFourGramKey(tokens, trailingFourGramStart)
+    if (!key || !jobNgrams.has(key)) {
+      break
+    }
+    extendedEnd += 1
+  }
+
+  return extendedEnd
+}
+
+function findPhrasingMatches(
+  inputTokens: ContentWordToken[],
+  inputText: string,
+  jobNgrams: Set<string>
+): PhrasingMatch[] {
+  if (inputTokens.length < MIN_EXACT_PHRASING_MATCH_WORDS) {
+    return []
+  }
+
+  const matches: PhrasingMatch[] = []
+  let contentPos = 0
+
+  while (contentPos <= inputTokens.length - MIN_EXACT_PHRASING_MATCH_WORDS) {
+    const seedKey = buildFourGramKey(inputTokens, contentPos)
+    if (!seedKey || !jobNgrams.has(seedKey)) {
+      contentPos += 1
+      continue
+    }
+
+    const endPos = extendMatchEnd(
+      inputTokens,
+      jobNgrams,
+      contentPos,
+      contentPos + MIN_EXACT_PHRASING_MATCH_WORDS - 1
+    )
+    const startChar = inputTokens[contentPos]!.start
+    const endChar = inputTokens[endPos]!.end
+
+    matches.push({
+      phrase: inputText.slice(startChar, endChar),
+      startIndex: startChar,
+      endIndex: endChar,
+      wordCount: endPos - contentPos + 1,
+    })
+
+    contentPos = endPos + 1
+  }
+
+  return matches
 }
 
 export function auditExactPhrasingMatch(
@@ -141,47 +192,13 @@ export function auditExactPhrasingMatch(
     return { matches: [], hasHighSimilarity: false }
   }
 
-  const jobNgrams = getJobDescriptionNgramSet(jobDescription)
+  const jobNgrams = getJobDescriptionFourGramSet(jobDescription)
   if (jobNgrams.size === 0) {
     return { matches: [], hasHighSimilarity: false }
   }
 
-  const inputTokens = tokenizeWithPositions(inputText)
-  const contentIndices = contentTokenIndices(inputTokens)
-  if (contentIndices.length < MIN_EXACT_PHRASING_MATCH_WORDS) {
-    return { matches: [], hasHighSimilarity: false }
-  }
-
-  const matches: PhrasingMatch[] = []
-  const coveredRanges: Array<[number, number]> = []
-  const maxWindow = Math.min(MAX_EXACT_PHRASING_MATCH_WORDS, contentIndices.length)
-
-  for (let windowSize = maxWindow; windowSize >= MIN_EXACT_PHRASING_MATCH_WORDS; windowSize -= 1) {
-    for (let start = 0; start <= contentIndices.length - windowSize; start += 1) {
-      const end = start + windowSize - 1
-      if (rangeIsCovered(start, end, coveredRanges)) continue
-
-      const tokenIndices = contentIndices.slice(start, end + 1)
-      const normalizedPhrase = tokenIndices
-        .map((tokenIndex) => inputTokens[tokenIndex]!.normalized)
-        .join(' ')
-
-      if (!jobNgrams.has(normalizedPhrase)) continue
-
-      coveredRanges.push([start, end])
-      const startChar = inputTokens[tokenIndices[0]!]!.start
-      const endChar = inputTokens[tokenIndices[tokenIndices.length - 1]!]!.end
-
-      matches.push({
-        phrase: inputText.slice(startChar, endChar),
-        startIndex: startChar,
-        endIndex: endChar,
-        wordCount: windowSize,
-      })
-    }
-  }
-
-  matches.sort((left, right) => left.startIndex - right.startIndex)
+  const inputTokens = tokenizeContentWords(inputText)
+  const matches = findPhrasingMatches(inputTokens, inputText, jobNgrams)
 
   return {
     matches,

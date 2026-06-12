@@ -107,7 +107,7 @@ export async function safeFetchHtml(
         headers: {
           'User-Agent':
             options?.userAgent ??
-            'Mozilla/5.0 (compatible; ATS4CV/1.0; +https://ats4cv.vercel.app)',
+            'Mozilla/5.0 (compatible; cv2ats/1.0; +https://cv2ats.ca)',
           Accept: 'text/html,application/xhtml+xml',
         },
         redirect: 'manual',

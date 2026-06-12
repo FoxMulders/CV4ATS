@@ -38,7 +38,7 @@ export function HiringPanelReviewPanel({
             <p className="mt-1">{message}</p>
             {rateLimitSecondsLeft > 0 ? (
               <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-200">
-                Retry available in {rateLimitSecondsLeft}s
+                Auto-retry in {rateLimitSecondsLeft}s — your tailored resume is still ready.
               </p>
             ) : null}
             {panel.managers.length > 0 ? (

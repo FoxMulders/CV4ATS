@@ -22,7 +22,7 @@ export function parseJsonFromModelText(text: string): unknown {
 
 export { stripMarkdownJsonFences, parseJsonFromSanitizedText }
 
-/** Map Gemini JSON aliases to the strict ATS4CV schema before Zod validation. */
+/** Map Gemini JSON aliases to the strict cv2ats schema before Zod validation. */
 export function normalizeAiGenerationOutput(raw: unknown, sourceResumeText = ''): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return raw

@@ -6,6 +6,7 @@ import {
   keywordsToTargetSkills,
   type TargetSkill,
 } from '@/lib/resume/skill-extrapolation'
+import { normalizeSkillArray } from '@/lib/resume/skill-array-normalize'
 import { tokenize } from '@/lib/resume/stopwords'
 
 const SECTION_HEADING =
@@ -42,14 +43,12 @@ export function parseListedSkillTerms(resumeText: string): string[] {
       ? section
       : lines.filter((line) => /[,;|]/.test(line) && line.length < 120).slice(0, 2)
 
-  return [
-    ...new Set(
-      source
-        .flatMap((line) => line.split(/[,;|•]/))
-        .map((skill) => skill.trim())
-        .filter((skill) => skill.length > 1 && skill.length < 48)
-    ),
-  ]
+  return normalizeSkillArray(
+    source
+      .flatMap((line) => line.split(/[,;|•]/))
+      .map((skill) => skill.trim())
+      .filter((skill) => skill.length > 1 && skill.length < 48)
+  )
 }
 
 function splitSkillsAndBody(resumeText: string): { skillsText: string; bodyText: string } {
@@ -199,14 +198,10 @@ export function appendSkillsToResumeText(
   existingSkills: string[] = parseListedSkillTerms(resumeText)
 ): string {
   const format = detectSkillsListFormat(resumeText, existingSkills)
-  const additions = [
-    ...new Set(
-      formatSkillsLikeExisting(
-        skillsToAdd.map((skill) => skill.trim()).filter(Boolean),
-        existingSkills
-      )
-    ),
-  ]
+  const additions = formatSkillsLikeExisting(
+    normalizeSkillArray(skillsToAdd.map((skill) => skill.trim()).filter(Boolean)),
+    existingSkills
+  )
   if (additions.length === 0) return resumeText
 
   const lines = splitLines(resumeText)
@@ -241,12 +236,10 @@ export function formatProposedSkillsField(skills: string[]): string {
 }
 
 export function parseProposedSkillsField(value: string): string[] {
-  return [
-    ...new Set(
-      value
-        .split(/[,;\n|]/)
-        .map((skill) => skill.trim())
-        .filter(Boolean)
-    ),
-  ]
+  return normalizeSkillArray(
+    value
+      .split(/[,;\n|]/)
+      .map((skill) => skill.trim())
+      .filter(Boolean)
+  )
 }

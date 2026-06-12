@@ -45,6 +45,7 @@ export type QuotaInterceptBody = {
   failureReason?: string
   error?: string
   retryAfterSeconds?: number
+  hiringPanel?: unknown
 }
 
 export function parseGeminiRetrySecondsFromBody(body: QuotaInterceptBody): number | undefined {
@@ -89,6 +90,10 @@ export function throwIfGeminiQuotaLimited(
   response: Response,
   body: QuotaInterceptBody
 ): void {
+  if (response.ok && body.hiringPanel) {
+    return
+  }
+
   const result = interceptGeminiQuotaResponse(response, body)
   if (result.rateLimited) {
     throw new ApiRateLimitError(result.retryAfterSeconds, result.message)

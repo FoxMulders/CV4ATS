@@ -5,7 +5,7 @@
  * Upstream dependencies: window timers; consumed by hiring panel retry controls.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type RateLimitCooldownState = {
   secondsLeft: number
@@ -14,9 +14,14 @@ export type RateLimitCooldownState = {
   clearCooldown: () => void
 }
 
-export function useRateLimitCooldown(): RateLimitCooldownState {
+export function useRateLimitCooldown(onComplete?: () => void): RateLimitCooldownState {
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(0)
+  const onCompleteRef = useRef(onComplete)
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
 
   useEffect(() => {
     if (!cooldownUntil) return
@@ -26,6 +31,7 @@ export function useRateLimitCooldown(): RateLimitCooldownState {
       setSecondsLeft(remaining)
       if (remaining <= 0) {
         setCooldownUntil(null)
+        onCompleteRef.current?.()
       }
     }
 

@@ -224,6 +224,22 @@ export async function POST(request: Request) {
       const message = error instanceof Error ? error.message : String(error)
       const retryAfterSeconds = parseGeminiRetrySeconds(message) ?? 60
       console.error('Hiring panel rate limit:', message)
+
+      if (parsedBody) {
+        const resolved = resolveDraft(parsedBody.draft, parsedBody.sourceResumeText)
+        if (resolved.draft) {
+          const failureResponse = buildHiringPanelFailureResponse(message, resolved.draft)
+          return NextResponse.json({
+            ...failureResponse,
+            retryAfterSeconds,
+            tailoredResume: resolved.draft.tailoredResume,
+            coverLetter: resolved.draft.coverLetter,
+            keywordReport: resolved.draft.keywordReport,
+            rawKeywordScore: resolved.draft.keywordReport?.matchScore,
+          })
+        }
+      }
+
       return rateLimitExceededResponse(retryAfterSeconds)
     }
 

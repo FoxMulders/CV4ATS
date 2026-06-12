@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const config = getProfessionLanding(profession)
   if (!config) return {}
 
-  const title = `${config.title} | ATS4CV`
+  const title = `${config.title} | cv2ats`
 
   return {
     title,

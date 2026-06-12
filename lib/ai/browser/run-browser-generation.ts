@@ -67,16 +67,21 @@ async function polishCoverLetterWithBrowserAi(
   coverLetter: string,
   jobDescription: string,
   resumeText: string,
-  candidateName: string
+  candidateName: string,
+  coverLetterContext?: string
 ): Promise<string> {
   const { jobTitle, companyName } = extractCleanJobContext(jobDescription)
+  const contextBlock = coverLetterContext?.trim()
+    ? `\nUSER COVER LETTER CONTEXT (ground truth — weave naturally; do not invent beyond this and the resume):\n${truncate(coverLetterContext.trim(), 2000)}\n`
+    : ''
+
   return promptBrowserAi(
     COVER_SYSTEM,
     `CLEAN JOB CONTEXT (use exactly — do not parse JD headers into prose):
 - candidateName: "${candidateName}"
 - jobTitle: "${jobTitle}"
 - companyName: "${companyName ?? 'the hiring company'}"
-
+${contextBlock}
 JOB DESCRIPTION:
 ${truncate(jobDescription, 6000)}
 
@@ -125,6 +130,7 @@ ${summary}`
 export type BrowserGenerationOptions = {
   jobDescription: string
   resumeText: string
+  coverLetterContext?: string
   useChromeNano?: boolean
   onProgress?: (label: string) => void
 }
@@ -133,7 +139,7 @@ export type BrowserGenerationOptions = {
 export async function runBrowserGeneration(
   options: BrowserGenerationOptions
 ): Promise<BrowserGenerationResult> {
-  const { jobDescription, resumeText, useChromeNano = true, onProgress } = options
+  const { jobDescription, resumeText, coverLetterContext, useChromeNano = true, onProgress } = options
 
   onProgress?.('Running unlimited browser tailoring (local keywords)…')
 
@@ -158,7 +164,8 @@ export async function runBrowserGeneration(
         localCoverLetter,
         jobDescription,
         resumeText,
-        aiResult.tailoredResume.contact.name
+        aiResult.tailoredResume.contact.name,
+        coverLetterContext
       )
       aiResult = {
         ...aiResult,
