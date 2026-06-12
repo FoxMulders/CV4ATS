@@ -85,6 +85,22 @@ test('computeIntersectionMatchScore uses matched target skills over total target
   assert.deepEqual(report.missingKeywords, ['agile', 'jira'])
 })
 
+test('computeIntersectionMatchScore matches target skills inside compound skill phrasing', () => {
+  const resume: TailoredResume = {
+    ...sampleResume,
+    skills: ['AWS & Azure Cloud Services', 'Reporting'],
+  }
+
+  const report = computeIntersectionMatchScore({
+    resume,
+    targetSkills: ['cloud', 'aws', 'azure', 'agile'],
+  })
+
+  assert.equal(report.matchScore, 75)
+  assert.deepEqual(report.matchedKeywords, ['aws', 'azure', 'cloud'])
+  assert.deepEqual(report.missingKeywords, ['agile'])
+})
+
 test('buildSkillIntersectionMatrix reflects added skills after structured resume edits', () => {
   const updated = applySkillModificationsToTailoredResume(
     sampleResume,

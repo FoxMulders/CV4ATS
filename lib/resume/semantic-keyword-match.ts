@@ -1,13 +1,13 @@
 import { lemmaToken } from '@/lib/resume/lemma'
-import { keywordMatchesResume } from '@/lib/resume/keyword-matcher'
+import {
+  keywordMatchesResume,
+  matchesWordBoundaryProfile,
+  normalizeMatchingText,
+} from '@/lib/resume/keyword-matcher'
 import { tokenize } from '@/lib/resume/stopwords'
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function normalizeText(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
 function stemPattern(token: string): RegExp {
@@ -17,9 +17,9 @@ function stemPattern(token: string): RegExp {
 
 /** True when the resume text contains the keyword verbatim (ignoring case/spacing). */
 export function resumeContainsVerbatimTerm(resumeText: string, keyword: string): boolean {
-  const normalized = normalizeText(keyword)
+  const normalized = normalizeMatchingText(keyword)
   if (!normalized) return false
-  return normalizeText(resumeText).includes(normalized)
+  return matchesWordBoundaryProfile(resumeText, normalized)
 }
 
 /**
@@ -29,10 +29,10 @@ export function resumeContainsVerbatimTerm(resumeText: string, keyword: string):
 export function resumeSemanticallyMatchesSkill(resumeText: string, keyword: string): boolean {
   if (keywordMatchesResume(resumeText, keyword)) return true
 
-  const normalized = normalizeText(keyword)
+  const normalized = normalizeMatchingText(keyword)
   if (!normalized) return false
 
-  const haystack = normalizeText(resumeText)
+  const haystack = normalizeMatchingText(resumeText)
   const tokens = tokenize(normalized)
   if (tokens.length === 0) return false
 

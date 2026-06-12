@@ -1,8 +1,11 @@
 import type { KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import { sanitizeKeywordReport } from '@/lib/api/generation-config'
 import { filterRelevantKeywords } from '@/lib/resume/keyword-filter'
+import {
+  keywordMatchesResume,
+  normalizeMatchingText,
+} from '@/lib/resume/keyword-matcher'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
-import { resumeMatchesScoringTarget } from '@/lib/resume/scoring-keyword-targets'
 import { getFixedScoringTargetTerms } from '@/lib/resume/scoring-keyword-targets'
 import { targetSkillTerms, type TargetSkill } from '@/lib/resume/skill-extrapolation'
 
@@ -108,19 +111,25 @@ export function buildTailoredResumeCorpus(resume: TailoredResume): TailoredResum
   }
 }
 
+function targetSkillMatchesResumeText(resumeText: string, term: string): boolean {
+  if (!resumeText.trim()) return false
+  return keywordMatchesResume(resumeText, term)
+}
+
 function resolveMatchedSections(
   corpus: TailoredResumeCorpus,
+  normalizedCorpus: TailoredResumeCorpus,
   term: string
 ): IntersectionResumeSection[] {
   const sections: IntersectionResumeSection[] = []
 
-  if (corpus.summary && resumeMatchesScoringTarget(corpus.summary, term)) {
+  if (corpus.summary && targetSkillMatchesResumeText(normalizedCorpus.summary, term)) {
     sections.push('summary')
   }
-  if (corpus.skills && resumeMatchesScoringTarget(corpus.skills, term)) {
+  if (corpus.skills && targetSkillMatchesResumeText(normalizedCorpus.skills, term)) {
     sections.push('skills')
   }
-  if (corpus.experience && resumeMatchesScoringTarget(corpus.experience, term)) {
+  if (corpus.experience && targetSkillMatchesResumeText(normalizedCorpus.experience, term)) {
     sections.push('experience')
   }
 
@@ -135,13 +144,23 @@ export function buildSkillIntersectionMatrix(
 ): SkillIntersectionMatrix {
   const terms = buildTargetSkillTerms(targetSkills, jobDescription)
   const corpus = buildTailoredResumeCorpus(resume)
+  const normalizedCorpus: TailoredResumeCorpus = {
+    summary: normalizeMatchingText(corpus.summary),
+    skills: normalizeMatchingText(corpus.skills),
+    experience: normalizeMatchingText(corpus.experience),
+    combined: normalizeMatchingText(corpus.combined),
+  }
 
   const entries: SkillIntersectionEntry[] = terms.map((term) => {
-    const matchedInSections = resolveMatchedSections(corpus, term)
+    const matchedInSections = resolveMatchedSections(corpus, normalizedCorpus, term)
+    const matched =
+      matchedInSections.length > 0 ||
+      targetSkillMatchesResumeText(normalizedCorpus.combined, term)
+
     return {
       term,
       normalizedTerm: normalizeSkillKey(term),
-      matched: matchedInSections.length > 0,
+      matched,
       matchedInSections,
     }
   })
