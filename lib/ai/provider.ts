@@ -21,6 +21,8 @@ export type FreeAiProvider = 'google' | 'groq'
 export const AI_GENERATION_MAX_TOKENS = 12288
 export const AI_GENERATION_TEMPERATURE = 0.3
 export const AI_REFINEMENT_TEMPERATURE = 0.3
+/** Slightly higher than full-resume generation to avoid identical cached completions on keyword weave requests. */
+export const KEYWORD_WEAVING_TEMPERATURE = 0.4
 
 /** Never retry through Vercel AI Gateway — fail fast and fall back to Groq or local rules. */
 export const AI_STREAM_MAX_RETRIES = 0

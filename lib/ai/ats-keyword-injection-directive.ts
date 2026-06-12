@@ -90,7 +90,9 @@ export function buildAtsKeywordInjectionSystemPrompt(options: {
       ? `\n\nApproved indexable equivalents for "${options.missingSkill}": ${equivalents.join(', ')}`
       : ''
 
-  let prompt = `${ATS_KEYWORD_INJECTION_DIRECTIVE}${equivalentHint}`
+  let prompt = `${ATS_KEYWORD_INJECTION_DIRECTIVE}${equivalentHint}
+
+You MUST integrate the specific term "${options.missingSkill.trim()}" into the updated sentence structure. Do not return the sentence unchanged.`
 
   if (
     options.modificationType === 'summary' &&

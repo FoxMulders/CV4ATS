@@ -32,13 +32,13 @@ import {
   scoreAtsCompliance,
   serializeTailoredResume,
 } from '@/lib/resume/ats-score'
+import { computeIntersectionMatchScore } from '@/lib/resume/intersection-ats-score'
 import {
   keywordsToTargetSkills,
   targetSkillTerms,
   type TargetSkill,
 } from '@/lib/resume/skill-extrapolation'
 import { integrateScoringKeywordsUntilSaturation } from '@/lib/resume/scoring-keyword-integration'
-import { getMissingScoringKeywords } from '@/lib/resume/scoring-keyword-targets'
 import { mergeTargetSkills } from '@/lib/resume/tailored-resume-injection'
 import { repairCoverLetterCompliance } from '@/lib/ai/cover-letter-repair'
 import { auditCoverLetterCompliance } from '@/lib/resume/cover-letter-compliance'
@@ -84,12 +84,14 @@ export type GenerationPipelineResult = GenerationResult & {
 function runScoringIntegration(
   aiResult: AiGenerationResult,
   jobDescription: string,
-  seedSkills: TargetSkill[]
+  seedSkills: TargetSkill[],
+  targetSkills: TargetSkill[]
 ): { aiResult: AiGenerationResult; injectedSkills: string[]; matchScore: number } {
   const integration = integrateScoringKeywordsUntilSaturation(
     aiResult.tailoredResume,
     jobDescription,
-    seedSkills
+    seedSkills,
+    targetSkills
   )
 
   if (integration.injectedSkills.length === 0) {
@@ -109,14 +111,25 @@ function runScoringIntegration(
 function scoreResume(
   resume: AiGenerationResult['tailoredResume'],
   jobDescription: string,
-  sourceResumeText: string,
-  baselineScore?: number
+  targetSkills: TargetSkill[]
 ): number {
-  return scoreAtsCompliance(serializeTailoredResume(resume), jobDescription, {
-    phase: 'tailored',
-    sourceResumeText,
-    baselineScore,
+  return computeIntersectionMatchScore({
+    resume,
+    jobDescription,
+    targetSkills,
   }).matchScore
+}
+
+function getIntersectionMissingKeywords(
+  resume: AiGenerationResult['tailoredResume'],
+  jobDescription: string,
+  targetSkills: TargetSkill[]
+): string[] {
+  return computeIntersectionMatchScore({
+    resume,
+    jobDescription,
+    targetSkills,
+  }).missingKeywords
 }
 
 function applySourceGrounding(
@@ -234,6 +247,7 @@ export async function runGenerationPipeline(
     preScan.missingSkills,
     keywordsToTargetSkills(competencyChecklist.missingTerms)
   )
+  const scoringTargetSkills = preScan.targetSkills
 
   await emitScorePass({
     type: 'score-pass',
@@ -268,11 +282,11 @@ export async function runGenerationPipeline(
     achievementSupplement
   )
 
-  let integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
+  let integration = runScoringIntegration(aiResult, jobDescription, seedSkills, scoringTargetSkills)
   aiResult = integration.aiResult
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
-  const afterInitialScore = scoreResume(aiResult.tailoredResume, jobDescription, resumeText, baselineScore)
+  const afterInitialScore = scoreResume(aiResult.tailoredResume, jobDescription, scoringTargetSkills)
   await emitScorePass({
     type: 'score-pass',
     pass: 1,
@@ -290,7 +304,8 @@ export async function runGenerationPipeline(
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions,
     resumeText,
-    aiResult.tailoredResume
+    aiResult.tailoredResume,
+    scoringTargetSkills
   )
 
   let currentScore = comparison.keywordReport.matchScore
@@ -298,9 +313,10 @@ export async function runGenerationPipeline(
   let pass = 1
 
   while (currentScore < TARGET_ATS_SCORE && pass < getMaxGenerationPasses()) {
-    const missingKeywords = getMissingScoringKeywords(
-      serializeTailoredResume(aiResult.tailoredResume),
-      jobDescription
+    const missingKeywords = getIntersectionMissingKeywords(
+      aiResult.tailoredResume,
+      jobDescription,
+      scoringTargetSkills
     )
     if (missingKeywords.length === 0) break
 
@@ -325,7 +341,12 @@ export async function runGenerationPipeline(
       achievementSupplement
     )
 
-    integration = runScoringIntegration(aiResult, jobDescription, keywordsToTargetSkills(missingKeywords))
+    integration = runScoringIntegration(
+      aiResult,
+      jobDescription,
+      keywordsToTargetSkills(missingKeywords),
+      scoringTargetSkills
+    )
     aiResult = integration.aiResult
     incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
@@ -335,7 +356,8 @@ export async function runGenerationPipeline(
       jobDescription,
       sanitizeKeywordReport(aiResult.keywordReport).suggestions,
       resumeText,
-      aiResult.tailoredResume
+      aiResult.tailoredResume,
+      scoringTargetSkills
     )
 
     currentScore = comparison.keywordReport.matchScore
@@ -353,7 +375,7 @@ export async function runGenerationPipeline(
   }
 
   const beforeFinalScore = currentScore
-  integration = runScoringIntegration(aiResult, jobDescription, seedSkills)
+  integration = runScoringIntegration(aiResult, jobDescription, seedSkills, scoringTargetSkills)
   aiResult = integration.aiResult
   incorporatedKeywords = [...new Set([...incorporatedKeywords, ...integration.injectedSkills])]
 
@@ -363,7 +385,8 @@ export async function runGenerationPipeline(
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions,
     resumeText,
-    aiResult.tailoredResume
+    aiResult.tailoredResume,
+    scoringTargetSkills
   )
 
   if (integration.injectedSkills.length > 0 || comparison.keywordReport.matchScore !== beforeFinalScore) {
@@ -449,7 +472,8 @@ export async function runGenerationPipeline(
     jobDescription,
     sanitizeKeywordReport(aiResult.keywordReport).suggestions,
     resumeText,
-    aiResult.tailoredResume
+    aiResult.tailoredResume,
+    scoringTargetSkills
   )
 
   const phrasingAudit = auditResumePhrasingCompliance(

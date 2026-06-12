@@ -1,10 +1,6 @@
 import type { TailoredResume } from '@/lib/ai/schemas'
-import { serializeTailoredResume } from '@/lib/resume/ats-score'
-import { computeWeightedMatchScore } from '@/lib/resume/weighted-ats-scoring'
-import {
-  getMissingScoringKeywords,
-} from '@/lib/resume/scoring-keyword-targets'
-import type { SkillCategory, TargetSkill } from '@/lib/resume/skill-extrapolation'
+import { computeIntersectionMatchScore } from '@/lib/resume/intersection-ats-score'
+import type { TargetSkill } from '@/lib/resume/skill-extrapolation'
 import { keywordsToTargetSkills } from '@/lib/resume/skill-extrapolation'
 import {
   injectIntoTailoredResume,
@@ -23,13 +19,36 @@ export interface ScoringIntegrationResult {
 
 const MAX_INTEGRATION_ROUNDS = 4
 
+function scoreTailoredResume(
+  resume: TailoredResume,
+  jobDescription: string,
+  targetSkills?: string[] | TargetSkill[]
+): KeywordReportSlice {
+  const report = computeIntersectionMatchScore({
+    resume,
+    jobDescription,
+    targetSkills,
+  })
+
+  return {
+    matchScore: report.matchScore,
+    missingKeywords: report.missingKeywords,
+  }
+}
+
+interface KeywordReportSlice {
+  matchScore: number
+  missingKeywords: string[]
+}
+
 /**
  * Iteratively inject ATS scoring keywords until the match score plateaus or all terms are present.
  */
 export function integrateScoringKeywordsUntilSaturation(
   resume: TailoredResume,
   jobDescription: string,
-  seedSkills: TargetSkill[] = []
+  seedSkills: TargetSkill[] = [],
+  targetSkills?: string[] | TargetSkill[]
 ): ScoringIntegrationResult {
   let current = structuredClone(resume)
   const injectedSkills: string[] = []
@@ -37,12 +56,14 @@ export function integrateScoringKeywordsUntilSaturation(
   let previousScore = -1
 
   for (let round = 0; round < MAX_INTEGRATION_ROUNDS; round += 1) {
-    const serialized = serializeTailoredResume(current)
-    const missingTerms = getMissingScoringKeywords(serialized, jobDescription)
-    const matchScore = computeMatchScore(serialized, jobDescription)
+    const { matchScore, missingKeywords: missingTerms } = scoreTailoredResume(
+      current,
+      jobDescription,
+      targetSkills
+    )
 
     if (missingTerms.length === 0 || matchScore === previousScore) {
-      return finalize(current, injectedSkills, modifiedBulletCount, jobDescription)
+      return finalize(current, injectedSkills, modifiedBulletCount, jobDescription, targetSkills)
     }
 
     previousScore = matchScore
@@ -62,33 +83,31 @@ export function integrateScoringKeywordsUntilSaturation(
     }
   }
 
-  return finalize(current, injectedSkills, modifiedBulletCount, jobDescription)
-}
-
-function computeMatchScore(resumeText: string, jobDescription: string): number {
-  return computeWeightedMatchScore(resumeText, jobDescription, undefined, {
-    phase: 'tailored',
-  }).matchScore
+  return finalize(current, injectedSkills, modifiedBulletCount, jobDescription, targetSkills)
 }
 
 function finalize(
   resume: TailoredResume,
   injectedSkills: string[],
   modifiedBulletCount: number,
-  jobDescription: string
+  jobDescription: string,
+  targetSkills?: string[] | TargetSkill[]
 ): ScoringIntegrationResult {
   const normalizedResume: TailoredResume = {
     ...resume,
     skills: normalizeSkillArray(resume.skills),
   }
-  const serialized = serializeTailoredResume(normalizedResume)
-  const missingKeywords = getMissingScoringKeywords(serialized, jobDescription)
+  const { matchScore, missingKeywords } = scoreTailoredResume(
+    normalizedResume,
+    jobDescription,
+    targetSkills
+  )
 
   return {
     resume: normalizedResume,
     injectedSkills: normalizeSkillArray(injectedSkills),
     modifiedBulletCount,
-    matchScore: computeMatchScore(serialized, jobDescription),
+    matchScore,
     missingKeywords,
   }
 }
@@ -96,9 +115,15 @@ function finalize(
 export function applyScoringIntegration(
   resume: TailoredResume,
   jobDescription: string,
-  seedSkills: TargetSkill[] = []
+  seedSkills: TargetSkill[] = [],
+  targetSkills?: string[] | TargetSkill[]
 ): TailoredResumeInjectionResult & { matchScore: number } {
-  const result = integrateScoringKeywordsUntilSaturation(resume, jobDescription, seedSkills)
+  const result = integrateScoringKeywordsUntilSaturation(
+    resume,
+    jobDescription,
+    seedSkills,
+    targetSkills
+  )
   return {
     resume: result.resume,
     injectedSkills: result.injectedSkills,

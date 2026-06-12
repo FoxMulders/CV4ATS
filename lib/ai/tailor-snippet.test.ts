@@ -51,6 +51,8 @@ test('buildAtsKeywordInjectionSystemPrompt includes missing skill and cloud equi
   assert.match(prompt, /cloud/)
   assert.match(prompt, /AWS/)
   assert.match(prompt, /Azure/)
+  assert.match(prompt, /You MUST integrate the specific term "cloud"/)
+  assert.match(prompt, /Do not return the sentence unchanged/)
 })
 
 test('buildAtsKeywordInjectionSystemPrompt adds location rule for summary edits', () => {

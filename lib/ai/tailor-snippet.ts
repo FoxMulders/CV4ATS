@@ -15,10 +15,10 @@ import {
 } from '@/lib/ai/bullet-qa-validation'
 import { shouldUseLocalFallback, unwrapAiError } from '@/lib/ai/errors'
 import {
-  AI_GENERATION_TEMPERATURE,
   AI_STREAM_MAX_RETRIES,
   assertDirectAiProviderConfigured,
   buildFreeProviderChain,
+  KEYWORD_WEAVING_TEMPERATURE,
 } from '@/lib/ai/provider'
 import {
   buildSnippetForKeyword,
@@ -160,6 +160,8 @@ ${truncateForPrompt(input.jobDescription.trim(), 4000)}
 MISSING SKILL (must be indexable in modifiedText):
 ${input.keyword.trim()}
 
+You MUST integrate the specific term "${input.keyword.trim()}" into the updated sentence structure. Do not return the sentence unchanged.
+
 RESUME SECTION OBJECT:
 ${JSON.stringify(resumeSectionObject, null, 2)}
 
@@ -194,7 +196,7 @@ Return ONLY the JSON object with modifiedText and injectedKeywords.`
 
 function temperatureForVariation(variationIndex: number): number {
   const bump = Math.min(variationIndex, 6) * 0.07
-  return Math.min(AI_GENERATION_TEMPERATURE + bump, 0.85)
+  return Math.min(KEYWORD_WEAVING_TEMPERATURE + bump, 0.85)
 }
 
 function parseModelTailorResponse(raw: string, missingSkill: string): TailorSnippetOutput {

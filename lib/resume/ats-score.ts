@@ -1,8 +1,10 @@
 import type { KeywordReport, TailoredResume } from '@/lib/ai/schemas'
 import { sanitizeKeywordReport } from '@/lib/api/generation-config'
+import { computeIntersectionMatchScore } from '@/lib/resume/intersection-ats-score'
 import { serializeTailoredResumeMarkdown } from '@/lib/resume/local-on-device-resume-engine'
 import { filterRelevantKeywords } from '@/lib/resume/keyword-filter'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
+import type { TargetSkill } from '@/lib/resume/skill-extrapolation'
 import { computeWeightedMatchScore, type WeightedScoringOptions } from '@/lib/resume/weighted-ats-scoring'
 
 function formatSuggestions(missingKeywords: string[], score: number): string[] {
@@ -68,7 +70,8 @@ export function buildAtsComparison(
   jobDescription: string,
   aiSuggestions?: string[],
   sourceResumeText?: string,
-  tailoredResume?: import('@/lib/ai/schemas').TailoredResume
+  tailoredResume?: TailoredResume,
+  targetSkills?: string[] | TargetSkill[]
 ): { baselineKeywordReport: KeywordReport; keywordReport: KeywordReport; improvement: number } {
   const qualificationText = sourceResumeText?.trim() || beforeText
 
@@ -76,12 +79,19 @@ export function buildAtsComparison(
     phase: 'baseline',
     sourceResumeText: qualificationText,
   })
-  const afterReport = scoreAtsCompliance(afterText, jobDescription, {
-    phase: 'tailored',
-    sourceResumeText: qualificationText,
-    baselineScore: baselineKeywordReport.matchScore,
-    structuredResume: tailoredResume,
-  })
+
+  const afterReport =
+    tailoredResume != null
+      ? computeIntersectionMatchScore({
+          resume: tailoredResume,
+          jobDescription,
+          targetSkills,
+        })
+      : scoreAtsCompliance(afterText, jobDescription, {
+          phase: 'tailored',
+          sourceResumeText: qualificationText,
+          baselineScore: baselineKeywordReport.matchScore,
+        })
 
   const keywordReport: KeywordReport = sanitizeKeywordReport({
     ...afterReport,

@@ -196,8 +196,14 @@ function formatIntersectionSuggestions(missingKeywords: string[], score: number)
     }
   }
 
-  if (score >= 76) {
-    suggestions.push('Strong target-skill alignment — prioritize experience bullets over skills-list repetition.')
+  if (score >= 85) {
+    suggestions.push('Strong target-skill alignment (85%+) — keep phrasing natural in experience bullets.')
+  } else if (score >= 80) {
+    suggestions.push(
+      'Close to the 85% target — weave remaining missing terms into experience bullets where your background supports them.'
+    )
+  } else if (score >= 76) {
+    suggestions.push('Solid alignment — prioritize experience bullets over skills-list repetition to reach 85%.')
   } else {
     suggestions.push(
       'Embed missing competencies in work experience bullets rather than repeating them only in the skills list.'
