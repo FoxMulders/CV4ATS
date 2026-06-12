@@ -19,6 +19,7 @@ import {
 } from '@/lib/ai/personal-projects-strategy'
 import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
 import { JOB_SKILL_CLASSIFICATION_DIRECTIVE } from '@/lib/ai/job-skill-extraction-prompts'
+import { RESUME_BLOCK_SCHEMA_DIRECTIVE } from '@/lib/ai/resume-block-schema-directive'
 import { buildLockedTimelinePromptBlock } from '@/lib/resume/strict-resume-state'
 
 /** Banned cover letter phrases — AI clichés and repetitive openers. */
