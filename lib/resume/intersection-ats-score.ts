@@ -7,6 +7,10 @@ import {
 } from '@/lib/resume/keyword-matcher'
 import { sanitizeKeywordList } from '@/lib/resume/keyword-sanitize'
 import { getFixedScoringTargetTerms } from '@/lib/resume/scoring-keyword-targets'
+import {
+  scoringWeightForSkill,
+  type SkillPriorityTier,
+} from '@/lib/resume/skill-priority'
 import { targetSkillTerms, type TargetSkill } from '@/lib/resume/skill-extrapolation'
 
 export type IntersectionResumeSection = 'summary' | 'skills' | 'experience'
@@ -23,6 +27,8 @@ export interface SkillIntersectionEntry {
   normalizedTerm: string
   matched: boolean
   matchedInSections: IntersectionResumeSection[]
+  priorityTier: SkillPriorityTier
+  scoringWeight: number
 }
 
 export interface SkillIntersectionMatrix {
@@ -42,31 +48,56 @@ function normalizeSkillKey(term: string): string {
   return term.trim().toLowerCase()
 }
 
-/** Map target skills into a deduplicated lowercase set while preserving display terms. */
+/** Map target skills into a deduplicated list while preserving display terms and tiers. */
 export function buildTargetSkillTerms(
   targetSkills?: string[] | TargetSkill[],
   jobDescription?: string
-): string[] {
+): TargetSkill[] {
   if (targetSkills && targetSkills.length > 0) {
     const seen = new Set<string>()
-    const terms: string[] = []
+    const terms: TargetSkill[] = []
 
     for (const entry of targetSkills) {
-      const term = typeof entry === 'string' ? entry : entry.term
+      if (typeof entry === 'string') {
+        const term = entry.trim()
+        const key = normalizeSkillKey(term)
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        terms.push({ term, category: 'domainTech', priorityTier: 'core' })
+        continue
+      }
+
+      const term = entry.term.trim()
       const key = normalizeSkillKey(term)
       if (!key || seen.has(key)) continue
       seen.add(key)
-      terms.push(term.trim())
+      terms.push({
+        term,
+        category: entry.category,
+        priorityTier: entry.priorityTier ?? 'core',
+      })
     }
 
     return terms
   }
 
   if (jobDescription?.trim()) {
-    return getFixedScoringTargetTerms(jobDescription)
+    return getFixedScoringTargetTerms(jobDescription).map((term) => ({
+      term,
+      category: 'domainTech' as const,
+      priorityTier: 'core' as const,
+    }))
   }
 
   return []
+}
+
+/** @deprecated Prefer buildTargetSkillTerms — string-only helper for legacy callers. */
+export function buildTargetSkillTermStrings(
+  targetSkills?: string[] | TargetSkill[],
+  jobDescription?: string
+): string[] {
+  return buildTargetSkillTerms(targetSkills, jobDescription).map((skill) => skill.term)
 }
 
 /** Structural scoring inputs mirrored by the intersection matcher (summary, skills, bullets). */
@@ -142,7 +173,7 @@ export function buildSkillIntersectionMatrix(
   targetSkills?: string[] | TargetSkill[],
   jobDescription?: string
 ): SkillIntersectionMatrix {
-  const terms = buildTargetSkillTerms(targetSkills, jobDescription)
+  const skills = buildTargetSkillTerms(targetSkills, jobDescription)
   const corpus = buildTailoredResumeCorpus(resume)
   const normalizedCorpus: TailoredResumeCorpus = {
     summary: normalizeMatchingText(corpus.summary),
@@ -151,24 +182,31 @@ export function buildSkillIntersectionMatrix(
     combined: normalizeMatchingText(corpus.combined),
   }
 
-  const entries: SkillIntersectionEntry[] = terms.map((term) => {
-    const matchedInSections = resolveMatchedSections(corpus, normalizedCorpus, term)
+  const entries: SkillIntersectionEntry[] = skills.map((skill) => {
+    const matchedInSections = resolveMatchedSections(corpus, normalizedCorpus, skill.term)
     const matched =
       matchedInSections.length > 0 ||
-      targetSkillMatchesResumeText(normalizedCorpus.combined, term)
+      targetSkillMatchesResumeText(normalizedCorpus.combined, skill.term)
+    const priorityTier = skill.priorityTier ?? 'core'
 
     return {
-      term,
-      normalizedTerm: normalizeSkillKey(term),
+      term: skill.term,
+      normalizedTerm: normalizeSkillKey(skill.term),
       matched,
       matchedInSections,
+      priorityTier,
+      scoringWeight: scoringWeightForSkill(skill.term, priorityTier),
     }
   })
 
+  const totalWeight = entries.reduce((sum, entry) => sum + entry.scoringWeight, 0)
+  const matchedWeight = entries
+    .filter((entry) => entry.matched)
+    .reduce((sum, entry) => sum + entry.scoringWeight, 0)
   const matchedCount = entries.filter((entry) => entry.matched).length
   const targetSkillCount = entries.length
   const matchScore =
-    targetSkillCount === 0 ? 0 : Math.round((matchedCount / targetSkillCount) * 100)
+    totalWeight === 0 ? 0 : Math.round((matchedWeight / totalWeight) * 100)
 
   return {
     entries,

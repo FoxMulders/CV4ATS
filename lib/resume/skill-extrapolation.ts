@@ -5,13 +5,22 @@ import {
   filterCompetencyTargetSkills,
 } from '@/lib/resume/non-competency-metadata-filter'
 import { isInjectableCompetency } from '@/lib/resume/posting-artifact-filter'
+import {
+  classifySkillPriorityTier,
+  extractFoundationalSkillsFromText,
+  isProprietaryPlatformTerm,
+  type SkillPriorityTier,
+} from '@/lib/resume/skill-priority'
 import { tokenize } from '@/lib/resume/stopwords'
+
+export type { SkillPriorityTier } from '@/lib/resume/skill-priority'
 
 export type SkillCategory = 'methodology' | 'competency' | 'domainTech' | 'tool'
 
 export interface TargetSkill {
   term: string
   category: SkillCategory
+  priorityTier?: SkillPriorityTier
 }
 
 /** Guaranteed high-value targets — scanned via strict regex before NLP extraction. */
@@ -162,6 +171,35 @@ function categoryRank(category: SkillCategory): number {
   }
 }
 
+function tierRank(tier: SkillPriorityTier | undefined): number {
+  return tier === 'desirable' ? 0 : 1
+}
+
+function upsertTargetSkill(
+  byTerm: Map<string, TargetSkill>,
+  term: string,
+  priorityTier?: SkillPriorityTier
+): void {
+  const normalized = normalizeTerm(term)
+  if (!normalized) return
+
+  const tier = priorityTier ?? classifySkillPriorityTier(normalized)
+  const existing = byTerm.get(normalized)
+
+  if (!existing) {
+    byTerm.set(normalized, {
+      term: normalized,
+      category: categorizeSkill(normalized),
+      priorityTier: tier,
+    })
+    return
+  }
+
+  if (existing.priorityTier === 'desirable' && tier === 'core') {
+    byTerm.set(normalized, { ...existing, priorityTier: 'core' })
+  }
+}
+
 function extractExplicitTargets(cleanedText: string): string[] {
   const found: string[] = []
   const normalized = cleanedText.toLowerCase()
@@ -198,17 +236,29 @@ export function extrapolateTargetSkills(jobDescription: string): TargetSkill[] {
   const byTerm = new Map<string, TargetSkill>()
 
   for (const skill of extractExplicitTargetSkills(cleaned)) {
-    byTerm.set(skill.term, skill)
+    upsertTargetSkill(byTerm, skill.term, skill.priorityTier)
+  }
+
+  for (const term of extractFoundationalSkillsFromText(cleaned)) {
+    upsertTargetSkill(byTerm, term, 'core')
   }
 
   for (const keyword of extractHighValueKeywords(cleaned)) {
     const term = normalizeTerm(keyword)
     if (!term || byTerm.has(term) || !isInjectableCompetency(term)) continue
-    byTerm.set(term, { term, category: categorizeSkill(term) })
+
+    if (isProprietaryPlatformTerm(term)) {
+      upsertTargetSkill(byTerm, term, 'desirable')
+      continue
+    }
+
+    upsertTargetSkill(byTerm, term, 'core')
   }
 
   return filterCompetencyTargetSkills(
     [...byTerm.values()].sort((a, b) => {
+      const tierDiff = tierRank(b.priorityTier) - tierRank(a.priorityTier)
+      if (tierDiff !== 0) return tierDiff
       const rankDiff = categoryRank(b.category) - categoryRank(a.category)
       if (rankDiff !== 0) return rankDiff
       return a.term.localeCompare(b.term)
@@ -226,7 +276,11 @@ export function keywordsToTargetSkills(keywords: string[]): TargetSkill[] {
   for (const keyword of filterCompetencyKeywords(keywords)) {
     const term = normalizeTerm(keyword)
     if (!term || byTerm.has(term)) continue
-    byTerm.set(term, { term, category: categorizeSkill(term) })
+    byTerm.set(term, {
+      term,
+      category: categorizeSkill(term),
+      priorityTier: classifySkillPriorityTier(term),
+    })
   }
 
   return [...byTerm.values()]

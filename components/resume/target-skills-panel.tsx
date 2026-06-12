@@ -14,6 +14,7 @@ import {
 } from '@/components/results/editable-skill-snippet-picker'
 import type { PreScanResult } from '@/lib/resume/pre-scan-preparation'
 import type { TargetSkill } from '@/lib/resume/skill-extrapolation'
+import { priorityTierLabel } from '@/lib/resume/skill-priority'
 import { isFieldEdited } from '@/lib/form/field-diff'
 
 const CATEGORY_LABELS = {
@@ -42,9 +43,14 @@ function SkillBadge({
   skill: TargetSkill
   edited?: boolean
 }) {
+  const tier = skill.priorityTier ?? 'core'
+
   return (
     <Badge variant="secondary" className="gap-1">
       <span className="text-[10px] uppercase tracking-wide opacity-70">
+        {priorityTierLabel(tier)}
+      </span>
+      <span className="text-[10px] uppercase tracking-wide opacity-50">
         {CATEGORY_LABELS[skill.category]}
       </span>
       {skill.term}
@@ -127,6 +133,7 @@ export function TargetSkillsPanel({
                   targetSkills: terms.map((term, index) => ({
                     term,
                     category: preScan.targetSkills[index]?.category ?? 'domainTech',
+                    priorityTier: preScan.targetSkills[index]?.priorityTier ?? 'core',
                   })),
                 })
               }

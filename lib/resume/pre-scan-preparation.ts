@@ -1,13 +1,13 @@
 import {
   auditKeywordTerm,
 } from '@/lib/resume/keyword-audit'
+import { extractTargetSkillsFromJobDescriptionSync } from '@/lib/ai/extract-job-skills'
 import { resumeMatchesScoringTarget } from '@/lib/resume/scoring-keyword-targets'
 import {
   buildSuggestedAddition,
   type SuggestedAddition,
 } from '@/lib/resume/skill-snippets'
 import {
-  extrapolateTargetSkills,
   type TargetSkill,
 } from '@/lib/resume/skill-extrapolation'
 import { injectMissingSkills } from '@/lib/resume/skill-injection'
@@ -28,6 +28,8 @@ export interface PreScanResult {
 export interface PrepareResumeOptions {
   /** When true, contextually inject missing skills into experience bullets before scoring. */
   autoInject?: boolean
+  /** Pre-parsed target skills (e.g., from LLM ingestion); defaults to rule-based extraction. */
+  targetSkills?: TargetSkill[]
 }
 
 /**
@@ -41,7 +43,7 @@ export function runSkillExtrapolationAndInjection(
 ): PreScanResult {
   const { autoInject = true } = options
 
-  const targetSkills = extrapolateTargetSkills(jobDescription).filter(
+  const targetSkills = (options.targetSkills ?? extractTargetSkillsFromJobDescriptionSync(jobDescription)).filter(
     (skill) => auditKeywordTerm(skill.term, resumeText).status !== 'purged'
   )
 
@@ -99,5 +101,6 @@ export function prepareResumeForScanning(
   return runSkillExtrapolationAndInjection(resumeText, jobDescription, options)
 }
 
+export { extractTargetSkillsFromJobDescriptionSync } from '@/lib/ai/extract-job-skills'
 export { extrapolateTargetSkills } from '@/lib/resume/skill-extrapolation'
 export { injectMissingSkills } from '@/lib/resume/skill-injection'

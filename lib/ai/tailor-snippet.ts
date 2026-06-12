@@ -21,6 +21,11 @@ import {
   KEYWORD_WEAVING_TEMPERATURE,
 } from '@/lib/ai/provider'
 import {
+  buildFoundationalPivotUserPromptOverride,
+  buildFoundationalPivotSnippet,
+  type SkillWeavingStrategy,
+} from '@/lib/resume/proprietary-skill-weaving'
+import {
   buildSnippetForKeyword,
   type SnippetGenerationContext,
 } from '@/lib/resume/skill-snippets'
@@ -50,6 +55,7 @@ export interface TailorSnippetInput {
   domainLabel?: string
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
   siblingBullets?: string[]
+  weavingStrategy?: SkillWeavingStrategy
 }
 
 export interface TailorSnippetOptions {
@@ -153,14 +159,18 @@ function buildTailorSnippetPrompt(input: TailorSnippetInput, qaFeedback?: string
     []
 
   const resumeSectionObject = buildResumeSectionObject(input, sectionContext)
+  const missingSkillBlock =
+    input.weavingStrategy === 'foundational-pivot'
+      ? buildFoundationalPivotUserPromptOverride(input.keyword)
+      : `MISSING SKILL (must be indexable in modifiedText):
+${input.keyword.trim()}
+
+You MUST integrate the specific term "${input.keyword.trim()}" into the updated sentence structure. Do not return the sentence unchanged.`
 
   return `JOB DESCRIPTION:
 ${truncateForPrompt(input.jobDescription.trim(), 4000)}
 
-MISSING SKILL (must be indexable in modifiedText):
-${input.keyword.trim()}
-
-You MUST integrate the specific term "${input.keyword.trim()}" into the updated sentence structure. Do not return the sentence unchanged.
+${missingSkillBlock}
 
 RESUME SECTION OBJECT:
 ${JSON.stringify(resumeSectionObject, null, 2)}
@@ -199,21 +209,34 @@ function temperatureForVariation(variationIndex: number): number {
   return Math.min(KEYWORD_WEAVING_TEMPERATURE + bump, 0.85)
 }
 
-function parseModelTailorResponse(raw: string, missingSkill: string): TailorSnippetOutput {
+function parseModelTailorResponse(raw: string, input: TailorSnippetInput): TailorSnippetOutput {
+  const missingSkill = input.keyword.trim()
   const structured = parseTailorSnippetModelOutput(raw)
   if (structured) {
-    return enforceTailorSnippetOutput(structured, missingSkill)
+    return enforceTailorSnippetOutput(
+      structured,
+      missingSkill,
+      input.weavingStrategy,
+      input.resumeText
+    )
   }
 
   const plainText = stripTailoringResponse(raw)
-  return tailorSnippetOutputFromPlainText(plainText, missingSkill)
+  return tailorSnippetOutputFromPlainText(
+    plainText,
+    missingSkill,
+    input.weavingStrategy,
+    input.resumeText
+  )
 }
 
 function ensureKeywordIndexed(
   output: TailorSnippetOutput,
   input: TailorSnippetInput
 ): TailorSnippetOutput {
-  if (resumeSemanticallyMatchesSkill(output.modifiedText, input.keyword)) {
+  if (input.weavingStrategy === 'foundational-pivot') {
+    if (output.injectedKeywords.length > 0) return output
+  } else if (resumeSemanticallyMatchesSkill(output.modifiedText, input.keyword)) {
     return output
   }
 
@@ -225,12 +248,33 @@ function ensureKeywordIndexed(
 
   const sourceLine = input.originalBullet?.trim() || output.modifiedText
   for (let variant = 0; variant < 4; variant += 1) {
-    const candidate = integrateSkillIntoBulletLocal(sourceLine, skill, variant)
+    const candidate =
+      input.weavingStrategy === 'foundational-pivot'
+        ? buildFoundationalPivotSnippet(
+            {
+              snippet: output.modifiedText,
+              originalBullet: sourceLine,
+              modificationType: input.modificationType,
+            },
+            input.resumeText
+          )
+        : integrateSkillIntoBulletLocal(sourceLine, skill, variant)
     const enforced = enforceTailorSnippetOutput(
-      tailorSnippetOutputFromPlainText(candidate, input.keyword),
-      input.keyword
+      tailorSnippetOutputFromPlainText(
+        candidate,
+        input.keyword,
+        input.weavingStrategy,
+        input.resumeText
+      ),
+      input.keyword,
+      input.weavingStrategy,
+      input.resumeText
     )
-    if (resumeSemanticallyMatchesSkill(enforced.modifiedText, input.keyword)) {
+    if (
+      input.weavingStrategy === 'foundational-pivot'
+        ? enforced.injectedKeywords.length > 0
+        : resumeSemanticallyMatchesSkill(enforced.modifiedText, input.keyword)
+    ) {
       return enforced
     }
   }
@@ -239,6 +283,28 @@ function ensureKeywordIndexed(
 }
 
 function tailorSnippetLocally(input: TailorSnippetInput): TailorSnippetOutput {
+  if (input.weavingStrategy === 'foundational-pivot') {
+    const snippet = buildFoundationalPivotSnippet(
+      {
+        snippet: input.currentSnippet,
+        originalBullet: input.originalBullet,
+        modificationType: input.modificationType,
+      },
+      input.resumeText
+    )
+    return enforceTailorSnippetOutput(
+      tailorSnippetOutputFromPlainText(
+        polishBulletLocally(snippet),
+        input.keyword,
+        input.weavingStrategy,
+        input.resumeText
+      ),
+      input.keyword,
+      input.weavingStrategy,
+      input.resumeText
+    )
+  }
+
   const skill =
     keywordsToTargetSkills([input.keyword])[0] ?? {
       term: input.keyword,
@@ -290,16 +356,30 @@ function tailorSnippetLocally(input: TailorSnippetInput): TailorSnippetOutput {
       })
       if (alternateQa.passed) {
         return enforceTailorSnippetOutput(
-          tailorSnippetOutputFromPlainText(polishBulletLocally(alternate), input.keyword),
-          input.keyword
+          tailorSnippetOutputFromPlainText(
+            polishBulletLocally(alternate),
+            input.keyword,
+            input.weavingStrategy,
+            input.resumeText
+          ),
+          input.keyword,
+          input.weavingStrategy,
+          input.resumeText
         )
       }
     }
   }
 
   return enforceTailorSnippetOutput(
-    tailorSnippetOutputFromPlainText(polishBulletLocally(snippet), input.keyword),
-    input.keyword
+    tailorSnippetOutputFromPlainText(
+      polishBulletLocally(snippet),
+      input.keyword,
+      input.weavingStrategy,
+      input.resumeText
+    ),
+    input.keyword,
+    input.weavingStrategy,
+    input.resumeText
   )
 }
 
@@ -331,7 +411,7 @@ async function generateTailorSnippetDraft(
         providerOptions: entry.providerOptions,
       })
 
-      const parsed = parseModelTailorResponse(result.text, input.keyword.trim())
+      const parsed = parseModelTailorResponse(result.text, input)
       if (parsed.modifiedText.length >= 12) {
         return ensureKeywordIndexed(parsed, input)
       }
@@ -363,8 +443,15 @@ export async function tailorSnippetWithAi(
   if (input.modificationType === 'skills-section') {
     const modifiedText = polishBulletLocally(stripTailoringResponse(input.currentSnippet))
     return enforceTailorSnippetOutput(
-      tailorSnippetOutputFromPlainText(modifiedText, input.keyword),
-      input.keyword
+      tailorSnippetOutputFromPlainText(
+        modifiedText,
+        input.keyword,
+        input.weavingStrategy,
+        input.resumeText
+      ),
+      input.keyword,
+      input.weavingStrategy,
+      input.resumeText
     )
   }
 
@@ -407,8 +494,15 @@ export async function tailorSnippetWithAi(
   const polished = stripTailoringResponse(bullet)
   return ensureKeywordIndexed(
     enforceTailorSnippetOutput(
-      tailorSnippetOutputFromPlainText(polished, input.keyword),
-      input.keyword
+      tailorSnippetOutputFromPlainText(
+        polished,
+        input.keyword,
+        input.weavingStrategy,
+        input.resumeText
+      ),
+      input.keyword,
+      input.weavingStrategy,
+      input.resumeText
     ),
     input
   )

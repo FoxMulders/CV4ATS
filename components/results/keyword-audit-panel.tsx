@@ -12,7 +12,7 @@ import {
   auditKeywordTerms,
   type AuditedKeyword,
 } from '@/lib/resume/keyword-audit'
-import { extrapolateTargetSkills } from '@/lib/resume/skill-extrapolation'
+import { extractTargetSkillsFromJobDescriptionSync } from '@/lib/ai/extract-job-skills'
 import {
   buildRestorationsForPurgedKeywords,
   isUserRestorablePurgedKeyword,
@@ -87,7 +87,7 @@ export function KeywordAuditPanel({
   onRestorePurged,
   isRerunning = false,
 }: KeywordAuditPanelProps) {
-  const targetSkills = extrapolateTargetSkills(jobDescription)
+  const targetSkills = extractTargetSkillsFromJobDescriptionSync(jobDescription)
   const rawTerms = targetSkills.map((skill) => skill.term)
   const audit = auditKeywordTerms(rawTerms, resumeText)
   const activeCount = audit.approved.length + audit.modified.length

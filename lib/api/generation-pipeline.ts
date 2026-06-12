@@ -3,6 +3,7 @@ import type { HiringPanelSessionResult } from '@/lib/ai/hiring-panel-schemas'
 import type { KeywordReport } from '@/lib/ai/schemas'
 import type { AiGenerationResult, GenerationResult } from '@/lib/ai/schemas'
 import { applyGenerationHygiene } from '@/lib/ai/generation-hygiene'
+import { extractTargetSkillsFromJobDescription } from '@/lib/ai/extract-job-skills'
 import { refineTailoredResume, generateTailoredResume } from '@/lib/ai/generate'
 import {
   getMaxGenerationPasses,
@@ -221,8 +222,13 @@ export async function runGenerationPipeline(
   })
   const baselineScore = baselineKeywordReport.matchScore
 
+  const ingestedTargetSkills = await extractTargetSkillsFromJobDescription(jobDescription, {
+    useLlm: true,
+  })
+
   const preScan = runSkillExtrapolationAndInjection(workingResumeText, jobDescription, {
     autoInject: true,
+    targetSkills: ingestedTargetSkills,
   })
   const preparedResumeText = preScan.preparedResumeText
 

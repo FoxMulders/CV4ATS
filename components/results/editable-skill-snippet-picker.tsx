@@ -18,10 +18,16 @@ import {
   PhrasingSimilarityPreview,
   usePhrasingSimilarityAudit,
 } from '@/components/results/phrasing-similarity-preview'
+import { ProprietarySkillWeavingModal } from '@/components/skills/proprietary-skill-weaving-modal'
 import { VerifySkillModal } from '@/components/skills/verify-skill-modal'
 
 import type { AnchoredSkillSelection } from '@/lib/resume/apply-skill-modifications'
 import { applyAnchoredSkillModifications, selectionsToAnchoredModifications } from '@/lib/resume/apply-skill-modifications'
+import {
+  buildFoundationalPivotSnippet,
+  isProprietaryPlatformTerm,
+  type SkillWeavingStrategy,
+} from '@/lib/resume/proprietary-skill-weaving'
 
 export type SkillSnippetSelection = AnchoredSkillSelection
 
@@ -77,6 +83,9 @@ export function EditableSkillSnippetPicker({
   const [tailoringKeyword, setTailoringKeyword] = useState<string | null>(null)
   const [variationCounts, setVariationCounts] = useState<Record<string, number>>({})
   const [snippetHistory, setSnippetHistory] = useState<Record<string, string[]>>({})
+  const [weavingStrategies, setWeavingStrategies] = useState<Record<string, SkillWeavingStrategy>>({})
+  const [proprietaryModalOpen, setProprietaryModalOpen] = useState(false)
+  const [pendingProprietaryKeyword, setPendingProprietaryKeyword] = useState<string | null>(null)
 
   const canTailorWithAi = Boolean(jobDescription.trim() && resumeText.trim())
 
@@ -93,6 +102,9 @@ export function EditableSkillSnippetPicker({
       Object.fromEntries(Object.entries(current).filter(([keyword]) => validKeywords.has(keyword)))
     )
     setSnippetHistory((current) =>
+      Object.fromEntries(Object.entries(current).filter(([keyword]) => validKeywords.has(keyword)))
+    )
+    setWeavingStrategies((current) =>
       Object.fromEntries(Object.entries(current).filter(([keyword]) => validKeywords.has(keyword)))
     )
   }
@@ -114,21 +126,75 @@ export function EditableSkillSnippetPicker({
       delete next[keyword]
       return next
     })
+    setWeavingStrategies((current) => {
+      const next = { ...current }
+      delete next[keyword]
+      return next
+    })
+  }
+
+  function initialSnippetForKeyword(
+    keyword: string,
+    strategy: SkillWeavingStrategy | undefined
+  ): string {
+    const item = itemMap.get(keyword)
+    if (!item) return keyword
+
+    if (strategy === 'foundational-pivot' && resumeText.trim()) {
+      return buildFoundationalPivotSnippet(
+        {
+          snippet: item.snippet,
+          originalBullet: item.originalBullet,
+          modificationType: item.modificationType,
+        },
+        resumeText.trim()
+      )
+    }
+
+    return item.snippet
+  }
+
+  function selectKeyword(keyword: string, strategy?: SkillWeavingStrategy) {
+    const resolvedStrategy =
+      strategy ?? (isProprietaryPlatformTerm(keyword) ? weavingStrategies[keyword] : undefined)
+
+    setSelectedKeywords((current) => {
+      if (current.includes(keyword)) return current
+      return [...current, keyword]
+    })
+
+    if (resolvedStrategy) {
+      setWeavingStrategies((current) => ({ ...current, [keyword]: resolvedStrategy }))
+    }
+
+    if (editedSnippets[keyword] === undefined) {
+      setEditedSnippets((snippets) => ({
+        ...snippets,
+        [keyword]: initialSnippetForKeyword(keyword, resolvedStrategy),
+      }))
+    }
   }
 
   function toggleKeyword(keyword: string) {
-    setSelectedKeywords((current) => {
-      if (current.includes(keyword)) {
-        return current.filter((entry) => entry !== keyword)
-      }
+    if (selectedKeywords.includes(keyword)) {
+      removeKeyword(keyword)
+      return
+    }
 
-      const item = itemMap.get(keyword)
-      if (item && editedSnippets[keyword] === undefined) {
-        setEditedSnippets((snippets) => ({ ...snippets, [keyword]: item.snippet }))
-      }
+    if (isProprietaryPlatformTerm(keyword) && !weavingStrategies[keyword]) {
+      setPendingProprietaryKeyword(keyword)
+      setProprietaryModalOpen(true)
+      return
+    }
 
-      return [...current, keyword]
-    })
+    selectKeyword(keyword)
+  }
+
+  function handleProprietaryWeavingChoice(strategy: SkillWeavingStrategy) {
+    const keyword = pendingProprietaryKeyword
+    setPendingProprietaryKeyword(null)
+    if (!keyword) return
+    selectKeyword(keyword, strategy)
   }
 
   function updateSnippet(keyword: string, snippet: string) {
@@ -160,6 +226,7 @@ export function EditableSkillSnippetPicker({
     await onIncorporate?.(getSelections())
     setSelectedKeywords([])
     setEditedSnippets({})
+    setWeavingStrategies({})
   }
 
   function handleInsert() {
@@ -167,6 +234,7 @@ export function EditableSkillSnippetPicker({
     onInsert?.(getSelections())
     setSelectedKeywords([])
     setEditedSnippets({})
+    setWeavingStrategies({})
   }
 
   async function handleTailorSnippet(keyword: string) {
@@ -213,6 +281,7 @@ export function EditableSkillSnippetPicker({
         domainLabel: item?.domainLabel,
         modificationType: item?.modificationType,
         siblingBullets: item?.siblingBullets,
+        weavingStrategy: weavingStrategies[keyword],
       })
       updateSnippet(keyword, snippet)
       setVariationCounts((current) => ({ ...current, [keyword]: variationIndex }))
@@ -234,6 +303,15 @@ export function EditableSkillSnippetPicker({
 
   return (
     <div className="space-y-4">
+      <ProprietarySkillWeavingModal
+        open={proprietaryModalOpen}
+        onOpenChange={(open) => {
+          setProprietaryModalOpen(open)
+          if (!open) setPendingProprietaryKeyword(null)
+        }}
+        skillName={pendingProprietaryKeyword ?? ''}
+        onChoose={handleProprietaryWeavingChoice}
+      />
       <p className="text-sm text-muted-foreground">{description}</p>
 
       <div className="flex flex-wrap gap-2">
@@ -285,6 +363,7 @@ export function EditableSkillSnippetPicker({
                 onTailor={() => void handleTailorSnippet(keyword)}
                 onRemove={() => removeKeyword(keyword)}
                 purgeReason={item?.purgeReason}
+                weavingStrategy={weavingStrategies[keyword]}
               />
             )
           })}
@@ -338,6 +417,7 @@ interface SnippetEditorCardProps {
   onTailor: () => void
   onRemove: () => void
   purgeReason?: string
+  weavingStrategy?: SkillWeavingStrategy
 }
 
 function SnippetEditorCard({
@@ -352,6 +432,7 @@ function SnippetEditorCard({
   onTailor,
   onRemove,
   purgeReason,
+  weavingStrategy,
 }: SnippetEditorCardProps) {
   const [verifyOpen, setVerifyOpen] = useState(false)
   const similarityAudit = usePhrasingSimilarityAudit(snippet, jobDescription)
@@ -398,6 +479,11 @@ function SnippetEditorCard({
           ) : null}
           {item?.domainLabel ? (
             <p className="text-xs text-muted-foreground">Domain: {item.domainLabel}</p>
+          ) : null}
+          {weavingStrategy === 'foundational-pivot' ? (
+            <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
+              Foundational pivot — emphasizing AWS, Azure, and automation platform skills
+            </p>
           ) : null}
         </div>
         {item?.category ? (

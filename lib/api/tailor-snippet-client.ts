@@ -1,5 +1,7 @@
 import { parseApiErrorResponse } from '@/lib/api/client-fetch'
 
+import type { SkillWeavingStrategy } from '@/lib/resume/proprietary-skill-weaving'
+
 export interface TailorSnippetRequest {
   jobDescription: string
   resumeText: string
@@ -17,6 +19,7 @@ export interface TailorSnippetRequest {
   domainLabel?: string
   siblingBullets?: string[]
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
+  weavingStrategy?: SkillWeavingStrategy
 }
 
 export interface TailorSnippetResponse {

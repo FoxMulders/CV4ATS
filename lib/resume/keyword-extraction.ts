@@ -10,6 +10,10 @@ import {
 import { isLikelyPersonName, isPostingArtifact } from '@/lib/resume/posting-artifact-filter'
 import { filterReportableKeywords } from '@/lib/resume/keyword-report-filter'
 import {
+  extractFoundationalSkillsFromText,
+  isProprietaryPlatformTerm,
+} from '@/lib/resume/skill-priority'
+import {
   filterStopWordTokens,
   isStopWord,
   phraseWithoutStopWords,
@@ -124,6 +128,10 @@ function extractTechTokens(text: string, scores: Map<string, number>): void {
 function extractHeuristicTerms(cleanedText: string, scores: Map<string, number>): void {
   for (const phrase of extractCapitalizedPhrases(cleanedText)) {
     if (isLikelyPersonName(phrase)) continue
+    if (isProprietaryPlatformTerm(phrase)) {
+      addScore(scores, phrase, 2)
+      continue
+    }
     addScore(scores, phrase, 4)
   }
 
@@ -137,6 +145,12 @@ function extractHeuristicTerms(cleanedText: string, scores: Map<string, number>)
 
   for (const token of filterStopWordTokens(tokenize(cleanedText.toLowerCase()))) {
     addScore(scores, token, 2)
+  }
+}
+
+function extractFoundationalPhrases(text: string, scores: Map<string, number>): void {
+  for (const term of extractFoundationalSkillsFromText(text)) {
+    addScore(scores, term, 7)
   }
 }
 
@@ -180,6 +194,7 @@ export function extractHighValueKeywords(jobDescription: string): string[] {
 
   extractCuratedPhrases(normalized, scores)
   extractTechTokens(normalized, scores)
+  extractFoundationalPhrases(cleaned, scores)
   extractHeuristicTerms(cleaned, scores)
 
   return filterReportableKeywords(

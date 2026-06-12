@@ -6,6 +6,11 @@ import {
   PHRASING_COMPLIANCE_WORD_LIMIT,
 } from '@/lib/resume/exact-phrasing-auditor'
 import {
+  buildFoundationalPivotPromptAddendum,
+  getEquivalentsForWeavingStrategy,
+  type SkillWeavingStrategy,
+} from '@/lib/resume/proprietary-skill-weaving'
+import {
   resumeContainsVerbatimTerm,
   resumeSemanticallyMatchesSkill,
 } from '@/lib/resume/semantic-keyword-match'
@@ -83,16 +88,34 @@ export function buildAtsKeywordInjectionSystemPrompt(options: {
   missingSkill: string
   modificationType?: 'inline-bullet' | 'skills-section' | 'summary'
   candidateLocation?: string
+  weavingStrategy?: SkillWeavingStrategy
+  resumeText?: string
 }): string {
-  const equivalents = getIndexableEquivalents(options.missingSkill)
+  const isFoundationalPivot = options.weavingStrategy === 'foundational-pivot'
+  const pivotEquivalents =
+    isFoundationalPivot && options.resumeText?.trim()
+      ? getEquivalentsForWeavingStrategy(
+          options.missingSkill,
+          options.weavingStrategy,
+          options.resumeText
+        ) ?? []
+      : []
+  const equivalents = isFoundationalPivot
+    ? pivotEquivalents
+    : getIndexableEquivalents(options.missingSkill)
   const equivalentHint =
-    equivalents.length > 1
+    equivalents.length > 0
       ? `\n\nApproved indexable equivalents for "${options.missingSkill}": ${equivalents.join(', ')}`
       : ''
 
-  let prompt = `${ATS_KEYWORD_INJECTION_DIRECTIVE}${equivalentHint}
+  let prompt = `${ATS_KEYWORD_INJECTION_DIRECTIVE}${equivalentHint}`
 
-You MUST integrate the specific term "${options.missingSkill.trim()}" into the updated sentence structure. Do not return the sentence unchanged.`
+  if (isFoundationalPivot && options.resumeText?.trim()) {
+    prompt += `\n\n${buildFoundationalPivotPromptAddendum(options.missingSkill, options.resumeText)}`
+    prompt += `\n\nDo NOT integrate "${options.missingSkill.trim()}" — pivot to foundational equivalents listed above. Do not return the sentence unchanged.`
+  } else {
+    prompt += `\n\nYou MUST integrate the specific term "${options.missingSkill.trim()}" into the updated sentence structure. Do not return the sentence unchanged.`
+  }
 
   if (
     options.modificationType === 'summary' &&
@@ -111,9 +134,18 @@ function escapeRegExp(value: string): string {
 /** Extract approved keyword substrings that appear verbatim in the modified line. */
 export function extractInjectedKeywordsFromText(
   modifiedText: string,
-  missingSkill: string
+  missingSkill: string,
+  weavingStrategy?: SkillWeavingStrategy,
+  resumeText?: string
 ): string[] {
-  const candidates = getIndexableEquivalents(missingSkill)
+  const pivotEquivalents =
+    weavingStrategy === 'foundational-pivot' && resumeText?.trim()
+      ? getEquivalentsForWeavingStrategy(missingSkill, weavingStrategy, resumeText) ?? []
+      : null
+  const candidates =
+    pivotEquivalents && pivotEquivalents.length > 0
+      ? pivotEquivalents
+      : getIndexableEquivalents(missingSkill)
   const found: string[] = []
   const seen = new Set<string>()
 
@@ -150,7 +182,9 @@ export function parseTailorSnippetModelOutput(raw: string): TailorSnippetOutput 
 /** Normalize LLM JSON output and guarantee at least one indexable keyword injection. */
 export function enforceTailorSnippetOutput(
   output: TailorSnippetOutput,
-  missingSkill: string
+  missingSkill: string,
+  weavingStrategy?: SkillWeavingStrategy,
+  resumeText?: string
 ): TailorSnippetOutput {
   const modifiedText = output.modifiedText.replace(/\s+/g, ' ').trim()
   const verified = output.injectedKeywords.filter((keyword) =>
@@ -159,9 +193,19 @@ export function enforceTailorSnippetOutput(
   const extracted =
     verified.length > 0
       ? verified
-      : extractInjectedKeywordsFromText(modifiedText, missingSkill)
+      : extractInjectedKeywordsFromText(
+          modifiedText,
+          missingSkill,
+          weavingStrategy,
+          resumeText
+        )
 
-  if (extracted.length > 0 && resumeSemanticallyMatchesSkill(modifiedText, missingSkill)) {
+  const matchesSkill =
+    weavingStrategy === 'foundational-pivot'
+      ? extracted.length > 0
+      : extracted.length > 0 && resumeSemanticallyMatchesSkill(modifiedText, missingSkill)
+
+  if (matchesSkill) {
     return { modifiedText, injectedKeywords: extracted }
   }
 
@@ -170,14 +214,23 @@ export function enforceTailorSnippetOutput(
 
 export function tailorSnippetOutputFromPlainText(
   plainText: string,
-  missingSkill: string
+  missingSkill: string,
+  weavingStrategy?: SkillWeavingStrategy,
+  resumeText?: string
 ): TailorSnippetOutput {
   const modifiedText = plainText.replace(/\s+/g, ' ').trim()
   return enforceTailorSnippetOutput(
     {
       modifiedText,
-      injectedKeywords: extractInjectedKeywordsFromText(modifiedText, missingSkill),
+      injectedKeywords: extractInjectedKeywordsFromText(
+        modifiedText,
+        missingSkill,
+        weavingStrategy,
+        resumeText
+      ),
     },
-    missingSkill
+    missingSkill,
+    weavingStrategy,
+    resumeText
   )
 }

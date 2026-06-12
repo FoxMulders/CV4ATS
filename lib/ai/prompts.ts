@@ -18,7 +18,7 @@ import {
   buildPersonalProjectsPromptAddendum,
 } from '@/lib/ai/personal-projects-strategy'
 import { buildCandidateNarrativeAddendum } from '@/lib/ai/candidate-narratives'
-import { RESUME_BLOCK_SCHEMA_DIRECTIVE } from '@/lib/ai/resume-block-schema-directive'
+import { JOB_SKILL_CLASSIFICATION_DIRECTIVE } from '@/lib/ai/job-skill-extraction-prompts'
 import { buildLockedTimelinePromptBlock } from '@/lib/resume/strict-resume-state'
 
 /** Banned cover letter phrases — AI clichés and repetitive openers. */
@@ -464,8 +464,11 @@ Rebuild every resume for ATS parsing and human hiring managers:
 ## Keyword report
 - **matchScore**: 0-100 weighted estimate of alignment with JD hard skills, methodologies, and tools. Work experience matches count most; skills-list-only matches count less; keyword stuffing and copied job-description phrasing reduce the score. Well-tailored resumes typically land between 75% and 88%; 95%+ is reserved for near-identical profile matches.
 - **matchedKeywords**: role-specific terms from the JD that the tailored resume supports. Include methodologies, tools, and multi-word competencies. Exclude stop-words and hiring-admin terms.
-- **missingKeywords**: important JD skill/requirement terms not yet adequately represented. Only list terms the candidate plausibly has based on the source resume. Exclude stop-words and hiring-admin terms.
+- **missingKeywords**: important JD skill/requirement terms not yet adequately represented. Only list terms the candidate plausibly has based on the source resume. Exclude stop-words and hiring-admin terms. Treat proprietary vendor platforms (e.g., Genesys Cloud) as lower priority than transferable core competencies (Cloud Technologies, Software Architecture).
 - **suggestions**: 3-5 actionable, honest improvements focused on weaving missing hard skills and methodologies into summary, skills, or bullets.
+
+## Job description skill classification (ingestion alignment)
+${JOB_SKILL_CLASSIFICATION_DIRECTIVE}
 
 ## Structured output fields
 ${RESUME_BLOCK_SCHEMA_DIRECTIVE}
@@ -569,7 +572,7 @@ ${resumeText}
 
 TASK:
 1. **Lock** the core profile from the source resume and LOCKED EXPERIENCE TIMELINE — name, companies, titles, dates, and degrees are immutable.
-2. Analyze the job description for hard skills, methodologies (Agile, Kanban, Waterfall, Scrum, SDLC, DevOps, etc.), technical tools, and multi-word competencies. Ignore conversational stop-words entirely.
+2. Analyze the job description for hard skills, methodologies (Agile, Kanban, Waterfall, Scrum, SDLC, DevOps, etc.), technical tools, and multi-word competencies. **Separate vendor/platform brand names (Genesys Cloud, Salesforce, ServiceNow) from transferable core competencies (Cloud Technologies, Distributed Systems, Software Architecture).** Classify proprietary tools as desirable/preferred — not core methodologies. Ignore conversational stop-words entirely.
 3. Identify the candidate's core professional edge from the source resume before rewriting — differentiate them from a standard applicant profile for this role.
 4. Tailor the resume using the **Executive Resume Writer** and **Resume Narrative Engine** rules: Executive Value Proposition summary with Core Expertise pipe line; Action + Scope + Business Impact bullets; side projects at full executive rigor when present. Revise summary and bullets only — never change employers, titles, dates, or invent credentials.
 5. ${ANTI_COPY_CONSTRAINT}
